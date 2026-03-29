@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "algomlb"
+version = "0.0.1"
+description = "Configuration-driven MLB quantitative betting system."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "typer",
+    "python-dotenv",
+    "apscheduler",
+    "pydantic",
+    "pydantic-settings",
+    "sqlalchemy",
+    "alembic",
+    "httpx"
+]
+
+[project.scripts]
+algomlb = "algomlb.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/algomlb"]
+
+[dependency-groups]
+dev = [
+    "complexipy",
+    "deptry",
+    "import-linter",
+    "jitsu",
+    "mdformat",
+    "pandas-stubs",
+    "pre-commit",
+    "pymarkdownlnt",
+    "pyright",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-xdist",
+    "types-pyyaml",
+    "types-requests",
+    "vulture"
+]
