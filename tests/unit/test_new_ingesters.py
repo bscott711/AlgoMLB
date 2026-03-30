@@ -450,7 +450,7 @@ def test_retrosheet_ingester_missing_date(test_session, tmp_path):
     df = pd.DataFrame([data])
     df.to_csv(csv_file, index=False)
 
-    ingester = RetrosheetIngester(test_session)
+    ingester = RetrosheetIngester(test_session, since_year=0)
     ingester.ingest_from_csv(str(csv_file))
 
     event = test_session.query(RetrosheetEventORM).first()
@@ -556,3 +556,25 @@ def test_umpire_scorecard_ingester_kaggle_no_csv(test_session, tmp_path):
         ingester.ingest_from_kaggle()
 
     assert test_session.query(UmpireScorecardORM).count() == 0
+
+
+def test_umpire_scorecard_ingester_filters_old_data(test_session, tmp_path):
+    ingester = UmpireScorecardIngester(test_session, since_year=2020)  # Filter out 2019
+    csv_file = tmp_path / "old_umpire.csv"
+    csv_file.write_text(
+        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2019-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
+    )
+
+    ingester.ingest_from_csv(str(csv_file))
+    assert test_session.query(UmpireScorecardORM).count() == 0
+
+
+def test_retrosheet_ingester_filters_old_data(test_session, tmp_path):
+    ingester = RetrosheetIngester(test_session, since_year=2020)
+    csv_file = tmp_path / "old_retro.csv"
+    csv_file.write_text(
+        "date,gid,pn,event,inning,top_bot\n20190401,ATL201904010,1,K,1,0\n"
+    )
+
+    ingester.ingest_from_csv(str(csv_file))
+    assert test_session.query(RetrosheetEventORM).count() == 0

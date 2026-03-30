@@ -207,11 +207,12 @@ def umpire_scorecards(
         None, "--csv", help="Path to umpire scorecard CSV"
     ),
     url: Optional[str] = typer.Option(None, "--url", help="Direct URL to umpire CSV"),
+    since: int = typer.Option(2019, "--since", help="Starting year for ingestion"),
 ):
     """Ingest umpire accuracy and bias data (local file, URL, or Kaggle)."""
     session_factory = get_session_factory()
     with session_factory() as session:
-        ingester = UmpireScorecardIngester(session)
+        ingester = UmpireScorecardIngester(session, since_year=since)
         if csv_path:
             ingester.ingest_from_csv(csv_path)
         elif url:
@@ -229,11 +230,12 @@ def retrosheet(
     url: Optional[str] = typer.Option(
         None, "--url", help="Direct URL to Retrosheet ZIP"
     ),
+    since: int = typer.Option(2019, "--since", help="Starting year for ingestion"),
 ):
     """Ingest Retrosheet play-by-play events (local file or URL)."""
     session_factory = get_session_factory()
     with session_factory() as session:
-        ingester = RetrosheetIngester(session)
+        ingester = RetrosheetIngester(session, since_year=since)
         if csv_path:
             ingester.ingest_from_csv(csv_path)
         else:

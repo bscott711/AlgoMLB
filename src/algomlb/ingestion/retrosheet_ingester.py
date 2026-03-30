@@ -15,37 +15,50 @@ from algomlb.core.logger import logger
 class RetrosheetIngester:
     """Ingests play-by-play events from parsed Retrosheet CSV files."""
 
-    def __init__(self, session: Session, chunk_size: int = 1000):
+    def __init__(
+        self, session: Session, chunk_size: int = 1000, since_year: int = 2019
+    ):
         self.session = session
         self.repo = DatabaseRepository(session)
         self.chunk_size = chunk_size
+        self.since_year = since_year
 
     def ingest_from_csv(self, csv_path: str):
         """
         Ingest a Retrosheet CSV file.
         Expects ALL columns from the Retrosheet play-by-play event specification.
         """
-        logger.info(f"Ingesting full Retrosheet events from {csv_path}...")
-        df = pd.read_csv(csv_path)
+        logger.info(
+            f"Ingesting Retrosheet events from {csv_path} (since {self.since_year})..."
+        )
+        # Use chunking to avoid memory issues with the massive Retrosheet file
+        for chunk in pd.read_csv(csv_path, chunksize=self.chunk_size):
+            events = []
+            for _, row in chunk.iterrows():
+                event = self._handle_row(row)
+                if event:
+                    events.append(event)
 
-        events = []
-        for i, row in df.iterrows():
-            try:
-                event = self._row_to_orm(row)
-                events.append(event)
-            except Exception as e:
-                logger.error(f"Error parsing Retrosheet row {i}: {e}")
-                continue
-
-            # Commit in chunks to avoid memory pressure or session bloat
-            if len(events) >= self.chunk_size:
+            if events:
                 self.repo.save_retrosheet_events(events)
-                events = []
-
-        if events:
-            self.repo.save_retrosheet_events(events)
 
         logger.success("Successfully processed Retrosheet file.")
+
+    def _handle_row(self, row: Any) -> Optional[RetrosheetEventORM]:
+        """Process a single row with filtering and ORM conversion."""
+        try:
+            date_val = str(row.get("date", ""))
+            year_pref = int(date_val[:4]) if date_val and date_val[:4].isdigit() else 0
+            if year_pref < self.since_year:
+                return None
+
+            event = self._row_to_orm(row)
+            if event and event.date and event.date.year >= self.since_year:
+                return event
+        except Exception as e:
+            logger.debug(f"Row filtered/skipped: {e}")
+
+        return None
 
     def ingest_from_url(self, url: str):
         """Download a ZIP file from Retrosheet, unzip, and ingest found CSVs."""

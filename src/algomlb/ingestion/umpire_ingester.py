@@ -14,9 +14,10 @@ from algomlb.core.logger import logger
 class UmpireScorecardIngester:
     """Ingests umpire efficiency data from CSV or API sources."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, since_year: int = 2019):
         self.session = session
         self.repo = DatabaseRepository(session)
+        self.since_year = since_year
 
     def ingest_from_csv(self, csv_path: str):
         """
@@ -24,12 +25,16 @@ class UmpireScorecardIngester:
         Expected columns: date, home_team, away_team, umpire_name, accuracy, consistency,
         favoritism_home, expected_runs, actual_runs
         """
-        logger.info(f"Ingesting umpire scorecards from {csv_path}...")
+        logger.info(
+            f"Ingesting umpire scorecards from {csv_path} (since {self.since_year})..."
+        )
         df = pd.read_csv(csv_path)
 
         scorecards = []
         for _, row in df.iterrows():
             game_date = pd.to_datetime(row["date"]).date()
+            if game_date.year < self.since_year:
+                continue
             home = row["home_team"]
             away = row["away_team"]
 
