@@ -177,8 +177,8 @@ class HistoricalDataLoader:
 
     def _fetch_statcast_df(self, start_date: str, end_date: str) -> pd.DataFrame:
         """Fetch Statcast data in 7-day chunks to avoid server timeouts and the pybaseball large-query warning."""
-        start = pd.to_datetime(start_date).date()
-        end = pd.to_datetime(end_date).date()
+        start = pd.to_datetime(start_date, format="%Y-%m-%d").date()
+        end = pd.to_datetime(end_date, format="%Y-%m-%d").date()
 
         total_days = (end - start).days
         if total_days <= 7:
@@ -262,8 +262,8 @@ class HistoricalDataLoader:
         if cache_path.exists():
             return self._load_statcast_cache(cache_path, start_date, end_date, persist)
 
-        start = pd.to_datetime(start_date).date()
-        end = pd.to_datetime(end_date).date()
+        start = pd.to_datetime(start_date, format="%Y-%m-%d").date()
+        end = pd.to_datetime(end_date, format="%Y-%m-%d").date()
         total_days = (end - start).days
 
         if total_days > 31:
@@ -306,7 +306,7 @@ class HistoricalDataLoader:
             if not chunk_df.empty:
                 # Apply window filter immediately to each chunk to handle bleed
                 d_series = pd.to_datetime(
-                    chunk_df["game_date"], errors="coerce"
+                    chunk_df["game_date"], format="%Y-%m-%d", errors="coerce"
                 ).dt.date
                 chunk_df = chunk_df[(d_series >= curr_start) & (d_series <= curr_end)]
 
@@ -327,9 +327,11 @@ class HistoricalDataLoader:
 
         # Apply strict window filtering
         if "game_date" in df.columns and not df.empty:
-            s_filter = pd.to_datetime(start_date).date()
-            e_filter = pd.to_datetime(end_date).date()
-            d_series = pd.to_datetime(df["game_date"], errors="coerce").dt.date
+            s_filter = pd.to_datetime(start_date, format="%Y-%m-%d").date()
+            e_filter = pd.to_datetime(end_date, format="%Y-%m-%d").date()
+            d_series = pd.to_datetime(
+                df["game_date"], format="%Y-%m-%d", errors="coerce"
+            ).dt.date
             df = df[(d_series >= s_filter) & (d_series <= e_filter)]
 
         if persist:
