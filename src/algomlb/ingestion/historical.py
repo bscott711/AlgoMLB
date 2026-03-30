@@ -234,6 +234,16 @@ class HistoricalDataLoader:
             df = self._fetch_statcast_df(start_date, end_date)
             df.to_parquet(cache_path)
 
+        # Pybaseball cache artifacts can bleed dates. Apply strict window filtering.
+        if "game_date" in df.columns and not df.empty:
+            start = pd.to_datetime(start_date).date()
+            end = pd.to_datetime(end_date).date()
+            # Coerce errors to handle malformed dates in test data, specify format for performance/warning fix
+            date_series = pd.to_datetime(
+                df["game_date"], errors="coerce", format="%Y-%m-%d"
+            ).dt.date
+            df = df[(date_series >= start) & (date_series <= end)]
+
         if persist:
             self._persist_pitch_events(df)
 

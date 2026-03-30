@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "algomlb"
-version = "0.0.2"
+version = "0.0.3"
 description = "Configuration-driven MLB quantitative betting system."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -29,6 +29,7 @@ dependencies = [
     "numpy>=2.4.4",
     "alembic>=1.14.0",
     "python-dotenv>=1.0.1",
+    "plotly>=6.6.0",
 ]
 
 [project.scripts]

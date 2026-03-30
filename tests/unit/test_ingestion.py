@@ -340,7 +340,7 @@ def test_historical_loader_statcast(tmp_path: Path):
             {
                 "game_date": ["bad_date", "2023-04-01", "2023-04-01"],
                 "game_pk": [999, 601.0, 601.0],
-                "pitcher": [1, 1, 1],
+                "pitcher": [1, None, 1],  # None triggers exception in persist
                 "batter": [4, 2, 3],
                 "release_speed": [90.0, 95.0, 94.0],
             }
@@ -349,14 +349,15 @@ def test_historical_loader_statcast(tmp_path: Path):
 
         result_df = loader.fetch_statcast("2023-04-01", "2023-04-01")
 
-        assert len(result_df) == 3
+        # "bad_date" is filtered out by strict date windowing
+        assert len(result_df) == 2
         assert repo.save_pitch_events.called
         events = repo.save_pitch_events.call_args[0][0]
-        # 'bad_date' should trigger the except block (Line 145-146)
-        assert len(events) == 2
+        # Only 1 event: "bad_date" filtered out, None failed persistence
+        assert len(events) == 1
 
-        # Test cache hit (Line 98)
+        # Test cache hit
         mock_statcast.reset_mock()
         result_df_cached = loader.fetch_statcast("2023-04-01", "2023-04-01")
-        assert len(result_df_cached) == 3
+        assert len(result_df_cached) == 2
         mock_statcast.assert_not_called()
