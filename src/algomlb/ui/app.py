@@ -7,9 +7,11 @@ pages = {
     "Live Analytics": [
         st.Page("views/picks.py", title="Live Model Picks", icon="🔮"),
         st.Page("views/bankroll.py", title="Bankroll & Performance", icon="💰"),
+        st.Page("views/market.py", title="Market Analytics", icon="📈"),
     ],
     "ML Engineering": [
         st.Page("views/optuna.py", title="Optuna Studies", icon="🧪"),
+        st.Page("views/stats.py", title="Player Performance", icon="⚾"),
     ],
     "System Health": [
         st.Page("views/data.py", title="Data & Ingest Health", icon="📡"),
