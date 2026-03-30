@@ -1,7 +1,7 @@
 import datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, Float, Integer, String
+from sqlalchemy import Date, DateTime, Enum, Float, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from algomlb.db.session import Base
@@ -72,8 +72,17 @@ class PitchEventORM(Base):
     """Statcast pitch-level data; one row per pitch."""
 
     __tablename__ = "pitch_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "at_bat_number",
+            "pitch_number",
+            name="uq_pitch_events_game_ab_pitch",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    at_bat_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     pitcher_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

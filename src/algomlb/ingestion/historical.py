@@ -1,13 +1,16 @@
 import datetime
+import warnings
 from pathlib import Path
 
 import pandas as pd
 import pybaseball  # type: ignore
 from loguru import logger
 
-
 from algomlb.db.repository import DatabaseRepository
 from algomlb.db.models import HistoricalDataORM, PitchEventORM
+
+# Suppress pybaseball pandas datetime FutureWarnings
+warnings.filterwarnings("ignore", category=FutureWarning, module=".*pybaseball.*")
 
 
 class HistoricalDataLoader:
@@ -167,10 +170,13 @@ class HistoricalDataLoader:
             effective_speed=float(row.get("effective_speed"))  # type: ignore
             if not pd.isna(row.get("effective_speed"))
             else None,
-            pitch_number=int(row.get("pitch_number"))  # type: ignore
+            pitch_number=int(row.get("pitch_number", 0))
             if not pd.isna(row.get("pitch_number"))
             else None,
-            inning=int(row.get("inning"))  # type: ignore
+            at_bat_number=int(row.get("at_bat_number", 0))
+            if not pd.isna(row.get("at_bat_number"))
+            else None,
+            inning=int(row.get("inning", 0))  # type: ignore
             if not pd.isna(row.get("inning"))
             else None,
             zone=int(row.get("zone"))  # type: ignore

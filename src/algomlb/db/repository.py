@@ -98,8 +98,24 @@ class DatabaseRepository:
         return tx
 
     def save_pitch_events(self, events: List[PitchEventORM]) -> None:
-        """Bulk save pitch events manually (simple version for now)."""
-        self.session.add_all(events)
+        """Bulk save pitch events using PostgreSQL UPSERT."""
+        if not events:
+            return
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        from algomlb.db.models import PitchEventORM
+
+        # Convert ORM objects to dicts for bulk UPSERT
+        rows_as_dicts = [
+            {k: v for k, v in evt.__dict__.items() if not k.startswith("_")}
+            for evt in events
+        ]
+
+        stmt = pg_insert(PitchEventORM).values(rows_as_dicts)
+        stmt = stmt.on_conflict_do_nothing(
+            index_elements=["game_id", "at_bat_number", "pitch_number"]
+        )
+        self.session.execute(stmt)
         self.session.commit()
 
     def save_historical_data(self, data: List[HistoricalDataORM]) -> None:

@@ -163,7 +163,14 @@ def test_save_pitch_events(test_session: Session) -> None:
     from sqlalchemy import select
 
     retrieved = test_session.execute(select(PitchEventORM)).scalars().all()
+    retrieved = test_session.execute(select(PitchEventORM)).scalars().all()
     assert len(retrieved) == 2
+
+
+def test_save_pitch_events_empty(test_session: Session) -> None:
+    """Test saving empty list of pitch events returns early."""
+    repo = DatabaseRepository(test_session)
+    repo.save_pitch_events([])
 
 
 def test_save_historical_data(test_session: Session) -> None:
