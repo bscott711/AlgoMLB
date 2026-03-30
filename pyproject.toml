@@ -51,8 +51,8 @@ root_package = "algomlb"
 name = "Unidirectional Import Ladder"
 type = "layers"
 layers = [
-    "ui",
     "cli",
+    "ui",
     "social",
     "execution",
     "strategy",
