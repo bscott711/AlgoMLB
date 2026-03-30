@@ -9,11 +9,8 @@ runner = CliRunner()
 
 
 @patch("algomlb.cli.ingest.IngestionOrchestrator")
-@patch("algomlb.cli.ingest.create_db_engine")
 @patch("algomlb.cli.ingest.get_session_factory")
-def test_ingest_odds_command(
-    mock_session_factory, mock_engine, mock_orchestrator_class
-):
+def test_ingest_odds_command(mock_session_factory, mock_orchestrator_class):
     """Test the 'ingest odds' CLI command outputs correctly in agent mode."""
     # Setup mocks
     mock_orchestrator = mock_orchestrator_class.return_value
@@ -39,11 +36,8 @@ def test_ingest_odds_command(
 
 
 @patch("algomlb.cli.ingest.IngestionOrchestrator")
-@patch("algomlb.cli.ingest.create_db_engine")
 @patch("algomlb.cli.ingest.get_session_factory")
-def test_ingest_schedule_command(
-    mock_session_factory, mock_engine, mock_orchestrator_class
-):
+def test_ingest_schedule_command(mock_session_factory, mock_orchestrator_class):
     """Test the 'ingest schedule' CLI command outputs correctly in agent mode."""
     # Setup mocks
     mock_orchestrator = mock_orchestrator_class.return_value
@@ -69,11 +63,8 @@ def test_ingest_schedule_command(
 
 
 @patch("algomlb.cli.ingest.IngestionOrchestrator")
-@patch("algomlb.cli.ingest.create_db_engine")
 @patch("algomlb.cli.ingest.get_session_factory")
-def test_ingest_odds_no_agent_mode(
-    mock_session_factory, mock_engine, mock_orchestrator_class
-):
+def test_ingest_odds_no_agent_mode(mock_session_factory, mock_orchestrator_class):
     """Test 'ingest odds' CLI command outputs to stderr (verified via result.stderr if available)."""
     mock_orchestrator = mock_orchestrator_class.return_value
     mock_orchestrator.run_odds_ingestion.return_value = 15

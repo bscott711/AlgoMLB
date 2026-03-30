@@ -24,10 +24,27 @@ class DatabaseRepository:
 
     def save_live_odds(self, odds: Odds) -> Odds:
         """Add a new point-in-time odds snapshot."""
+        from algomlb.db.models import GameResultORM
+
+        game = (
+            self.session.query(GameResultORM)
+            .filter_by(
+                home_team=odds.home_team,
+                away_team=odds.away_team,
+                game_date=odds.game_date,
+            )
+            .first()
+        )
+
         orm = LiveOddsORM(
-            game_id=odds.game_id,
+            odds_game_id=odds.odds_game_id,
+            home_team=odds.home_team,
+            away_team=odds.away_team,
+            game_date=odds.game_date,
+            game_result_id=game.game_id if game else None,
             sportsbook=odds.sportsbook,
-            market=odds.market,
+            market_type=odds.market_type,
+            outcome=odds.outcome,
             price=odds.price,
             timestamp=odds.timestamp,
         )
@@ -35,9 +52,9 @@ class DatabaseRepository:
         self.session.commit()
         return odds
 
-    def get_live_odds(self, game_id: str) -> List[Odds]:
+    def get_live_odds(self, odds_game_id: str) -> List[Odds]:
         """Retrieve all odds snapshots for a specific game."""
-        stmt = select(LiveOddsORM).where(LiveOddsORM.game_id == game_id)
+        stmt = select(LiveOddsORM).where(LiveOddsORM.odds_game_id == odds_game_id)
         results = self.session.execute(stmt).scalars().all()
         return [Odds.model_validate(orm, from_attributes=True) for orm in results]
 

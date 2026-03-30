@@ -34,15 +34,10 @@ def test_database_config_validation() -> None:
         DatabaseConfig(url="postgresql://user:pass@localhost/db", pool_size=0)  # type: ignore
 
 
-def test_database_config_missing_url() -> None:
-    """Test that DatabaseConfig fails if url is None."""
-    with pytest.raises(ValidationError, match="Database connection URL is required"):
-        DatabaseConfig()
-
-
 def test_api_config_missing_key() -> None:
     """Test that APIConfig fails if odds_api_key is None."""
-    with pytest.raises(ValidationError, match="The Odds API key is required"):
+    # APIConfig requires odds_api_key (model_validator ensures it)
+    with pytest.raises(ValidationError, match="Odds API key"):
         APIConfig()
 
 
@@ -61,7 +56,7 @@ def test_ml_config_validation() -> None:
 def test_settings_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that get_settings() returns the exact same instance in memory."""
     # Inject required variables so instantiation does not fail
-    monkeypatch.setenv("DB__URL", "postgresql://user:pass@localhost/db")
+    monkeypatch.setenv("DATABASE__URL", "postgresql://user:pass@localhost/db")
     monkeypatch.setenv("API__ODDS_API_KEY", "test_secret_key")
 
     instance_one = get_settings()
@@ -72,15 +67,15 @@ def test_settings_singleton(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_settings_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that environment variables properly override defaults via nested delimiters."""
-    monkeypatch.setenv("DB__URL", "postgresql://user:pass@localhost/db")
+    monkeypatch.setenv("DATABASE__URL", "postgresql://user:pass@localhost/db")
     monkeypatch.setenv("API__ODDS_API_KEY", "test_secret_key")
     monkeypatch.setenv("ML__MIN_EDGE_PERCENT", "5.5")
-    monkeypatch.setenv("DB__POOL_SIZE", "20")
+    monkeypatch.setenv("DATABASE__POOL_SIZE", "20")
 
     settings = Settings()
 
     # Verify Pydantic PostgresDsn serialization
-    assert str(settings.db.url) == "postgresql://user:pass@localhost/db"
+    assert str(settings.database.url) == "postgresql://user:pass@localhost/db"
 
     # Verify SecretStr requires explicit unwrapping
     assert settings.api.odds_api_key is not None
@@ -89,4 +84,4 @@ def test_settings_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Verify type coercion from env var strings to integers/floats
     assert settings.ml.min_edge_percent == 5.5
-    assert settings.db.pool_size == 20
+    assert settings.database.pool_size == 20

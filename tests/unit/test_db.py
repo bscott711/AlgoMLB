@@ -9,7 +9,6 @@ from algomlb.db import (
     HistoricalDataORM,
     PitchEventORM,
     create_db_engine,
-    get_session_factory,
 )
 from algomlb.domain import (
     BankrollTransaction,
@@ -26,7 +25,11 @@ def test_session():
     engine = create_db_engine("sqlite:///:memory:")
     # Create all tables defined in models.py which are registered with Base
     Base.metadata.create_all(engine)
-    session_factory = get_session_factory(engine)
+    from sqlalchemy.orm import sessionmaker
+
+    session_factory = sessionmaker(
+        bind=engine, autoflush=False, autocommit=False, expire_on_commit=False
+    )
     with session_factory() as session:
         yield session
     Base.metadata.drop_all(engine)
@@ -64,16 +67,24 @@ def test_save_and_get_live_odds(test_session: Session) -> None:
     now = datetime.now(UTC)
 
     odds1 = Odds(
-        game_id=game_id,
+        odds_game_id=game_id,
+        home_team="Team A",
+        away_team="Team B",
+        game_date=now.date(),
         sportsbook="DraftKings",
-        market="moneyline",
+        market_type="moneyline",
+        outcome="Team A",
         price=1.91,
         timestamp=now,
     )
     odds2 = Odds(
-        game_id=game_id,
+        odds_game_id=game_id,
+        home_team="Team A",
+        away_team="Team B",
+        game_date=now.date(),
         sportsbook="FanDuel",
-        market="moneyline",
+        market_type="moneyline",
+        outcome="Team A",
         price=1.95,
         timestamp=now,
     )
@@ -172,3 +183,22 @@ def test_save_historical_data(test_session: Session) -> None:
 
     retrieved = test_session.execute(select(HistoricalDataORM)).scalars().all()
     assert len(retrieved) == 2
+
+
+def test_create_db_engine_with_config():
+    """Verify create_db_engine handles DatabaseConfig objects."""
+    from algomlb.config.settings import DatabaseConfig
+    from algomlb.db.session import create_db_engine
+    from typing import cast
+    from pydantic import PostgresDsn
+
+    config = DatabaseConfig(
+        url=cast(PostgresDsn, "postgresql://user:pass@localhost/db"),
+        echo=True,
+        pool_size=10,
+    )
+    # Don't actually call connect, just check engine url
+    engine = create_db_engine(url=config)
+    # Pydantic masks the password from the DSN with ***
+    assert str(engine.url) == "postgresql://user:***@localhost/db"
+    assert engine.echo is True

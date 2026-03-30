@@ -1,4 +1,5 @@
 from typing import Self
+from dotenv import load_dotenv
 from pydantic import Field, PostgresDsn, SecretStr, model_validator
 from pydantic_settings import (
     BaseSettings,
@@ -14,16 +15,31 @@ class DatabaseConfig(BaseSettings):
     url: PostgresDsn | None = Field(
         default=None, description="PostgreSQL connection string"
     )
+    host: str = Field(default="localhost", description="PostgreSQL host")
+    port: int = Field(default=5432, description="PostgreSQL port")
+    user: str = Field(default="postgres", description="PostgreSQL user")
+    password: SecretStr | None = Field(default=None, description="PostgreSQL password")
+    name: str = Field(default="algomlb", description="PostgreSQL database name")
+
     echo: bool = Field(default=False, description="Enable SQLAlchemy query logging")
     pool_size: int = Field(default=5, ge=1, description="Connection pool size")
 
     @model_validator(mode="after")
-    def validate_required_settings(self) -> Self:
-        """Enforce required fields that are otherwise optional to allow for 0-arg instantiation."""
-        if self.url is None:
-            raise ValueError(
-                "Database connection URL is required. Set DB__URL env variable."
-            )
+    def validate_and_sync_settings(self) -> Self:
+        """
+        Enforce required settings and populate individual components from the URL if provided.
+        """
+        if self.url:
+            # Sync individual fields from the URL for convenience
+            hosts = self.url.hosts()
+            if hosts:
+                self.host = hosts[0].get("host") or self.host
+                self.port = hosts[0].get("port") or self.port
+                self.user = hosts[0].get("username") or self.user
+            if self.url.path:
+                self.name = self.url.path.lstrip("/")
+        # If no URL, we rely on the host, user, name which have defaults but
+        # we can still enforce some logic here if needed.
         return self
 
 
@@ -65,7 +81,7 @@ class Settings(BaseSettings):
         default="development", description="Current execution environment"
     )
 
-    db: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
 
@@ -105,5 +121,6 @@ def get_settings() -> Settings:
     """Retrieve the validated application settings. Acts as a singleton."""
     global _settings
     if _settings is None:
+        load_dotenv()
         _settings = Settings()
     return _settings

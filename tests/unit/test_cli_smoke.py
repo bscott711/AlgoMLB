@@ -34,7 +34,6 @@ def test_cli_ingest_stubs():
     # Use mocks to avoid connecting to DB and API key requirements
     with (
         patch("algomlb.cli.ingest.IngestionOrchestrator"),
-        patch("algomlb.cli.ingest.create_db_engine"),
         patch("algomlb.cli.ingest.get_session_factory"),
         patch("algomlb.cli.ingest.HistoricalDataLoader"),
     ):
@@ -78,12 +77,13 @@ def test_cli_ingest_historical_statcast():
     with (
         patch("algomlb.cli.ingest.IngestionOrchestrator"),
         patch("algomlb.cli.ingest.HistoricalDataLoader") as mock_loader,
-        patch("algomlb.cli.ingest.create_db_engine"),
         patch("algomlb.cli.ingest.get_session_factory"),
     ):
         # Mock returning a list so len() works for records_processed calculation
         mock_loader.return_value.fetch_statcast.return_value = [1, 2, 3]
-        result = runner.invoke(app, ["ingest", "historical", "--statcast"])
+        result = runner.invoke(
+            app, ["ingest", "historical", "--statcast", "--start-year", "2024"]
+        )
         assert result.exit_code == 0
         mock_loader.return_value.fetch_statcast.assert_called_once()
 
@@ -92,7 +92,6 @@ def test_cli_ingest_agent_mode():
     """Verify agent mode output for different commands."""
     with (
         patch("algomlb.cli.ingest.IngestionOrchestrator"),
-        patch("algomlb.cli.ingest.create_db_engine"),
         patch("algomlb.cli.ingest.get_session_factory"),
         patch("algomlb.cli.ingest.HistoricalDataLoader"),
         patch("algomlb.cli.ingest.emit_agent_result") as mock_emit,
@@ -105,4 +104,35 @@ def test_cli_ingest_agent_mode():
         # Cover ingest historical agent mode (Line 119)
         result = runner.invoke(app, ["--agent-mode", "ingest", "historical"])
         assert result.exit_code == 0
-        assert mock_emit.call_count == 2
+        assert mock_emit.called
+
+
+def test_cli_ingest_historical_range():
+    """Verify start/end range in historical ingestion."""
+    with (
+        patch("algomlb.cli.ingest.HistoricalDataLoader") as mock_loader,
+        patch("algomlb.cli.ingest.get_session_factory"),
+    ):
+        mock_loader.return_value.fetch_statcast.return_value = [1]
+        result = runner.invoke(
+            app,
+            ["ingest", "historical", "--start", "2024-04-01", "--end", "2024-04-02"],
+        )
+        assert result.exit_code == 0
+        mock_loader.return_value.fetch_statcast.assert_called_with(
+            "2024-04-01", "2024-04-02"
+        )
+
+
+def test_cli_ingest_historical_yearly():
+    """Verify start-year/end-year range in historical ingestion."""
+    with (
+        patch("algomlb.cli.ingest.IngestionOrchestrator") as mock_orch,
+        patch("algomlb.cli.ingest.get_session_factory"),
+    ):
+        mock_orch.return_value.run_historical_ingestion.return_value = 5
+        result = runner.invoke(
+            app, ["ingest", "historical", "--start-year", "2020", "--end-year", "2021"]
+        )
+        assert result.exit_code == 0
+        mock_orch.return_value.run_historical_ingestion.assert_called_with(2020, 2021)

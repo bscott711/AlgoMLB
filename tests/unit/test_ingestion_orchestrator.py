@@ -22,9 +22,28 @@ def test_run_odds_ingestion(mock_dependencies):
     )
 
     # Mock return value
+    d = datetime.date(2026, 3, 30)
     mock_odds = [
-        Odds(game_id="g1", sportsbook="sb1", market="h2h:A", price=1.9),
-        Odds(game_id="g1", sportsbook="sb1", market="h2h:H", price=2.0),
+        Odds(
+            odds_game_id="g1",
+            home_team="Home",
+            away_team="Away",
+            game_date=d,
+            sportsbook="sb1",
+            market_type="h2h",
+            outcome="A",
+            price=1.9,
+        ),
+        Odds(
+            odds_game_id="g1",
+            home_team="Home",
+            away_team="Away",
+            game_date=d,
+            sportsbook="sb1",
+            market_type="h2h",
+            outcome="H",
+            price=2.0,
+        ),
     ]
     odds_client.fetch_live_odds.return_value = mock_odds
 

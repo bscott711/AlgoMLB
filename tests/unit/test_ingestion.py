@@ -53,6 +53,7 @@ def test_odds_api_client_parsing(mock_settings):
         {
             "id": "game_1",
             "sport_key": "baseball_mlb",
+            "commence_time": "2026-03-30T19:07:00Z",
             "bookmakers": [
                 {
                     "key": "draftkings",
@@ -68,7 +69,13 @@ def test_odds_api_client_parsing(mock_settings):
                     ],
                 }
             ],
-        }
+        },
+        {
+            "id": "game_2",
+            "sport_key": "baseball_mlb",
+            "commence_time": "bad_date",
+            "bookmakers": [],
+        },
     ]
 
     respx.get("https://api.odds.test/v4/sports/baseball_mlb/odds/").mock(
@@ -77,10 +84,118 @@ def test_odds_api_client_parsing(mock_settings):
 
     odds_list = client.fetch_live_odds()
     assert len(odds_list) == 2
-    assert odds_list[0].game_id == "game_1"
+    assert odds_list[0].odds_game_id == "game_1"
     assert odds_list[0].sportsbook == "DraftKings"
-    assert "h2h:Away Team" in odds_list[0].market
+    assert odds_list[0].market_type == "h2h"
+    assert odds_list[0].outcome == "Away Team"
     assert odds_list[0].price == 1.91
+
+
+def test_circuit_breaker():
+    """Verify circuit breaker opens after failures."""
+    from algomlb.ingestion.http_client import CircuitBreaker
+
+    cb = CircuitBreaker(failure_threshold=2)
+    assert cb.is_available() is True
+    cb.record_failure()
+    assert cb.is_available() is True
+    cb.record_failure()
+    assert cb.is_available() is False
+    # Manually transition to HALF_OPEN to test recovery
+    cb.state = "HALF_OPEN"
+    cb.record_success()
+    assert cb.is_available() is True
+    assert cb.state == "CLOSED"
+    assert cb.failure_count == 0
+
+
+def test_historical_loader_persist_empty():
+    """Verify empty DataFrame handling."""
+    from algomlb.ingestion.historical import HistoricalDataLoader
+    from unittest.mock import MagicMock
+
+    mock_repo = MagicMock()
+    loader = HistoricalDataLoader(repo=mock_repo)
+    loader._persist_pitch_events(pd.DataFrame())
+    loader._validate_completeness(pd.DataFrame(), ["era"])
+    assert not mock_repo.save_pitch_events.called
+
+
+def test_historical_loader_validate_completeness():
+    """Verify completeness validation logic."""
+    from algomlb.ingestion.historical import HistoricalDataLoader
+    from unittest.mock import MagicMock
+
+    loader = HistoricalDataLoader(repo=MagicMock())
+    # > 20% NaNs
+    df = pd.DataFrame({"era": [1.0, 2.0, 3.0, None, None]})
+    with pytest.raises(ValueError, match="Excessive NaNs detected in era"):
+        loader._validate_completeness(df, ["era"])
+
+
+def test_circuit_breaker_open_runtime_error():
+    """Verify _request throws RuntimeError when circuit breaker is OPEN."""
+    from algomlb.ingestion.http_client import BaseAPIClient
+    import time
+
+    client = BaseAPIClient(base_url="https://api.test")
+    client._circuit_breaker.state = "OPEN"
+    client._circuit_breaker.last_failure_time = time.time() + 9999.0
+    with pytest.raises(RuntimeError, match="Circuit breaker is OPEN"):
+        client._request("GET", "/")
+
+
+def test_api_client_failure_record(respx_mock):
+    """Verify HTTP failure records in circuit breaker."""
+    from algomlb.ingestion.http_client import BaseAPIClient
+    import httpx
+
+    url = "https://api.test/error"
+    respx_mock.get(url).mock(return_value=httpx.Response(500))
+
+    client = BaseAPIClient(base_url="https://api.test")
+    with pytest.raises(httpx.HTTPStatusError):
+        client._request("GET", "/error")
+
+    # 3 retries = 3 failure records
+    assert client._circuit_breaker.failure_count == 3
+
+
+def test_historical_loader_parse_date_string():
+    """Verify date parsing formats."""
+    from algomlb.ingestion.historical import HistoricalDataLoader
+    from unittest.mock import MagicMock
+    import datetime
+
+    loader = HistoricalDataLoader(repo=MagicMock())
+    row = pd.Series({"game_date": "2024-04-01", "pitcher": 123, "batter": 456})
+    event = loader._row_to_pitch_event(row, pd.Timestamp("2024-04-01").date())
+    assert event.game_date.year == 2024
+
+    # Test datetime.datetime and datetime.date persistence parsing
+    df2 = pd.DataFrame(
+        [{"game_date": datetime.datetime(2024, 4, 1), "pitcher": 123, "batter": 456}]
+    )
+    loader._persist_pitch_events(df2)
+    df3 = pd.DataFrame(
+        [{"game_date": datetime.date(2024, 4, 1), "pitcher": 123, "batter": 456}]
+    )
+    loader._persist_pitch_events(df3)
+
+
+def test_circuit_breaker_half_open_logic():
+    """Verify HALF_OPEN status transition."""
+    from algomlb.ingestion.http_client import CircuitBreaker
+    import time
+
+    cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01)
+    cb.record_failure()
+    assert cb.state == "OPEN"
+    assert cb.is_available() is False
+
+    time.sleep(0.02)
+    assert cb.is_available() is True
+    assert cb.state == "HALF_OPEN"
 
 
 def test_odds_api_client_missing_key():
@@ -223,11 +338,11 @@ def test_historical_loader_statcast(tmp_path: Path):
     with patch("pybaseball.statcast") as mock_statcast:
         df = pd.DataFrame(
             {
-                "game_date": ["2023-04-01", "2023-04-01", "bad_date"],
-                "game_pk": [601.0, 601.0, 999],
+                "game_date": ["bad_date", "2023-04-01", "2023-04-01"],
+                "game_pk": [999, 601.0, 601.0],
                 "pitcher": [1, 1, 1],
-                "batter": [2, 3, 4],
-                "release_speed": [95.0, 94.0, 90.0],
+                "batter": [4, 2, 3],
+                "release_speed": [90.0, 95.0, 94.0],
             }
         )
         mock_statcast.return_value = df

@@ -2,7 +2,7 @@ import typer
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
 from algomlb.db.repository import DatabaseRepository
-from algomlb.db.session import create_db_engine, get_session_factory
+from algomlb.db.session import get_session_factory
 from algomlb.ingestion import (
     IngestionOrchestrator,
     MLBStatsAPIClient,
@@ -19,8 +19,7 @@ def odds(ctx: typer.Context):
     agent_mode = ctx.obj.get("agent_mode", False)
 
     # Setup Infrastructure
-    engine = create_db_engine()
-    session_factory = get_session_factory(engine)
+    session_factory = get_session_factory()
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -51,8 +50,7 @@ def schedule(ctx: typer.Context):
     agent_mode = ctx.obj.get("agent_mode", False)
 
     # Setup Infrastructure
-    engine = create_db_engine()
-    session_factory = get_session_factory(engine)
+    session_factory = get_session_factory()
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -80,16 +78,27 @@ def schedule(ctx: typer.Context):
 @app.command()
 def historical(
     ctx: typer.Context,
-    start_year: int = typer.Option(2023, help="Start year for historical data"),
-    end_year: int = typer.Option(2023, help="End year for historical data"),
-    statcast: bool = typer.Option(False, help="In addition, fetch Statcast pitch data"),
+    start_year: int = typer.Option(
+        None, "--start-year", help="Start year for historical stats"
+    ),
+    end_year: int = typer.Option(
+        None, "--end-year", help="End year for historical stats"
+    ),
+    start: str = typer.Option(
+        None, "--start", help="Start date (YYYY-MM-DD) for Statcast data"
+    ),
+    end: str = typer.Option(
+        None, "--end", help="End date (YYYY-MM-DD) for Statcast data"
+    ),
+    statcast: bool = typer.Option(
+        False, "--statcast", help="Fetch Statcast data if enabled"
+    ),
 ):
-    """Fetch historical MLB stats (pitching/batting) and persist to DB."""
+    """Fetch historical MLB stats (pitching/batting/statcast) and persist to DB."""
     agent_mode = ctx.obj.get("agent_mode", False)
 
     # Setup Infrastructure
-    engine = create_db_engine()
-    session_factory = get_session_factory(engine)
+    session_factory = get_session_factory()
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -100,15 +109,28 @@ def historical(
             repo, odds_client, stats_client, historical_loader
         )
 
-        logger.info(f"Starting historical ingestion for {start_year}-{end_year}...")
-        records_processed = orchestrator.run_historical_ingestion(start_year, end_year)
+        records_processed = 0
 
-        if statcast:
-            logger.info(f"Fetching Statcast data for {start_year}...")
-            # For brevity, fetch opening month of the start year
-            s_df = historical_loader.fetch_statcast(
-                f"{start_year}-04-01", f"{start_year}-04-30"
+        # Handle Yearly Aggregate Stats
+        if start_year and end_year:
+            logger.info(f"Starting historical ingestion for {start_year}-{end_year}...")
+            records_processed += orchestrator.run_historical_ingestion(
+                start_year, end_year
             )
+
+        # Handle Pitch-Level Statcast Data
+        if start and end:
+            logger.info(f"Fetching pitch-level Statcast data from {start} to {end}...")
+            s_df = historical_loader.fetch_statcast(start, end)
+            records_processed += len(s_df)
+        elif statcast and start_year:
+            # Fallback backward compatibility for statcast month pull
+            start_date = f"{start_year}-04-01"
+            end_date = f"{start_year}-04-30"
+            logger.info(
+                f"Fetching Statcast data for {start_year} (defaults to April)..."
+            )
+            s_df = historical_loader.fetch_statcast(start_date, end_date)
             records_processed += len(s_df)
 
         logger.success(

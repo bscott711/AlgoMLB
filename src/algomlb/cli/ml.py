@@ -9,7 +9,7 @@ import typer
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
 from algomlb.db.repository import DatabaseRepository
-from algomlb.db.session import create_db_engine, get_session_factory
+from algomlb.db.session import get_session_factory
 from algomlb.ml import FeaturePipeline, MLBModel
 from algomlb.ingestion.historical import HistoricalDataLoader
 
@@ -30,8 +30,7 @@ def fetch_history(
     agent_mode = ctx.obj.get("agent_mode", False)
 
     # Setup Infrastructure
-    engine = create_db_engine()
-    session_factory = get_session_factory(engine)
+    session_factory = get_session_factory()
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -63,8 +62,7 @@ def fetch_history(
 def train(ctx: typer.Context) -> None:
     """Train the baseline model using cached feature matrices."""
     # Setup Infrastructure
-    engine = create_db_engine()
-    session_factory = get_session_factory(engine)
+    session_factory = get_session_factory()
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -78,25 +76,46 @@ def train(ctx: typer.Context) -> None:
         logger.error(f"Failed to load cached stats: {e}")
         raise typer.Exit(code=1)
 
-    teams = (
-        pitching_df["team"].unique() if "team" in pitching_df.columns else ["A", "B"]
-    )
+    # Determine available teams and pitchers
+    # Use fallback if columns missing
+    has_team = "team" in pitching_df.columns and "team" in batting_df.columns
+    has_player = "player_id" in pitching_df.columns
+
+    teams = list(pitching_df["team"].unique()) if has_team else ["NYY", "BOS"]
+    # Ensure at least 2 teams for random sampling
+    if len(teams) < 2:
+        teams = ["NYY", "BOS"]
+
+    player_ids = list(pitching_df["player_id"].unique()) if has_player else []
+    # Ensure at least some pitcher IDs exist for dummy games
+    if not player_ids:
+        player_ids = [1, 2]
+
     games_data = []
     for _ in range(100):
-        h_team, a_team = random.sample(list(teams), 2)
+        h_team, a_team = random.sample(teams, 2)
         games_data.append(
             {
                 "team_h": h_team,
                 "team_a": a_team,
-                "home_win": random.choice([0, 1]),
+                "home_pitcher_id": random.choice(player_ids),
+                "away_pitcher_id": random.choice(player_ids),
+                "home_score": random.randint(0, 10),
+                "away_score": random.randint(0, 10),
                 "game_id": f"g_{random.randint(1000, 9999)}",
                 "date": "2024-04-01",
             }
         )
     games_df = pd.DataFrame(games_data)
 
+    # Prepare historical baseline
+    if has_team:
+        stats_df = pitching_df.merge(batting_df, on="team")
+    else:
+        stats_df = pd.concat([pitching_df, batting_df], axis=1)
+
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_training_matrix(games_df, pitching_df, batting_df)
+    X, y = pipeline.build_training_matrix(games_df, stats_df)
 
     model = MLBModel(n_estimators=50, max_depth=3)
     model.train(X, y)

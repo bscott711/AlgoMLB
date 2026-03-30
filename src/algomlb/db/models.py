@@ -14,9 +14,16 @@ class LiveOddsORM(Base):
     __tablename__ = "live_odds"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    odds_game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    home_team: Mapped[str] = mapped_column(String(50), nullable=False)
+    away_team: Mapped[str] = mapped_column(String(50), nullable=False)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    game_result_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
     sportsbook: Mapped[str] = mapped_column(String(50), nullable=False)
-    market: Mapped[str] = mapped_column(String(50), nullable=False)
+    market_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(100), nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
     timestamp: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
@@ -79,6 +86,19 @@ class PitchEventORM(Base):
     plate_z: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     launch_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     launch_angle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Added Statcast Features
+    pitch_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    stand: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
+    p_throws: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    events: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    release_extension: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    effective_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pitch_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    inning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    zone: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
 class GameResultORM(Base):

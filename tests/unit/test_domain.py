@@ -58,15 +58,63 @@ def test_odds_creation() -> None:
     """Test valid Odds creation."""
     now = datetime.now(UTC)
     odds = Odds(
-        game_id="20260330NYYTOR",
+        odds_game_id="20260330NYYTOR",
+        home_team="Team A",
+        away_team="Team B",
+        game_date=now.date(),
         sportsbook="DraftKings",
-        market="moneyline",
+        market_type="moneyline",
+        outcome="Team A",
         price=1.91,
         timestamp=now,
     )
     assert odds.price == 1.91
     assert odds.timestamp == now
     assert odds.sportsbook == "DraftKings"
+    assert odds.implied_probability == pytest.approx(1 / 1.91)
+    assert odds.american_odds == -110
+
+
+def test_odds_american_various_prices() -> None:
+    """Test American odds calculations for edge cases."""
+    now = datetime.now(UTC)
+    d = now.date()
+    o1 = Odds(
+        odds_game_id="1",
+        home_team="Team A",
+        away_team="Team B",
+        game_date=d,
+        sportsbook="SB",
+        market_type="h2h",
+        outcome="A",
+        price=2.50,
+    )
+    assert o1.american_odds == 150
+
+    o2 = Odds(
+        odds_game_id="2",
+        home_team="Team A",
+        away_team="Team B",
+        game_date=d,
+        sportsbook="SB",
+        market_type="h2h",
+        outcome="A",
+        price=1.0,
+    )
+    assert o2.implied_probability == 1.0
+    assert o2.american_odds == -10000
+
+    o3 = Odds(
+        odds_game_id="3",
+        home_team="Team A",
+        away_team="Team B",
+        game_date=d,
+        sportsbook="SB",
+        market_type="h2h",
+        outcome="A",
+        price=1.01,
+    )
+    assert o3.american_odds == -10000
 
 
 def test_bankroll_transaction_creation() -> None:

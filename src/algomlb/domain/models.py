@@ -36,17 +36,33 @@ class Odds(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    game_id: str = Field(..., description="Reference to the Game ID")
+    odds_game_id: str = Field(..., description="The Odds API internal hash")
+    home_team: str = Field(..., min_length=2, max_length=50)
+    away_team: str = Field(..., min_length=2, max_length=50)
+    game_date: datetime.date = Field(..., description="Date of the game")
     sportsbook: str = Field(..., min_length=2, max_length=50)
-    market: str = Field(
+    market_type: str = Field(
         ..., description="Market type (e.g., moneyline, runline, total)"
     )
-    price: float = Field(
-        ..., description="The odds price (e.g., decimal 1.91 or American -110)"
-    )
+    outcome: str = Field(..., description="Outcome (e.g., Team Name, Over, Under)")
+    price: float = Field(..., description="The odds price (e.g., decimal 1.91)")
     timestamp: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )
+
+    @property
+    def implied_probability(self) -> float:
+        if self.price <= 1.0:
+            return 1.0
+        return 1.0 / self.price
+
+    @property
+    def american_odds(self) -> int:
+        if self.price >= 2.0:
+            return int(round((self.price - 1.0) * 100))
+        if self.price <= 1.01:
+            return -10000
+        return int(round(-100.0 / (self.price - 1.0)))
 
 
 class TransactionStatus(StrEnum):

@@ -23,6 +23,8 @@ class OddsAPIClient(BaseAPIClient):
         """
         Fetch live odds for a specific sport and parse into Domain Odds models.
         """
+        import datetime
+
         path = f"/v4/sports/{sport}/odds/"
         params = {
             "apiKey": self.api_key,
@@ -37,8 +39,18 @@ class OddsAPIClient(BaseAPIClient):
         odds_list: List[Odds] = []
         for game_entry in data:
             game_id = game_entry.get("id", "unknown")
-            bookmakers = game_entry.get("bookmakers", [])
+            home_team = game_entry.get("home_team", "unknown")
+            away_team = game_entry.get("away_team", "unknown")
+            commence_time_str = game_entry.get("commence_time")
+            game_date = datetime.datetime.now(datetime.UTC).date()
+            if commence_time_str:
+                try:
+                    ct = commence_time_str.replace("Z", "+00:00")
+                    game_date = datetime.datetime.fromisoformat(ct).date()
+                except Exception:
+                    pass
 
+            bookmakers = game_entry.get("bookmakers", [])
             for bookmaker in bookmakers:
                 book_key = bookmaker.get("title") or bookmaker.get("key", "unknown")
                 book_markets = bookmaker.get("markets", [])
@@ -48,17 +60,17 @@ class OddsAPIClient(BaseAPIClient):
                     outcomes = market_entry.get("outcomes", [])
 
                     for outcome in outcomes:
-                        # Incorporate outcome name into market field if we want to distinguish
-                        # For now, following requested Odds domain model
-                        # We'll use "market:outcome" to ensure it's usable
                         outcome_name = outcome.get("name", "unknown")
                         odds_list.append(
                             Odds(
-                                game_id=game_id,
+                                odds_game_id=game_id,
+                                home_team=home_team,
+                                away_team=away_team,
+                                game_date=game_date,
                                 sportsbook=book_key,
-                                market=f"{market_key}:{outcome_name}",
+                                market_type=market_key,
+                                outcome=outcome_name,
                                 price=float(outcome.get("price", 0.0)),
-                                # timestamp is handled by default_factory in Odds model
                             )
                         )
         return odds_list
