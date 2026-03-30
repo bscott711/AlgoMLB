@@ -105,20 +105,54 @@ def test_ingest_historical_odds_command(mock_session_factory, mock_ingester_clas
 @patch("algomlb.cli.ingest.UmpireScorecardIngester")
 @patch("algomlb.cli.ingest.get_session_factory")
 def test_ingest_umpire_scorecards_command(mock_session_factory, mock_ingester_class):
-    """Test the 'ingest umpire-scorecards' CLI command calls the ingester."""
+    """Test 'ingest umpire-scorecards' CLI paths (CSV, URL, Kaggle)."""
     mock_ingester = mock_ingester_class.return_value
+
+    # Test --csv
     result = runner.invoke(
         app, ["ingest", "umpire-scorecards", "--csv", "fake_ump.csv"]
     )
     assert result.exit_code == 0
     mock_ingester.ingest_from_csv.assert_called_once_with("fake_ump.csv")
 
+    # Test --url
+    mock_ingester.reset_mock()
+    result = runner.invoke(
+        app, ["ingest", "umpire-scorecards", "--url", "http://fake.com/ump.csv"]
+    )
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_url.assert_called_once_with("http://fake.com/ump.csv")
+
+    # Test default (Kaggle)
+    mock_ingester.reset_mock()
+    result = runner.invoke(app, ["ingest", "umpire-scorecards"])
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_kaggle.assert_called_once()
+
 
 @patch("algomlb.cli.ingest.RetrosheetIngester")
 @patch("algomlb.cli.ingest.get_session_factory")
 def test_ingest_retrosheet_command(mock_session_factory, mock_ingester_class):
-    """Test the 'ingest retrosheet' CLI command calls the ingester."""
+    """Test 'ingest retrosheet' CLI paths (CSV, URL, Default)."""
     mock_ingester = mock_ingester_class.return_value
+
+    # Test --csv
     result = runner.invoke(app, ["ingest", "retrosheet", "--csv", "fake_retro.csv"])
     assert result.exit_code == 0
     mock_ingester.ingest_from_csv.assert_called_once_with("fake_retro.csv")
+
+    # Test --url
+    mock_ingester.reset_mock()
+    result = runner.invoke(
+        app, ["ingest", "retrosheet", "--url", "http://fake.com/plays.zip"]
+    )
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_url.assert_called_once_with("http://fake.com/plays.zip")
+
+    # Test default
+    mock_ingester.reset_mock()
+    result = runner.invoke(app, ["ingest", "retrosheet"])
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_url.assert_called_once_with(
+        "https://www.retrosheet.org/downloads/plays/plays.zip"
+    )

@@ -1,6 +1,10 @@
 import pandas as pd
 from typing import Optional
 import datetime
+import httpx
+import tempfile
+import os
+import kagglehub
 from sqlalchemy.orm import Session
 from algomlb.db.models import UmpireScorecardORM, GameResultORM
 from algomlb.db.repository import DatabaseRepository
@@ -53,6 +57,36 @@ class UmpireScorecardIngester:
             logger.success(
                 f"Successfully ingested {len(scorecards)} umpire scorecards."
             )
+
+    def ingest_from_url(self, url: str):
+        """Download and ingest umpire CSV from a direct URL."""
+        logger.info(f"Downloading umpire scorecard data from {url}...")
+        response = httpx.get(url, follow_redirects=True)
+        response.raise_for_status()
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+            tmp.write(response.content)
+            tmp_path = tmp.name
+
+        try:
+            self.ingest_from_csv(tmp_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def ingest_from_kaggle(self):
+        """Automatically fetch and ingest the umpire scorecard dataset from Kaggle."""
+        logger.info("Downloading historical umpire scorecards from Kaggle...")
+        path = kagglehub.dataset_download(
+            "mattop/mlb-baseball-umpire-scorecards-2015-2022"
+        )
+        # Find the CSV in the downloaded path
+        for root, _, files in os.walk(path):
+            for file in files:
+                if file.endswith(".csv"):
+                    self.ingest_from_csv(os.path.join(root, file))
+                    return
+        logger.error("No CSV found in Kaggle dataset.")
 
     def _find_game_id(
         self, game_date: datetime.date, home: str, away: str

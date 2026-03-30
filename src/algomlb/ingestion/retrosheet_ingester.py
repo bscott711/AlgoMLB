@@ -1,6 +1,11 @@
 import pandas as pd
 from typing import Any, Optional
 import datetime
+import httpx
+import zipfile
+import io
+import tempfile
+import os
 from sqlalchemy.orm import Session
 from algomlb.db.models import RetrosheetEventORM
 from algomlb.db.repository import DatabaseRepository
@@ -41,6 +46,20 @@ class RetrosheetIngester:
             self.repo.save_retrosheet_events(events)
 
         logger.success("Successfully processed Retrosheet file.")
+
+    def ingest_from_url(self, url: str):
+        """Download a ZIP file from Retrosheet, unzip, and ingest found CSVs."""
+        logger.info(f"Downloading Retrosheet data from {url}...")
+        response = httpx.get(url, follow_redirects=True)
+        response.raise_for_status()
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                z.extractall(tmpdir)
+                for root, _, files in os.walk(tmpdir):
+                    for file in files:
+                        if file.endswith(".csv"):
+                            self.ingest_from_csv(os.path.join(root, file))
 
     def _row_to_orm(self, row: Any) -> RetrosheetEventORM:
         """Helper to convert a pandas row to a RetrosheetEventORM object."""

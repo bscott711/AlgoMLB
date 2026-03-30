@@ -1,0 +1,73 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/opc/AlgoMLB
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, xdist-3.8.0, anyio-4.13.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 110 items
+
+tests/unit/test_cli_ingest.py .......                                    [  6%]
+tests/unit/test_cli_smoke.py ............                                [ 17%]
+tests/unit/test_core.py ...                                              [ 20%]
+tests/unit/test_db.py ...........                                        [ 30%]
+tests/unit/test_domain.py ........                                       [ 37%]
+tests/unit/test_ingesters.py ........                                    [ 44%]
+tests/unit/test_ingestion.py ...................                         [ 61%]
+tests/unit/test_ingestion_helpers.py ..                                  [ 63%]
+tests/unit/test_ingestion_orchestrator.py ....                           [ 67%]
+tests/unit/test_ml_data.py ...                                           [ 70%]
+tests/unit/test_ml_pipeline.py ............                              [ 80%]
+tests/unit/test_new_ingesters.py .........                               [ 89%]
+tests/unit/test_odds_api.py .....                                        [ 93%]
+tests/unit/test_settings.py .....                                        [ 98%]
+tests/unit/test_ui_smoke.py ..                                           [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.13-final-0 _______________
+
+Name                                           Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------
+src/algomlb/__init__.py                            0      0   100%
+src/algomlb/cli/__init__.py                        0      0   100%
+src/algomlb/cli/db.py                             29      0   100%
+src/algomlb/cli/ingest.py                        108      5    95%   217-220, 241-242
+src/algomlb/cli/main.py                           12      0   100%
+src/algomlb/cli/ml.py                             69      0   100%
+src/algomlb/cli/run.py                             5      0   100%
+src/algomlb/cli/ui.py                             12      0   100%
+src/algomlb/config/__init__.py                     2      0   100%
+src/algomlb/config/settings.py                    50      0   100%
+src/algomlb/core/__init__.py                       3      0   100%
+src/algomlb/core/agent_io.py                      13      0   100%
+src/algomlb/core/logger.py                        10      0   100%
+src/algomlb/db/__init__.py                         4      0   100%
+src/algomlb/db/models.py                         282      0   100%
+src/algomlb/db/repository.py                      79      0   100%
+src/algomlb/db/session.py                         29      0   100%
+src/algomlb/domain/__init__.py                     2      0   100%
+src/algomlb/domain/models.py                      86      0   100%
+src/algomlb/execution/__init__.py                  0      0   100%
+src/algomlb/ingestion/__init__.py                  6      0   100%
+src/algomlb/ingestion/ballpark_ingester.py        17      0   100%
+src/algomlb/ingestion/historical.py              171      0   100%
+src/algomlb/ingestion/historical_odds.py          77      0   100%
+src/algomlb/ingestion/http_client.py              53      0   100%
+src/algomlb/ingestion/mlb_stats.py                43      0   100%
+src/algomlb/ingestion/odds_api.py                 74      0   100%
+src/algomlb/ingestion/orchestrator.py             24      0   100%
+src/algomlb/ingestion/retrosheet_ingester.py      65      0   100%
+src/algomlb/ingestion/umpire_ingester.py          55      0   100%
+src/algomlb/ml/__init__.py                         3      0   100%
+src/algomlb/ml/features.py                        20      0   100%
+src/algomlb/ml/model.py                           32      0   100%
+src/algomlb/social/__init__.py                     0      0   100%
+src/algomlb/strategy/__init__.py                   0      0   100%
+src/algomlb/ui/__init__.py                         2      0   100%
+src/algomlb/ui/app.py                              5      0   100%
+src/algomlb/ui/views/bankroll.py                   5      0   100%
+src/algomlb/ui/views/data.py                      57      0   100%
+src/algomlb/ui/views/optuna.py                     5      0   100%
+src/algomlb/ui/views/picks.py                      5      0   100%
+----------------------------------------------------------------------------
+TOTAL                                           1514      5    99%
+============================= 110 passed in 23.97s =============================

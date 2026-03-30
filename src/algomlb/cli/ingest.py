@@ -1,4 +1,5 @@
 import typer
+from typing import Optional
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
 from algomlb.db.repository import DatabaseRepository
@@ -202,22 +203,40 @@ def historical_odds(
 @app.command()
 def umpire_scorecards(
     ctx: typer.Context,
-    csv_path: str = typer.Option(..., "--csv", help="Path to umpire scorecard CSV"),
+    csv_path: Optional[str] = typer.Option(
+        None, "--csv", help="Path to umpire scorecard CSV"
+    ),
+    url: Optional[str] = typer.Option(None, "--url", help="Direct URL to umpire CSV"),
 ):
-    """Ingest umpire accuracy and bias data from CSV."""
+    """Ingest umpire accuracy and bias data (local file, URL, or Kaggle)."""
     session_factory = get_session_factory()
     with session_factory() as session:
         ingester = UmpireScorecardIngester(session)
-        ingester.ingest_from_csv(csv_path)
+        if csv_path:
+            ingester.ingest_from_csv(csv_path)
+        elif url:
+            ingester.ingest_from_url(url)
+        else:
+            ingester.ingest_from_kaggle()
 
 
 @app.command()
 def retrosheet(
     ctx: typer.Context,
-    csv_path: str = typer.Option(..., "--csv", help="Path to parsed Retrosheet CSV"),
+    csv_path: Optional[str] = typer.Option(
+        None, "--csv", help="Path to parsed Retrosheet CSV"
+    ),
+    url: Optional[str] = typer.Option(
+        None, "--url", help="Direct URL to Retrosheet ZIP"
+    ),
 ):
-    """Ingest Retrosheet play-by-play events from parsed CSV."""
+    """Ingest Retrosheet play-by-play events (local file or URL)."""
     session_factory = get_session_factory()
     with session_factory() as session:
         ingester = RetrosheetIngester(session)
-        ingester.ingest_from_csv(csv_path)
+        if csv_path:
+            ingester.ingest_from_csv(csv_path)
+        else:
+            # Default to the full historical parsed data if no URL/CSV is provided
+            target_url = url or "https://www.retrosheet.org/downloads/plays/plays.zip"
+            ingester.ingest_from_url(target_url)

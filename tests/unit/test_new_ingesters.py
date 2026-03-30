@@ -11,6 +11,11 @@ from algomlb.db.models import (
 from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 from algomlb.ingestion.retrosheet_ingester import RetrosheetIngester
 import datetime
+import respx
+import httpx
+import zipfile
+import io
+from unittest.mock import patch
 
 
 @pytest.fixture
@@ -451,3 +456,103 @@ def test_retrosheet_ingester_missing_date(test_session, tmp_path):
     event = test_session.query(RetrosheetEventORM).first()
     assert event is not None
     assert event.date == datetime.date(1900, 1, 1)
+
+
+@respx.mock
+def test_retrosheet_ingester_url(test_session):
+    ingester = RetrosheetIngester(test_session)
+    url = "https://example.com/plays.zip"
+
+    # Create a mock ZIP with a CSV
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        # Re-use the columns list logic or just a simple mock CSV
+        z.writestr(
+            "test.csv", "gid,pn,event,inning,top_bot,date\nT1,1,K,1,0,2023-04-01\n"
+        )
+
+    respx.get(url).mock(return_value=httpx.Response(200, content=buf.getvalue()))
+
+    # We need to mock _row_to_orm or provide all columns to avoid KeyError
+    # Let's mock _row_to_orm to simplify since we tested mapping already
+    with patch.object(ingester, "_row_to_orm") as mock_mapping:
+        mock_mapping.return_value = RetrosheetEventORM(
+            game_id="T1",
+            play_number=1,
+            event_text="K",
+            inning=1,
+            top_bot=0,
+            vis_home=0,
+            site="TEST",
+            bat_team="ATL",
+            pit_team="NYY",
+            batter_id="b1",
+            pitcher_id="p1",
+            lp=1,
+            bat_f=2,
+            date=datetime.date(2023, 4, 1),
+        )
+        ingester.ingest_from_url(url)
+
+    assert test_session.query(RetrosheetEventORM).count() > 0
+
+
+@respx.mock
+def test_umpire_scorecard_ingester_url(test_session):
+    game = GameResultORM(
+        game_id="20230401NYYTOR",
+        game_date=datetime.date(2023, 4, 1),
+        home_team="NYY",
+        away_team="TOR",
+    )
+    test_session.add(game)
+    test_session.commit()
+
+    ingester = UmpireScorecardIngester(test_session)
+    url = "https://example.com/umpire.csv"
+    csv_content = "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2023-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
+
+    respx.get(url).mock(return_value=httpx.Response(200, content=csv_content.encode()))
+
+    ingester.ingest_from_url(url)
+    assert test_session.query(UmpireScorecardORM).count() == 1
+
+
+def test_umpire_scorecard_ingester_kaggle(test_session, tmp_path):
+    game = GameResultORM(
+        game_id="20230401NYYTOR",
+        game_date=datetime.date(2023, 4, 1),
+        home_team="NYY",
+        away_team="TOR",
+    )
+    test_session.add(game)
+    test_session.commit()
+
+    ingester = UmpireScorecardIngester(test_session)
+
+    # Create dummy kaggle download path
+    kaggle_dir = tmp_path / "kaggle_data"
+    kaggle_dir.mkdir()
+    csv_file = kaggle_dir / "data.csv"
+    csv_file.write_text(
+        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2023-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
+    )
+
+    with patch("kagglehub.dataset_download") as mock_download:
+        mock_download.return_value = str(kaggle_dir)
+        ingester.ingest_from_kaggle()
+
+    assert test_session.query(UmpireScorecardORM).count() == 1
+
+
+def test_umpire_scorecard_ingester_kaggle_no_csv(test_session, tmp_path):
+    ingester = UmpireScorecardIngester(test_session)
+    kaggle_dir = tmp_path / "empty_kaggle_data"
+    kaggle_dir.mkdir()
+
+    with patch("kagglehub.dataset_download") as mock_download:
+        mock_download.return_value = str(kaggle_dir)
+        # Should log error and return
+        ingester.ingest_from_kaggle()
+
+    assert test_session.query(UmpireScorecardORM).count() == 0
