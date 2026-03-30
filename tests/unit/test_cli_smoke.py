@@ -1,5 +1,8 @@
+from unittest.mock import patch
+
 import pytest
 from typer.testing import CliRunner
+
 from algomlb.cli.main import app
 
 runner = CliRunner()
@@ -17,8 +20,14 @@ def test_cli_db_stubs():
 
 
 def test_cli_ingest_stubs():
-    assert runner.invoke(app, ["ingest", "odds"]).exit_code == 0
-    assert runner.invoke(app, ["ingest", "games"]).exit_code == 0
+    # Use mocks to avoid connecting to DB and API key requirements
+    with (
+        patch("algomlb.cli.ingest.IngestionOrchestrator"),
+        patch("algomlb.cli.ingest.create_db_engine"),
+        patch("algomlb.cli.ingest.get_session_factory"),
+    ):
+        assert runner.invoke(app, ["ingest", "odds"]).exit_code == 0
+        assert runner.invoke(app, ["ingest", "schedule"]).exit_code == 0
 
 
 def test_cli_ml_stubs():
