@@ -1,4 +1,5 @@
 from pathlib import Path
+import datetime
 
 import httpx
 import pandas as pd
@@ -123,14 +124,15 @@ def test_historical_loader_persist_empty():
 
 def test_historical_loader_validate_completeness():
     """Verify completeness validation logic."""
-    from algomlb.ingestion.historical import HistoricalDataLoader
-    from unittest.mock import MagicMock
 
     loader = HistoricalDataLoader(repo=MagicMock())
     # > 20% NaNs
     df = pd.DataFrame({"era": [1.0, 2.0, 3.0, None, None]})
-    with pytest.raises(ValueError, match="Excessive NaNs detected in era"):
-        loader._validate_completeness(df, ["era"])
+    # Should no longer raise ValueError, just log a warning
+    loader._validate_completeness(df, ["era"])
+    # Case for > 50% NaNs (covers line 48)
+    df_sparse = pd.DataFrame({"era": [1.0, None, None, None]})
+    loader._validate_completeness(df_sparse, ["era"])
 
 
 def test_circuit_breaker_open_runtime_error():
@@ -349,15 +351,131 @@ def test_historical_loader_statcast(tmp_path: Path):
 
         result_df = loader.fetch_statcast("2023-04-01", "2023-04-01")
 
-        # "bad_date" is filtered out by strict date windowing
+        # "bad_date" is filtered out by strict date windowing, so 2 rows left
         assert len(result_df) == 2
         assert repo.save_pitch_events.called
+        # Now 2 events: "bad_date" filtered out, but the 'None' pitcher ID is handled safely by safe_int
         events = repo.save_pitch_events.call_args[0][0]
-        # Only 1 event: "bad_date" filtered out, None failed persistence
-        assert len(events) == 1
+        assert len(events) == 2
 
         # Test cache hit
         mock_statcast.reset_mock()
         result_df_cached = loader.fetch_statcast("2023-04-01", "2023-04-01")
         assert len(result_df_cached) == 2
         mock_statcast.assert_not_called()
+
+
+def test_historical_loader_statcast_massive_range(tmp_path: Path):
+    """Verify that HistoricalDataLoader chunking logic works for ranges > 31 days."""
+    repo = MagicMock()
+    loader = HistoricalDataLoader(repo, cache_dir=tmp_path)
+
+    def mock_fetch_side_effect(s, e):
+        # Return at least one row matching the start of the requested chunk range
+        return pd.DataFrame(
+            {
+                "game_date": [s],
+                "game_pk": [601],
+                "pitcher": [1],
+                "batter": [3],
+            }
+        )
+
+    with patch.object(loader, "_fetch_statcast_df", side_effect=mock_fetch_side_effect):
+        # Request a 2-month range (triggers massive/chunked logic)
+        res = loader.fetch_statcast("2023-04-01", "2023-06-01", persist=True)
+        # Should have data from the monthly chunks
+        assert not res.empty
+        # Repo should have been called multiple times (at least 2 blocks)
+        assert repo.save_pitch_events.call_count >= 2
+
+    # Test cache hit for massive range (covers lines 279-289)
+    res_cached = loader.fetch_statcast("2023-04-01", "2023-06-01", persist=True)
+    assert not res_cached.empty
+
+
+def test_historical_loader_team_batting(tmp_path: Path):
+    """Verify that HistoricalDataLoader fetches and persists team batting stats."""
+    repo = MagicMock()
+    loader = HistoricalDataLoader(repo, cache_dir=tmp_path)
+
+    with patch("pybaseball.team_batting") as mock_batting:
+        df = pd.DataFrame(
+            {
+                "ID": [1, 2],
+                "wOBA": [0.350, 0.320],
+                "wRC+": [120, 100],
+            }
+        )
+        mock_batting.return_value = df
+
+        result_df = loader.fetch_team_batting(2023, 2023)
+        assert len(result_df) == 2
+        assert repo.save_historical_data.called
+
+        # Test cache hit for team batting (covers line 108)
+        mock_batting.reset_mock()
+        res_cached = loader.fetch_team_batting(2023, 2023)
+        assert len(res_cached) == 2
+        mock_batting.assert_not_called()
+
+
+def test_historical_loader_safe_helpers():
+    """Verify safe_int and safe_float edge cases and exceptions."""
+    loader = HistoricalDataLoader(repo=MagicMock())
+    # Use values that pass isna() but fail numeric conversion
+    row = pd.Series({"pitch_number": "not_an_int", "release_speed": "not_a_float"})
+
+    # Trigger safe_int exception (covers line 132-133)
+    event_orm = loader._row_to_pitch_event(row, datetime.date.today())
+    assert event_orm.pitch_number == 0
+
+    # Trigger safe_float exception (covers line 140-141)
+    assert event_orm.release_speed is None
+
+
+def test_historical_loader_statcast_internal_chunking():
+    """Verify 7-day chunking within _fetch_statcast_df."""
+    loader = HistoricalDataLoader(repo=MagicMock())
+    with patch("pybaseball.statcast") as mock_statcast:
+        # Side effect: 1st chunk success, 2nd chunk empty to hit 'else' branch (Line 209)
+        mock_statcast.side_effect = [
+            pd.DataFrame({"game_date": ["2023-04-01"]}),
+            pd.DataFrame(),
+        ]
+        # 10 day range triggers chunking (Total 2 chunks: Apr 1-7, Apr 8-10)
+        loader._fetch_statcast_df("2023-04-01", "2023-04-10")
+        assert mock_statcast.call_count == 2
+
+        # Trigger Statcast fetch exception in loop (covers lines 210-213)
+        mock_statcast.reset_mock()
+        mock_statcast.side_effect = Exception("Fetch error")
+        # 10-day range has a loop which catches internally
+        loader._fetch_statcast_df("2024-01-01", "2024-01-10")
+
+        # Trigger total fetch failure (covers line 218)
+        mock_statcast.reset_mock(side_effect=True)
+        mock_statcast.return_value = pd.DataFrame()
+        # 10 day range that results in no chunks found/saved
+        res_empty_long = loader._fetch_statcast_df("2024-02-01", "2024-02-10")
+        assert res_empty_long.empty
+
+        # Trigger short-range exception (raised, not caught internally)
+        mock_statcast.side_effect = Exception("Short range error")
+        with pytest.raises(Exception, match="Short range error"):
+            loader._fetch_statcast_df("2024-03-01", "2024-03-01")
+
+
+def test_historical_loader_persistence_edge_cases():
+    """Verify row iteration failure handling in _persist_pitch_events."""
+    loader = HistoricalDataLoader(repo=MagicMock())
+    # Row with bad game_date format to trigger exception (covers line 241-244)
+    df = pd.DataFrame(
+        {"game_date": [None], "game_pk": [1], "pitcher": [1], "batter": [2]}
+    )
+    loader._persist_pitch_events(df)
+    # Should log warning but not crash
+
+    # Test _persist_stats missing ID case (covers line 65)
+    df_missing_pid = pd.DataFrame({"mlb_id": [None], "era": [3.00]})
+    loader._persist_stats(df_missing_pid, ["era"])

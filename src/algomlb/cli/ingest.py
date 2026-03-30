@@ -69,8 +69,12 @@ def schedule(
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
         e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else None
 
-        logger.info(f"Starting schedule ingestion for {start or 'today'} to {end or 'today'}...")
-        records_inserted = orchestrator.run_schedule_ingestion(start_date=s_date, end_date=e_date)
+        logger.info(
+            f"Starting schedule ingestion for {start or 'today'} to {end or 'today'}..."
+        )
+        records_inserted = orchestrator.run_schedule_ingestion(
+            start_date=s_date, end_date=e_date
+        )
         logger.success(f"Successfully ingested {records_inserted} schedule records.")
 
         if agent_mode:

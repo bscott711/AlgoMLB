@@ -74,9 +74,7 @@ class MLBStatsAPIClient(BaseAPIClient):
                 games_list.append(
                     Game(
                         game_id=game_id,
-                        date=game_data.get("gameDate", s_str)[
-                            :10
-                        ],  # Truncate ISO time
+                        date=game_data.get("gameDate", s_str)[:10],  # Truncate ISO time
                         home_team=home_team,
                         away_team=away_team,
                         home_pitcher=home_pitcher,
