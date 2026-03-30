@@ -11,10 +11,15 @@ requires-python = ">=3.12"
 dependencies = [
     "pydantic",
     "pydantic-settings",
+    "loguru",
+    "streamlit",
+    "optuna",
+    "optuna-dashboard",
+    "typer",
 ]
 
 [project.scripts]
-algomlb = "algomlb.cli:app"
+algomlb = "algomlb.cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/algomlb"]
@@ -46,6 +51,7 @@ root_package = "algomlb"
 name = "Unidirectional Import Ladder"
 type = "layers"
 layers = [
+    "ui",
     "cli",
     "social",
     "execution",
@@ -55,7 +61,21 @@ layers = [
     "db",
     "domain",
     "config",
+    "core",
 ]
 containers = [
     "algomlb",
+]
+
+[tool.coverage.run]
+omit = [
+    "src/algomlb/ui/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == \"__main__\":",
+    "def __repr__",
+    "raise NotImplementedError",
 ]
