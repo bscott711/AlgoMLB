@@ -16,6 +16,7 @@ dependencies = [
     "optuna",
     "optuna-dashboard",
     "typer",
+    "sqlalchemy>=2.0.48",
 ]
 
 [project.scripts]

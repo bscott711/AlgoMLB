@@ -26,6 +26,7 @@ dependencies = [
     { name = "optuna-dashboard" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "sqlalchemy" },
     { name = "streamlit" },
     { name = "typer" },
 ]
@@ -57,6 +58,7 @@ requires-dist = [
     { name = "optuna-dashboard" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "sqlalchemy", specifier = ">=2.0.48" },
     { name = "streamlit" },
     { name = "typer" },
 ]
