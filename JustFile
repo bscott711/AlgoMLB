@@ -69,7 +69,26 @@ test-e2e:
 	uv run pytest tests/e2e
 
 # ==========================================
-# 3. PRODUCTION OPTIMIZATION (Alpha Search)
+# 3. DATABASE MIGRATIONS (Alembic)
+# ==========================================
+
+# Apply all pending migrations
+migrate:
+	@echo "🗄️ Applying database migrations..."
+	PYTHONPATH=src uv run alembic upgrade head
+
+# Rollback the last migration
+rollback:
+	@echo "⏪ Rolling back last migration..."
+	PYTHONPATH=src uv run alembic downgrade -1
+
+# Generate a new migration based on ORM changes
+revision message:
+	@echo "📝 Generating new database revision: {{message}}"
+	PYTHONPATH=src uv run alembic revision --autogenerate -m "{{message}}"
+
+# ==========================================
+# 4. PRODUCTION OPTIMIZATION (Alpha Search)
 # ==========================================
 
 # Run full Moneyline re-calibration (ML calibration + Strategy tuning)

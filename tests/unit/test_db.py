@@ -3,7 +3,14 @@ from datetime import UTC, date, datetime
 import pytest
 from sqlalchemy.orm import Session
 
-from algomlb.db import Base, DatabaseRepository, create_db_engine, get_session_factory
+from algomlb.db import (
+    Base,
+    DatabaseRepository,
+    HistoricalDataORM,
+    PitchEventORM,
+    create_db_engine,
+    get_session_factory,
+)
 from algomlb.domain import (
     BankrollTransaction,
     Game,
@@ -119,3 +126,49 @@ def test_empty_balance(test_session: Session) -> None:
     """Test bankroll balance with no transactions."""
     repo = DatabaseRepository(test_session)
     assert repo.get_bankroll_balance() == 0.0
+
+
+def test_save_pitch_events(test_session: Session) -> None:
+    """Test bulk saving pitch events."""
+    repo = DatabaseRepository(test_session)
+    events = [
+        PitchEventORM(
+            game_id="G1",
+            game_date=date(2023, 4, 1),
+            pitcher_id=1,
+            batter_id=2,
+            release_speed=95.5,
+        ),
+        PitchEventORM(
+            game_id="G1",
+            game_date=date(2023, 4, 1),
+            pitcher_id=1,
+            batter_id=3,
+            release_speed=94.2,
+        ),
+    ]
+    repo.save_pitch_events(events)
+    # Verify by querying directly from session
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(PitchEventORM)).scalars().all()
+    assert len(retrieved) == 2
+
+
+def test_save_historical_data(test_session: Session) -> None:
+    """Test bulk saving historical data."""
+    repo = DatabaseRepository(test_session)
+    data = [
+        HistoricalDataORM(
+            player_id=1, date=date(2023, 4, 1), metric_name="era", metric_value=3.50
+        ),
+        HistoricalDataORM(
+            player_id=2, date=date(2023, 4, 1), metric_name="woba", metric_value=0.350
+        ),
+    ]
+    repo.save_historical_data(data)
+    # Verify
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(HistoricalDataORM)).scalars().all()
+    assert len(retrieved) == 2

@@ -11,12 +11,15 @@ def mock_dependencies():
     repo = MagicMock()
     odds_client = MagicMock()
     stats_client = MagicMock()
-    return repo, odds_client, stats_client
+    historical_loader = MagicMock()
+    return repo, odds_client, stats_client, historical_loader
 
 
 def test_run_odds_ingestion(mock_dependencies):
-    repo, odds_client, stats_client = mock_dependencies
-    orchestrator = IngestionOrchestrator(repo, odds_client, stats_client)
+    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader
+    )
 
     # Mock return value
     mock_odds = [
@@ -33,8 +36,10 @@ def test_run_odds_ingestion(mock_dependencies):
 
 
 def test_run_schedule_ingestion(mock_dependencies):
-    repo, odds_client, stats_client = mock_dependencies
-    orchestrator = IngestionOrchestrator(repo, odds_client, stats_client)
+    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader
+    )
 
     # Mock return value
     mock_games = [
@@ -56,8 +61,10 @@ def test_run_schedule_ingestion(mock_dependencies):
 
 
 def test_run_odds_ingestion_empty(mock_dependencies):
-    repo, odds_client, stats_client = mock_dependencies
-    orchestrator = IngestionOrchestrator(repo, odds_client, stats_client)
+    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader
+    )
 
     odds_client.fetch_live_odds.return_value = []
 
@@ -65,3 +72,21 @@ def test_run_odds_ingestion_empty(mock_dependencies):
 
     assert count == 0
     repo.save_live_odds.assert_not_called()
+
+
+def test_run_historical_ingestion(mock_dependencies):
+    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader
+    )
+
+    import pandas as pd
+
+    historical_loader.fetch_pitching_stats.return_value = pd.DataFrame({"id": [1]})
+    historical_loader.fetch_team_batting.return_value = pd.DataFrame({"playerid": [2]})
+
+    count = orchestrator.run_historical_ingestion(2023, 2023)
+
+    assert count == 2
+    historical_loader.fetch_pitching_stats.assert_called_once_with(2023, 2023)
+    historical_loader.fetch_team_batting.assert_called_once_with(2023, 2023)

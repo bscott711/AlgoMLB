@@ -27,6 +27,7 @@ dependencies = [
     "scikit-learn>=1.8.0",
     "joblib>=1.5.3",
     "numpy>=2.4.4",
+    "alembic>=1.14.0",
 ]
 
 [project.scripts]

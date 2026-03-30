@@ -97,6 +97,7 @@ logs/algomlb.log
 
 # Project Data
 .data/
+migrations/
 
 # Temporary reports
 coverage_full.txt

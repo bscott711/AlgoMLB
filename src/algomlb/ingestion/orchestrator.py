@@ -1,6 +1,7 @@
 from algomlb.db.repository import DatabaseRepository
 from algomlb.ingestion.mlb_stats import MLBStatsAPIClient
 from algomlb.ingestion.odds_api import OddsAPIClient
+from algomlb.ingestion.historical import HistoricalDataLoader
 
 
 class IngestionOrchestrator:
@@ -11,10 +12,20 @@ class IngestionOrchestrator:
         repo: DatabaseRepository,
         odds_client: OddsAPIClient,
         stats_client: MLBStatsAPIClient,
+        historical_loader: HistoricalDataLoader,
     ):
         self.repo = repo
         self.odds_client = odds_client
         self.stats_client = stats_client
+        self.historical_loader = historical_loader
+
+    def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
+        """Fetch and persist historical pitching and batting stats."""
+        # This will trigger the persistence logic in the loader
+        p_df = self.historical_loader.fetch_pitching_stats(start_year, end_year)
+        b_df = self.historical_loader.fetch_team_batting(start_year, end_year)
+        # For simplicity, returning the total count of rows processed
+        return len(p_df) + len(b_df)
 
     def run_odds_ingestion(self) -> int:
         """Fetch live odds and persist them to the database."""

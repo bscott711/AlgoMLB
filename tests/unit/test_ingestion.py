@@ -1,10 +1,14 @@
+from pathlib import Path
+
 import httpx
+import pandas as pd
 import pytest
 import respx
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from algomlb.domain import GameStatus
 from algomlb.ingestion import MLBStatsAPIClient, OddsAPIClient
+from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.http_client import BaseAPIClient
 
 
@@ -171,3 +175,73 @@ def test_client_cleanup():
     client = BaseAPIClient(base_url="https://api.test")
     client.close()
     assert client.client.is_closed
+
+
+def test_historical_loader_pitching(tmp_path: Path):
+    """Verify that HistoricalDataLoader fetches pitching stats and persists them."""
+    repo = MagicMock()
+    loader = HistoricalDataLoader(repo, cache_dir=tmp_path)
+
+    with patch("pybaseball.pitching_stats") as mock_stats:
+        # Mock dataframe with standard pybaseball-style columns (PascalCase)
+        df = pd.DataFrame(
+            {
+                "ID": [101, 102],
+                "ERA": [3.50, 4.20],
+                "FIP": [3.40, 4.10],
+                "xFIP": [3.30, 4.00],
+                "SIERA": [3.20, 3.90],
+            }
+        )
+        mock_stats.return_value = df
+
+        result_df = loader.fetch_pitching_stats(2023, 2023)
+
+        assert len(result_df) == 2
+        assert repo.save_historical_data.called
+        # Verify columns are cleaned (ID -> id)
+        assert "id" in result_df.columns
+        assert "era" in result_df.columns
+
+        # Verify persistence called with ORMs
+        orms = repo.save_historical_data.call_args[0][0]
+        assert len(orms) == 8  # 2 players * 4 metrics (era, fip, xfip, siera)
+        assert orms[0].player_id == 101
+
+        # Test cache hit (mock_stats should not be called again)
+        mock_stats.reset_mock()
+        result_df_cached = loader.fetch_pitching_stats(2023, 2023)
+        assert len(result_df_cached) == 2
+        mock_stats.assert_not_called()
+
+
+def test_historical_loader_statcast(tmp_path: Path):
+    """Verify that HistoricalDataLoader fetches Statcast data and persists it."""
+    repo = MagicMock()
+    loader = HistoricalDataLoader(repo, cache_dir=tmp_path)
+
+    with patch("pybaseball.statcast") as mock_statcast:
+        df = pd.DataFrame(
+            {
+                "game_date": ["2023-04-01", "2023-04-01", "bad_date"],
+                "game_pk": [601.0, 601.0, 999],
+                "pitcher": [1, 1, 1],
+                "batter": [2, 3, 4],
+                "release_speed": [95.0, 94.0, 90.0],
+            }
+        )
+        mock_statcast.return_value = df
+
+        result_df = loader.fetch_statcast("2023-04-01", "2023-04-01")
+
+        assert len(result_df) == 3
+        assert repo.save_pitch_events.called
+        events = repo.save_pitch_events.call_args[0][0]
+        # 'bad_date' should trigger the except block (Line 145-146)
+        assert len(events) == 2
+
+        # Test cache hit (Line 98)
+        mock_statcast.reset_mock()
+        result_df_cached = loader.fetch_statcast("2023-04-01", "2023-04-01")
+        assert len(result_df_cached) == 3
+        mock_statcast.assert_not_called()

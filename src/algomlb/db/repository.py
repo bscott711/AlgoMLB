@@ -3,7 +3,13 @@ from typing import List, Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from algomlb.db.models import BankrollLedgerORM, GradedGamesORM, LiveOddsORM
+from algomlb.db.models import (
+    BankrollLedgerORM,
+    GradedGamesORM,
+    HistoricalDataORM,
+    LiveOddsORM,
+    PitchEventORM,
+)
 from algomlb.domain import BankrollTransaction, Game, Odds
 
 
@@ -73,6 +79,16 @@ class DatabaseRepository:
         self.session.merge(orm)
         self.session.commit()
         return tx
+
+    def save_pitch_events(self, events: List[PitchEventORM]) -> None:
+        """Bulk save pitch events manually (simple version for now)."""
+        self.session.add_all(events)
+        self.session.commit()
+
+    def save_historical_data(self, data: List[HistoricalDataORM]) -> None:
+        """Bulk save historical data manually."""
+        self.session.add_all(data)
+        self.session.commit()
 
     def get_bankroll_balance(self) -> float:
         """Calculate the current cumulative PnL."""

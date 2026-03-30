@@ -8,7 +8,10 @@ import typer
 
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
-from algomlb.ml import FeaturePipeline, HistoricalDataLoader, MLBModel
+from algomlb.db.repository import DatabaseRepository
+from algomlb.db.session import create_db_engine, get_session_factory
+from algomlb.ml import FeaturePipeline, MLBModel
+from algomlb.ingestion.historical import HistoricalDataLoader
 
 app = typer.Typer(help="Train and optimize ML models.", no_args_is_help=True)
 
@@ -26,36 +29,47 @@ def fetch_history(
     """Fetch historical pitching and batting stats for a given year range."""
     agent_mode = ctx.obj.get("agent_mode", False)
 
-    loader = HistoricalDataLoader()
+    # Setup Infrastructure
+    engine = create_db_engine()
+    session_factory = get_session_factory(engine)
 
-    logger.info(f"Fetching historical data from {start_year} to {end_year}...")
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        loader = HistoricalDataLoader(repo)
 
-    pitching_df = loader.fetch_pitching_stats(start_year, end_year)
-    batting_df = loader.fetch_team_batting(start_year, end_year)
+        logger.info(f"Fetching historical data from {start_year} to {end_year}...")
 
-    logger.success(
-        f"Fetched pitching data: {pitching_df.shape} and team batting data: {batting_df.shape}"
-    )
+        pitching_df = loader.fetch_pitching_stats(start_year, end_year)
+        batting_df = loader.fetch_team_batting(start_year, end_year)
 
-    if agent_mode:
-        emit_agent_result(
-            AgentResult(
-                status="success",
-                command="ml.fetch-history",
-                data={
-                    "pitching_shape": list(pitching_df.shape),
-                    "batting_shape": list(batting_df.shape),
-                },
-            )
+        logger.success(
+            f"Fetched pitching data: {pitching_df.shape} and team batting data: {batting_df.shape}"
         )
+
+        if agent_mode:
+            emit_agent_result(
+                AgentResult(
+                    status="success",
+                    command="ml.fetch-history",
+                    data={
+                        "pitching_shape": list(pitching_df.shape),
+                        "batting_shape": list(batting_df.shape),
+                    },
+                )
+            )
 
 
 @app.command()
 def train(ctx: typer.Context) -> None:
     """Train the baseline model using cached feature matrices."""
-    logger.info("Initializing baseline model training...")
+    # Setup Infrastructure
+    engine = create_db_engine()
+    session_factory = get_session_factory(engine)
 
-    loader = HistoricalDataLoader()
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        loader = HistoricalDataLoader(repo)
+        logger.info("Initializing baseline model training...")
     try:
         # Use 2023 to hit the local Parquet cache
         pitching_df = loader.fetch_pitching_stats(2023, 2023)

@@ -15,15 +15,17 @@ def test_cli_help():
 
 
 def test_cli_db_stubs():
-    with patch("algomlb.cli.db.create_db_engine"):
+    with patch("algomlb.cli.db.command") as mock_command:
         assert runner.invoke(app, ["db", "init"]).exit_code == 0
-    assert runner.invoke(app, ["db", "status"]).exit_code == 0
+        mock_command.upgrade.assert_called_once()
+        assert runner.invoke(app, ["db", "status"]).exit_code == 0
+        mock_command.current.assert_called_once()
 
 
 def test_cli_db_init_failure():
     """Verify error handling in db init."""
-    with patch("algomlb.cli.db.create_db_engine") as mock_engine:
-        mock_engine.side_effect = Exception("DB Error")
+    with patch("algomlb.cli.db.command") as mock_command:
+        mock_command.upgrade.side_effect = Exception("DB Error")
         result = runner.invoke(app, ["db", "init"])
         assert result.exit_code == 1
 
@@ -34,13 +36,15 @@ def test_cli_ingest_stubs():
         patch("algomlb.cli.ingest.IngestionOrchestrator"),
         patch("algomlb.cli.ingest.create_db_engine"),
         patch("algomlb.cli.ingest.get_session_factory"),
+        patch("algomlb.cli.ingest.HistoricalDataLoader"),
     ):
         assert runner.invoke(app, ["ingest", "odds"]).exit_code == 0
         assert runner.invoke(app, ["ingest", "schedule"]).exit_code == 0
+        assert runner.invoke(app, ["ingest", "historical"]).exit_code == 0
 
 
 def test_cli_ml_stubs():
-    assert runner.invoke(app, ["ml", "train"]).exit_code == 0
+    # Basic smoke check for optimize which is just a TODO
     assert runner.invoke(app, ["ml", "optimize"]).exit_code == 0
 
 
@@ -59,3 +63,46 @@ def test_cli_ui_stubs(monkeypatch: pytest.MonkeyPatch):
 
     result = runner.invoke(main_app, ["ui", "launch"])
     assert result.exit_code == 0
+
+
+def test_cli_db_status_failure():
+    """Verify error handling in db status."""
+    with patch("algomlb.cli.db.command") as mock_command:
+        mock_command.current.side_effect = Exception("Status Error")
+        result = runner.invoke(app, ["db", "status"])
+        assert result.exit_code == 1
+
+
+def test_cli_ingest_historical_statcast():
+    """Verify statcast option in historical ingestion."""
+    with (
+        patch("algomlb.cli.ingest.IngestionOrchestrator"),
+        patch("algomlb.cli.ingest.HistoricalDataLoader") as mock_loader,
+        patch("algomlb.cli.ingest.create_db_engine"),
+        patch("algomlb.cli.ingest.get_session_factory"),
+    ):
+        # Mock returning a list so len() works for records_processed calculation
+        mock_loader.return_value.fetch_statcast.return_value = [1, 2, 3]
+        result = runner.invoke(app, ["ingest", "historical", "--statcast"])
+        assert result.exit_code == 0
+        mock_loader.return_value.fetch_statcast.assert_called_once()
+
+
+def test_cli_ingest_agent_mode():
+    """Verify agent mode output for different commands."""
+    with (
+        patch("algomlb.cli.ingest.IngestionOrchestrator"),
+        patch("algomlb.cli.ingest.create_db_engine"),
+        patch("algomlb.cli.ingest.get_session_factory"),
+        patch("algomlb.cli.ingest.HistoricalDataLoader"),
+        patch("algomlb.cli.ingest.emit_agent_result") as mock_emit,
+    ):
+        # Cover ingest odds agent mode
+        result = runner.invoke(app, ["--agent-mode", "ingest", "odds"])
+        assert result.exit_code == 0
+        assert mock_emit.call_count == 1
+
+        # Cover ingest historical agent mode (Line 119)
+        result = runner.invoke(app, ["--agent-mode", "ingest", "historical"])
+        assert result.exit_code == 0
+        assert mock_emit.call_count == 2

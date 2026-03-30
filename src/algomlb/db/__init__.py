@@ -1,4 +1,12 @@
-from algomlb.db.models import BankrollLedgerORM, GradedGamesORM, LiveOddsORM
+from algomlb.db.models import (
+    BankrollLedgerORM,
+    GradedGamesORM,
+    LiveOddsORM,
+    HistoricalDataORM,
+    PlayerRollingFeaturesORM,
+    PitchEventORM,
+    GameResultORM,
+)
 from algomlb.db.repository import DatabaseRepository
 from algomlb.db.session import Base, create_db_engine, get_session_factory
 
@@ -10,4 +18,8 @@ __all__ = [
     "BankrollLedgerORM",
     "GradedGamesORM",
     "LiveOddsORM",
+    "HistoricalDataORM",
+    "PlayerRollingFeaturesORM",
+    "PitchEventORM",
+    "GameResultORM",
 ]

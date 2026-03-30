@@ -1,12 +1,12 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
 from algomlb.cli.main import app
-from algomlb.ml import HistoricalDataLoader
+from algomlb.ingestion.historical import HistoricalDataLoader
 
 runner = CliRunner()
 
@@ -23,7 +23,8 @@ def dummy_batting_df():
 
 def test_data_loader_caching(tmp_path, dummy_pitching_df, dummy_batting_df):
     """Verify that HistoricalDataLoader correctly uses Parquet cache."""
-    loader = HistoricalDataLoader(cache_dir=tmp_path)
+    mock_repo = MagicMock()
+    loader = HistoricalDataLoader(repo=mock_repo, cache_dir=tmp_path)
 
     # Mock pybaseball stats calls
     with (
@@ -43,7 +44,7 @@ def test_data_loader_caching(tmp_path, dummy_pitching_df, dummy_batting_df):
         assert "team" in batting_res.columns
 
         # 2. Fetch second time - should use cache, no pybaseball call
-        loader_cached = HistoricalDataLoader(cache_dir=tmp_path)
+        loader_cached = HistoricalDataLoader(repo=mock_repo, cache_dir=tmp_path)
         pitching_cached = loader_cached.fetch_pitching_stats(2023, 2023)
         batting_cached = loader_cached.fetch_team_batting(2023, 2023)
 
