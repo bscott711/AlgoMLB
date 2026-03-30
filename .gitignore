@@ -76,6 +76,9 @@ venv.bak/
 .pyre/
 .pytype/
 .ruff_cache/
+.import_linter_cache/
+.complexipy_cache/
+.vulture_whitelist.py
 
 #IDEs / Editors
 

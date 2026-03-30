@@ -9,14 +9,8 @@ description = "Configuration-driven MLB quantitative betting system."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "typer",
-    "python-dotenv",
-    "apscheduler",
     "pydantic",
     "pydantic-settings",
-    "sqlalchemy",
-    "alembic",
-    "httpx"
 ]
 
 [project.scripts]
@@ -43,4 +37,25 @@ dev = [
     "types-pyyaml",
     "types-requests",
     "vulture"
+]
+
+[tool.importlinter]
+root_package = "algomlb"
+
+[[tool.importlinter.contracts]]
+name = "Unidirectional Import Ladder"
+type = "layers"
+layers = [
+    "cli",
+    "social",
+    "execution",
+    "strategy",
+    "ml",
+    "ingestion",
+    "db",
+    "domain",
+    "config",
+]
+containers = [
+    "algomlb",
 ]

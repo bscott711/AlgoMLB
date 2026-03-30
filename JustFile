@@ -1,0 +1,102 @@
+set shell := ["bash", "-c"]
+
+# Default command for the fast loop
+default: verify
+
+# ==========================================
+# 1. THE AGENT'S TOOLKIT (Self-Correction)
+# ==========================================
+
+# Format code (Ruff)
+format:
+	@echo "🎨 Formatting code..."
+	uv run ruff format .
+
+# Lint and fix code (Ruff) and check Markdown (pymarkdownlnt)
+lint:
+	@echo "🧹 Linting code..."
+	uv run ruff check --fix .
+	@echo "📝 Linting markdown..."
+	uv run pymarkdown --config .pymarkdownrc scan -e "prompts/**" -e "**/.agent/**" -e "src/agents/**" -e ".antigravity/**" -e "**/.venv/**" -e "**/.git/**" -e "**/.pytest_cache/**" -e "**/__pycache__/**" -e "**/.ruff_cache/**" -r .
+
+# Strict type checking (Pyright)
+check-types:
+	@echo "🔒 Checking types..."
+	uv run pyright
+
+# Enforce architectural boundaries (Import Linter)
+contracts:
+	@echo "🏛️ Checking architectural layer contracts..."
+	uv run lint-imports
+
+# Detect dead code and unused dependencies
+check-deps:
+	@echo "🗑️ Checking for unused dependencies and dead code..."
+	uv run deptry src
+	uv run vulture src tests .vulture_whitelist.py --min-confidence 80
+
+# Check architectural complexity (Cyclomatic Complexity)
+check-complexity:
+	@echo "📐 Checking architectural complexity..."
+	uv run complexipy src/
+
+# Clean up caches and build artifacts
+clean:
+	@echo "🧼 Cleaning up..."
+	rm -rf .pytest_cache .ruff_cache .coverage
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+
+# Install pre-commit hooks
+install-hooks:
+	@echo "🪝 Installing git hooks..."
+	uv run pre-commit install
+
+# ==========================================
+# 2. THE VERIFICATION LOOPS (Agent Checkpoints)
+# ==========================================
+
+# THE FULL GATE: Used by the Orchestrator/Pre-Commit. Runs EVERYTHING.
+verify: format lint check-types check-deps contracts check-complexity test-unit
+
+# Run tests with strict 100% coverage limit targeted at the core domain
+test-unit:
+	@echo "🧪 Running strict unit tests..."
+	uv run pytest tests/unit --cov=src --cov-fail-under=100 -n auto
+
+# Run full end-to-end pipeline tests (slow, expensive)
+test-e2e:
+	@echo "🏁 Running E2E tests..."
+	uv run pytest tests/e2e
+
+# ==========================================
+# 3. PRODUCTION OPTIMIZATION (Alpha Search)
+# ==========================================
+
+# Run full Moneyline re-calibration (ML calibration + Strategy tuning)
+optimize-moneyline:
+	@echo "🚀 Launching Full Moneyline Optimization Pipeline..."
+	uv run python -m src.ml.optimize --market Moneyline --deep --restart
+
+# Run full Runline/Totals re-calibration (ML calibration + Strategy tuning)
+optimize-runline:
+	@echo "🚀 Launching Full Runline Optimization Pipeline..."
+	uv run python -m src.ml.optimize --market Runline --deep --restart
+
+# Run the live monitoring dashboard (Streamlit)
+dashboard:
+	@echo "📊 Launching Baseball Bot Dashboard (Headless)..."
+	uv run streamlit run src/execution/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+
+# Alias for dashboard
+serve-dashboard: dashboard
+
+# Commit all changes with a message
+commit message:
+	git add .
+	git commit -m "{{message}}"
+
+# Commit all changes and push to remote
+sync message:
+	git add .
+	git commit -m "{{message}}"
+	git push
