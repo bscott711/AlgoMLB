@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "algomlb"
-version = "0.0.1"
+version = "0.0.2"
 description = "Configuration-driven MLB quantitative betting system."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -19,6 +19,7 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "httpx>=0.28.1",
     "tenacity>=9.1.4",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [project.scripts]
