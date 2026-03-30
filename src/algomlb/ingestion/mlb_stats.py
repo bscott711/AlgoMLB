@@ -14,15 +14,24 @@ class MLBStatsAPIClient(BaseAPIClient):
         super().__init__(base_url=url, timeout=timeout)
 
     def fetch_daily_schedule(
-        self, target_date: Optional[datetime.date] = None
+        self,
+        start_date: Optional[datetime.date] = None,
+        end_date: Optional[datetime.date] = None,
     ) -> List[Game]:
         """
-        Fetch MLB games for a specific date and parse into Domain Game models.
+        Fetch MLB games for a specific date range and parse into Domain Game models.
         """
-        date_str = (target_date or datetime.date.today()).strftime("%Y-%m-%d")
+        s_str = (start_date or datetime.date.today()).strftime("%Y-%m-%d")
+        e_str = (end_date or start_date or datetime.date.today()).strftime("%Y-%m-%d")
+
         # sportId=1 is the identifier for MLB
         path = "/schedule"
-        params = {"sportId": 1, "date": date_str, "hydrate": "probablePitcher"}
+        params = {
+            "sportId": 1,
+            "startDate": s_str,
+            "endDate": e_str,
+            "hydrate": "probablePitcher",
+        }
 
         response = self._request("GET", path, params=params)
         data = response.json()
@@ -40,9 +49,13 @@ class MLBStatsAPIClient(BaseAPIClient):
                 home_team = home.get("team", {}).get("name", "unknown")
                 away_team = away.get("team", {}).get("name", "unknown")
 
-                # Extract probable pitchers if available via hydrate
-                home_pitcher = home.get("probablePitcher", {}).get("fullName")
-                away_pitcher = away.get("probablePitcher", {}).get("fullName")
+                # Extract probable pitchers and IDs if available via hydrate
+                h_p_data = home.get("probablePitcher", {})
+                a_p_data = away.get("probablePitcher", {})
+                home_pitcher = h_p_data.get("fullName")
+                away_pitcher = a_p_data.get("fullName")
+                home_pitcher_id = h_p_data.get("id")
+                away_pitcher_id = a_p_data.get("id")
 
                 # Map MLB status to GameStatus
                 detailed_state = (
@@ -61,13 +74,15 @@ class MLBStatsAPIClient(BaseAPIClient):
                 games_list.append(
                     Game(
                         game_id=game_id,
-                        date=game_data.get("gameDate", date_str)[
+                        date=game_data.get("gameDate", s_str)[
                             :10
                         ],  # Truncate ISO time
                         home_team=home_team,
                         away_team=away_team,
                         home_pitcher=home_pitcher,
                         away_pitcher=away_pitcher,
+                        home_pitcher_id=home_pitcher_id,
+                        away_pitcher_id=away_pitcher_id,
                         home_score=home.get("score"),
                         away_score=away.get("score"),
                         status=status,

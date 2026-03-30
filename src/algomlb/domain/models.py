@@ -26,6 +26,8 @@ class Game(BaseModel):
     away_team: str = Field(..., min_length=2, max_length=50)
     home_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)
     away_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    home_pitcher_id: Optional[int] = Field(default=None)
+    away_pitcher_id: Optional[int] = Field(default=None)
     home_score: Optional[int] = Field(default=None, ge=0)
     away_score: Optional[int] = Field(default=None, ge=0)
     status: GameStatus = Field(default=GameStatus.SCHEDULED)

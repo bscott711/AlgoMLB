@@ -67,6 +67,8 @@ class DatabaseRepository:
             away_team=game.away_team,
             home_pitcher=game.home_pitcher,
             away_pitcher=game.away_pitcher,
+            home_pitcher_id=game.home_pitcher_id,
+            away_pitcher_id=game.away_pitcher_id,
             home_score=game.home_score,
             away_score=game.away_score,
             status=game.status,

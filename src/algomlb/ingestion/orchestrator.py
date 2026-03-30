@@ -34,9 +34,11 @@ class IngestionOrchestrator:
             self.repo.save_live_odds(odds)
         return len(odds_list)
 
-    def run_schedule_ingestion(self) -> int:
-        """Fetch daily game schedule and persist games to the database."""
-        games = self.stats_client.fetch_daily_schedule()
+    def run_schedule_ingestion(
+        self, start_date=None, end_date=None
+    ) -> int:
+        """Fetch daily game schedule/results and persist games to the database."""
+        games = self.stats_client.fetch_daily_schedule(start_date=start_date, end_date=end_date)
         for game in games:
             self.repo.save_game(game)
         return len(games)

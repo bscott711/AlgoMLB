@@ -45,9 +45,14 @@ def odds(ctx: typer.Context):
 
 
 @app.command()
-def schedule(ctx: typer.Context):
-    """Fetch latest MLB game schedule from Stats API and persist to DB."""
+def schedule(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+):
+    """Fetch MLB game schedule/results and persist to DB."""
     agent_mode = ctx.obj.get("agent_mode", False)
+    import datetime
 
     # Setup Infrastructure
     session_factory = get_session_factory()
@@ -61,8 +66,11 @@ def schedule(ctx: typer.Context):
             repo, odds_client, stats_client, historical_loader
         )
 
-        logger.info("Starting daily schedule ingestion...")
-        records_inserted = orchestrator.run_schedule_ingestion()
+        s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
+        e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else None
+
+        logger.info(f"Starting schedule ingestion for {start or 'today'} to {end or 'today'}...")
+        records_inserted = orchestrator.run_schedule_ingestion(start_date=s_date, end_date=e_date)
         logger.success(f"Successfully ingested {records_inserted} schedule records.")
 
         if agent_mode:

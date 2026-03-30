@@ -41,6 +41,8 @@ class GradedGamesORM(Base):
     away_team: Mapped[str] = mapped_column(String(50), nullable=False)
     home_pitcher: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     away_pitcher: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    home_pitcher_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_pitcher_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     home_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[GameStatus] = mapped_column(
