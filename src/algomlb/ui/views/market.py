@@ -18,13 +18,14 @@ with engine.connect() as conn:
         WITH game_extrema AS (
             SELECT 
                 odds_game_id,
+                sportsbook,
+                outcome,
                 min(timestamp) as open_time,
                 max(timestamp) as close_time
             FROM live_odds
-            GROUP BY 1
+            GROUP BY 1, 2, 3
         ),
         game_names AS (
-            -- Resolve real names by looking for non-'Unknown' values across all ticks
             SELECT 
                 odds_game_id,
                 max(CASE WHEN home_team NOT IN ('unknown', 'Unknown') THEN home_team END) as home_team,
@@ -36,13 +37,21 @@ with engine.connect() as conn:
         opening_odds AS (
             SELECT l.odds_game_id, l.sportsbook, l.outcome, l.price as opening_price, l.timestamp as o_time
             FROM live_odds l
-            JOIN game_extrema g ON l.odds_game_id = g.odds_game_id AND l.timestamp = g.open_time
+            JOIN game_extrema g ON 
+                l.odds_game_id = g.odds_game_id AND 
+                l.sportsbook = g.sportsbook AND 
+                l.outcome = g.outcome AND 
+                l.timestamp = g.open_time
             WHERE l.market_type = 'h2h'
         ),
         closing_odds AS (
             SELECT l.odds_game_id, l.sportsbook, l.outcome, l.price as closing_price, l.timestamp as c_time
             FROM live_odds l
-            JOIN game_extrema g ON l.odds_game_id = g.odds_game_id AND l.timestamp = g.close_time
+            JOIN game_extrema g ON 
+                l.odds_game_id = g.odds_game_id AND 
+                l.sportsbook = g.sportsbook AND 
+                l.outcome = g.outcome AND 
+                l.timestamp = g.close_time
             WHERE l.market_type = 'h2h'
         )
         SELECT 
@@ -57,7 +66,10 @@ with engine.connect() as conn:
             o.o_time as opened,
             c.c_time as closed
         FROM opening_odds o
-        JOIN closing_odds c ON o.odds_game_id = c.odds_game_id AND o.sportsbook = c.sportsbook AND o.outcome = c.outcome
+        JOIN closing_odds c ON 
+            o.odds_game_id = c.odds_game_id AND 
+            o.sportsbook = c.sportsbook AND 
+            o.outcome = c.outcome
         JOIN game_names gn ON o.odds_game_id = gn.odds_game_id
         ORDER BY opened DESC
     """
