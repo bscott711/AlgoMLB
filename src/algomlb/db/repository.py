@@ -4,11 +4,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from algomlb.db.models import (
+    BallparkORM,
     BankrollLedgerORM,
-    GradedGamesORM,
+    GameResultORM,
     HistoricalDataORM,
+    HistoricalOddsORM,
     LiveOddsORM,
     PitchEventORM,
+    RetrosheetEventORM,
+    UmpireScorecardORM,
 )
 from algomlb.domain import BankrollTransaction, Game, Odds
 
@@ -59,27 +63,43 @@ class DatabaseRepository:
         return [Odds.model_validate(orm, from_attributes=True) for orm in results]
 
     def save_game(self, game: Game) -> Game:
-        """Save or update a graded game record."""
-        orm = GradedGamesORM(
-            game_id=game.game_id,
-            date=game.date,
-            home_team=game.home_team,
-            away_team=game.away_team,
-            home_pitcher=game.home_pitcher,
-            away_pitcher=game.away_pitcher,
-            home_pitcher_id=game.home_pitcher_id,
-            away_pitcher_id=game.away_pitcher_id,
-            home_score=game.home_score,
-            away_score=game.away_score,
-            status=game.status,
+        """Save or update a game result record."""
+        existing = (
+            self.session.query(GameResultORM).filter_by(game_id=game.game_id).first()
         )
-        self.session.merge(orm)
+        if existing:
+            existing.game_date = game.date
+            existing.home_team = game.home_team
+            existing.away_team = game.away_team
+            existing.home_pitcher = game.home_pitcher
+            existing.away_pitcher = game.away_pitcher
+            existing.home_pitcher_id = game.home_pitcher_id
+            existing.away_pitcher_id = game.away_pitcher_id
+            existing.home_score = game.home_score
+            existing.away_score = game.away_score
+            existing.status = game.status
+        else:
+            orm = GameResultORM(
+                game_id=game.game_id,
+                game_date=game.date,
+                home_team=game.home_team,
+                away_team=game.away_team,
+                home_pitcher=game.home_pitcher,
+                away_pitcher=game.away_pitcher,
+                home_pitcher_id=game.home_pitcher_id,
+                away_pitcher_id=game.away_pitcher_id,
+                home_score=game.home_score,
+                away_score=game.away_score,
+                status=game.status,
+            )
+            self.session.add(orm)
         self.session.commit()
         return game
 
     def get_game(self, game_id: str) -> Optional[Game]:
-        """Retrieve a game by its ID."""
-        orm = self.session.get(GradedGamesORM, game_id)
+        """Retrieve a game by its MLB string ID."""
+        stmt = select(GameResultORM).where(GameResultORM.game_id == game_id)
+        orm = self.session.execute(stmt).scalar_one_or_none()
         if not orm:
             return None
         return Game.model_validate(orm, from_attributes=True)
@@ -130,3 +150,26 @@ class DatabaseRepository:
         stmt = select(func.sum(BankrollLedgerORM.pnl))
         result = self.session.execute(stmt).scalar()
         return float(result) if result is not None else 0.0
+
+    def save_historical_odds(self, odds: List[HistoricalOddsORM]) -> None:
+        """Bulk save historical opening/closing odds snapshots."""
+        self.session.add_all(odds)
+        self.session.commit()
+
+    def save_ballparks(self, ballparks: List[BallparkORM]) -> None:
+        """Bulk save or merge ballpark data."""
+        for bp in ballparks:
+            self.session.merge(bp)
+        self.session.commit()
+
+    def save_umpire_scorecards(self, scorecards: List[UmpireScorecardORM]) -> None:
+        """Bulk merge umpire scorecard data."""
+        for sc in scorecards:
+            self.session.merge(sc)
+        self.session.commit()
+
+    def save_retrosheet_events(self, events: List[RetrosheetEventORM]) -> None:
+        """Bulk merge retrosheet play-by-play events."""
+        for event in events:
+            self.session.merge(event)
+        self.session.commit()

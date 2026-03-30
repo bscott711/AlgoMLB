@@ -76,3 +76,49 @@ def test_ingest_odds_no_agent_mode(mock_session_factory, mock_orchestrator_class
     # We focus on ensuring JSON is NOT in stdout and orchestrator WAS called.
     assert "{" not in result.stdout
     mock_orchestrator.run_odds_ingestion.assert_called_once()
+
+
+@patch("algomlb.cli.ingest.BallparkIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_ballparks_command(mock_session_factory, mock_ingester_class):
+    """Test the 'ingest ballparks' CLI command calls the ingester."""
+    mock_ingester = mock_ingester_class.return_value
+    result = runner.invoke(app, ["ingest", "ballparks", "--csv", "fake.csv"])
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_csv.assert_called_once_with("fake.csv")
+
+
+@patch("algomlb.cli.ingest.HistoricalOddsIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_historical_odds_command(mock_session_factory, mock_ingester_class):
+    """Test the 'ingest historical-odds' CLI command calls the ingester."""
+    mock_ingester = mock_ingester_class.return_value
+    result = runner.invoke(app, ["ingest", "historical-odds", "--date", "2023-04-01"])
+    assert result.exit_code == 0
+    import datetime
+
+    mock_ingester.ingest_day_snapshots.assert_called_once_with(
+        datetime.date(2023, 4, 1)
+    )
+
+
+@patch("algomlb.cli.ingest.UmpireScorecardIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_umpire_scorecards_command(mock_session_factory, mock_ingester_class):
+    """Test the 'ingest umpire-scorecards' CLI command calls the ingester."""
+    mock_ingester = mock_ingester_class.return_value
+    result = runner.invoke(
+        app, ["ingest", "umpire-scorecards", "--csv", "fake_ump.csv"]
+    )
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_csv.assert_called_once_with("fake_ump.csv")
+
+
+@patch("algomlb.cli.ingest.RetrosheetIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_retrosheet_command(mock_session_factory, mock_ingester_class):
+    """Test the 'ingest retrosheet' CLI command calls the ingester."""
+    mock_ingester = mock_ingester_class.return_value
+    result = runner.invoke(app, ["ingest", "retrosheet", "--csv", "fake_retro.csv"])
+    assert result.exit_code == 0
+    mock_ingester.ingest_from_csv.assert_called_once_with("fake_retro.csv")

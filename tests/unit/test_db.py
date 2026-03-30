@@ -60,6 +60,37 @@ def test_save_and_get_game(test_session: Session) -> None:
     assert retrieved.status == GameStatus.COMPLETED
 
 
+def test_update_existing_game(test_session: Session) -> None:
+    """Test updating an existing game record in the DB."""
+    repo = DatabaseRepository(test_session)
+    game_id = "UPDATE_ME"
+    g1 = Game(
+        game_id=game_id,
+        date=date(2023, 4, 1),
+        home_team="Team A",
+        away_team="Team B",
+        status=GameStatus.SCHEDULED,
+    )
+    repo.save_game(g1)
+
+    # Update
+    g2 = Game(
+        game_id=game_id,
+        date=date(2023, 4, 1),
+        home_team="Team A",
+        away_team="Team B",
+        status=GameStatus.COMPLETED,
+        home_score=5,
+        away_score=3,
+    )
+    repo.save_game(g2)
+
+    retrieved = repo.get_game(game_id)
+    assert retrieved is not None
+    assert retrieved.status == GameStatus.COMPLETED
+    assert retrieved.home_score == 5
+
+
 def test_save_and_get_live_odds(test_session: Session) -> None:
     """Test saving Pydantic Odds models and retrieving them."""
     repo = DatabaseRepository(test_session)
@@ -209,3 +240,20 @@ def test_create_db_engine_with_config():
     # Pydantic masks the password from the DSN with ***
     assert str(engine.url) == "postgresql://user:***@localhost/db"
     assert engine.echo is True
+
+
+def test_save_ballparks(test_session: Session) -> None:
+    """Test bulk saving/merging ballpark records."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import BallparkORM
+
+    ballparks = [
+        BallparkORM(team_name="NYY", ballpark="Yankee Stadium"),
+        BallparkORM(team_name="TOR", ballpark="Rogers Centre"),
+    ]
+    repo.save_ballparks(ballparks)
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(BallparkORM)).scalars().all()
+    assert len(retrieved) == 2

@@ -30,13 +30,16 @@ class LiveOddsORM(Base):
     )
 
 
-class GradedGamesORM(Base):
-    """Storage for completed/settled games."""
+class GameResultORM(Base):
+    """Storage for completed/settled games and historical results."""
 
-    __tablename__ = "graded_games"
+    __tablename__ = "game_results"
 
-    game_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True
+    )  # MLB Game PK
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     home_team: Mapped[str] = mapped_column(String(50), nullable=False)
     away_team: Mapped[str] = mapped_column(String(50), nullable=False)
     home_pitcher: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -48,6 +51,16 @@ class GradedGamesORM(Base):
     status: Mapped[GameStatus] = mapped_column(
         Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED
     )
+    ballpark_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Environmental Context
+    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    wind_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Travel / Rest Fatigue
+    home_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class BankrollLedgerORM(Base):
@@ -112,26 +125,248 @@ class PitchEventORM(Base):
     bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
-class GameResultORM(Base):
-    """Storage for historical game results including environmental and travel context."""
+class HistoricalOddsORM(Base):
+    """Storage for historical opening and closing odds."""
 
-    __tablename__ = "game_results"
+    __tablename__ = "historical_odds"
 
-    game_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    home_team: Mapped[str] = mapped_column(String(50), nullable=False)
-    away_team: Mapped[str] = mapped_column(String(50), nullable=False)
-    home_score: Mapped[int] = mapped_column(Integer, nullable=False)
-    away_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    bookmaker: Mapped[str] = mapped_column(String(50), nullable=False)
+    market_type: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # h2h, spreads, totals
+    odds_type: Mapped[str] = mapped_column(
+        String(10), nullable=False
+    )  # opening, closing
+    home_price: Mapped[int] = mapped_column(Integer, nullable=False)  # American odds
+    away_price: Mapped[int] = mapped_column(Integer, nullable=False)
+    spread: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    snapshot_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.datetime.now
+    )
 
-    # Environmental Context
-    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    wind_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
-    # Travel / Rest Fatigue
-    home_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    away_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+class BallparkORM(Base):
+    """Structural data for MLB ballparks from Kaggle mlb-ballparks dataset."""
+
+    __tablename__ = "ballparks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    team_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ballpark: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    left_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    center_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    right_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    min_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    max_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hr_park_effects: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    extra_distance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    avg_temp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    elevation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    roof: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    daytime: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+
+class UmpireScorecardORM(Base):
+    """Represents data from Umpire Scorecards (accuracy/consistency)."""
+
+    __tablename__ = "umpire_scorecards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    umpire_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    accuracy: Mapped[float] = mapped_column(Float, nullable=False)
+    consistency: Mapped[float] = mapped_column(Float, nullable=False)
+    favoritism_home: Mapped[float] = mapped_column(Float, nullable=False)
+    expected_runs: Mapped[float] = mapped_column(Float, nullable=False)
+    actual_runs: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class RetrosheetEventORM(Base):
+    """Granular play-by-play event record from Retrosheet files."""
+
+    __tablename__ = "retrosheet_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # gid
+    play_number: Mapped[int] = mapped_column(Integer, nullable=False)  # pn
+    event_text: Mapped[str] = mapped_column(String(255))  # event
+    inning: Mapped[int] = mapped_column(Integer, nullable=False)
+    top_bot: Mapped[int] = mapped_column(Integer, nullable=False)
+    vis_home: Mapped[int] = mapped_column(Integer)
+    site: Mapped[str] = mapped_column(String(10))
+    bat_team: Mapped[str] = mapped_column(String(5))  # batteam
+    pit_team: Mapped[str] = mapped_column(String(5))  # pitteam
+    score_v: Mapped[int] = mapped_column(Integer, default=0)
+    score_h: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Participants
+    batter_id: Mapped[str] = mapped_column(String(20))  # batter
+    pitcher_id: Mapped[str] = mapped_column(String(20))  # pitcher
+    lp: Mapped[int] = mapped_column(Integer)  # lineup position
+    bat_f: Mapped[int] = mapped_column(Integer)  # fielding pos of batter
+    batter_hand: Mapped[Optional[str]] = mapped_column(String(1))  # bathand
+    pitcher_hand: Mapped[Optional[str]] = mapped_column(String(1))  # pithand
+
+    # Counts & Sequence
+    balls: Mapped[int] = mapped_column(Integer, default=0)
+    strikes: Mapped[int] = mapped_column(Integer, default=0)
+    count_text: Mapped[Optional[str]] = mapped_column(String(5))  # count
+    pitches: Mapped[Optional[str]] = mapped_column(String(50))
+    nump: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Outcomes (The 14 flags)
+    pa_flag: Mapped[int] = mapped_column(Integer, default=0)
+    ab_flag: Mapped[int] = mapped_column(Integer, default=0)
+    single: Mapped[int] = mapped_column(Integer, default=0)
+    double_flag: Mapped[int] = mapped_column(Integer, default=0)  # double is a keyword
+    triple: Mapped[int] = mapped_column(Integer, default=0)
+    hr: Mapped[int] = mapped_column(Integer, default=0)
+    sh: Mapped[int] = mapped_column(Integer, default=0)
+    sf: Mapped[int] = mapped_column(Integer, default=0)
+    hbp: Mapped[int] = mapped_column(Integer, default=0)
+    walk: Mapped[int] = mapped_column(Integer, default=0)
+    k: Mapped[int] = mapped_column(Integer, default=0)
+    xi: Mapped[int] = mapped_column(Integer, default=0)
+    roe: Mapped[int] = mapped_column(Integer, default=0)
+    fc: Mapped[int] = mapped_column(Integer, default=0)
+    othout: Mapped[int] = mapped_column(Integer, default=0)
+    noout: Mapped[int] = mapped_column(Integer, default=0)
+
+    # BIP Details
+    bip: Mapped[int] = mapped_column(Integer, default=0)
+    bunt: Mapped[int] = mapped_column(Integer, default=0)
+    ground: Mapped[int] = mapped_column(Integer, default=0)
+    fly: Mapped[int] = mapped_column(Integer, default=0)
+    line_flag: Mapped[int] = mapped_column(Integer, default=0)
+    iw: Mapped[int] = mapped_column(Integer, default=0)
+    gdp: Mapped[int] = mapped_column(Integer, default=0)
+    othdp: Mapped[int] = mapped_column(Integer, default=0)
+    tp: Mapped[int] = mapped_column(Integer, default=0)
+    fle: Mapped[int] = mapped_column(Integer, default=0)
+    wp: Mapped[int] = mapped_column(Integer, default=0)
+    pb: Mapped[int] = mapped_column(Integer, default=0)
+    bk: Mapped[int] = mapped_column(Integer, default=0)
+    oa: Mapped[int] = mapped_column(Integer, default=0)
+    di: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Baserunning
+    sb2: Mapped[int] = mapped_column(Integer, default=0)
+    sb3: Mapped[int] = mapped_column(Integer, default=0)
+    sbh: Mapped[int] = mapped_column(Integer, default=0)
+    cs2: Mapped[int] = mapped_column(Integer, default=0)
+    cs3: Mapped[int] = mapped_column(Integer, default=0)
+    csh: Mapped[int] = mapped_column(Integer, default=0)
+    pko1: Mapped[int] = mapped_column(Integer, default=0)
+    pko2: Mapped[int] = mapped_column(Integer, default=0)
+    pko3: Mapped[int] = mapped_column(Integer, default=0)
+    k_safe: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Errors
+    e1: Mapped[int] = mapped_column(Integer, default=0)
+    e2: Mapped[int] = mapped_column(Integer, default=0)
+    e3: Mapped[int] = mapped_column(Integer, default=0)
+    e4: Mapped[int] = mapped_column(Integer, default=0)
+    e5: Mapped[int] = mapped_column(Integer, default=0)
+    e6: Mapped[int] = mapped_column(Integer, default=0)
+    e7: Mapped[int] = mapped_column(Integer, default=0)
+    e8: Mapped[int] = mapped_column(Integer, default=0)
+    e9: Mapped[int] = mapped_column(Integer, default=0)
+
+    # State Pre/Post
+    outs_pre: Mapped[int] = mapped_column(Integer, default=0)
+    outs_post: Mapped[int] = mapped_column(Integer, default=0)
+    br1_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    br2_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    br3_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    br1_post: Mapped[Optional[str]] = mapped_column(String(20))
+    br2_post: Mapped[Optional[str]] = mapped_column(String(20))
+    br3_post: Mapped[Optional[str]] = mapped_column(String(20))
+
+    # LOB & Responsible Pitchers
+    lob_id1: Mapped[Optional[str]] = mapped_column(String(20))
+    lob_id2: Mapped[Optional[str]] = mapped_column(String(20))
+    lob_id3: Mapped[Optional[str]] = mapped_column(String(20))
+    pr1_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    pr2_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    pr3_pre: Mapped[Optional[str]] = mapped_column(String(20))
+    pr1_post: Mapped[Optional[str]] = mapped_column(String(20))
+    pr2_post: Mapped[Optional[str]] = mapped_column(String(20))
+    pr3_post: Mapped[Optional[str]] = mapped_column(String(20))
+
+    # Run / RBI Scoring
+    run_b: Mapped[Optional[str]] = mapped_column(String(20))
+    run1: Mapped[Optional[str]] = mapped_column(String(20))
+    run2: Mapped[Optional[str]] = mapped_column(String(20))
+    run3: Mapped[Optional[str]] = mapped_column(String(20))
+    prun_b: Mapped[Optional[str]] = mapped_column(String(20))
+    prun1: Mapped[Optional[str]] = mapped_column(String(20))
+    prun2: Mapped[Optional[str]] = mapped_column(String(20))
+    prun3: Mapped[Optional[str]] = mapped_column(String(20))
+    ur_b: Mapped[int] = mapped_column(Integer, default=0)
+    ur1: Mapped[int] = mapped_column(Integer, default=0)
+    ur2: Mapped[int] = mapped_column(Integer, default=0)
+    ur3: Mapped[int] = mapped_column(Integer, default=0)
+    rbi_b: Mapped[int] = mapped_column(Integer, default=0)
+    rbi1: Mapped[int] = mapped_column(Integer, default=0)
+    rbi2: Mapped[int] = mapped_column(Integer, default=0)
+    rbi3: Mapped[int] = mapped_column(Integer, default=0)
+    runs: Mapped[int] = mapped_column(Integer, default=0)
+    rbi: Mapped[int] = mapped_column(Integer, default=0)
+    er: Mapped[int] = mapped_column(Integer, default=0)
+    tur: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Defense (Fielders & PO/A)
+    f2: Mapped[Optional[str]] = mapped_column(String(20))
+    f3: Mapped[Optional[str]] = mapped_column(String(20))
+    f4: Mapped[Optional[str]] = mapped_column(String(20))
+    f5: Mapped[Optional[str]] = mapped_column(String(20))
+    f6: Mapped[Optional[str]] = mapped_column(String(20))
+    f7: Mapped[Optional[str]] = mapped_column(String(20))
+    f8: Mapped[Optional[str]] = mapped_column(String(20))
+    f9: Mapped[Optional[str]] = mapped_column(String(20))
+    po1: Mapped[int] = mapped_column(Integer, default=0)
+    po2: Mapped[int] = mapped_column(Integer, default=0)
+    po3: Mapped[int] = mapped_column(Integer, default=0)
+    po4: Mapped[int] = mapped_column(Integer, default=0)
+    po5: Mapped[int] = mapped_column(Integer, default=0)
+    po6: Mapped[int] = mapped_column(Integer, default=0)
+    po7: Mapped[int] = mapped_column(Integer, default=0)
+    po8: Mapped[int] = mapped_column(Integer, default=0)
+    po9: Mapped[int] = mapped_column(Integer, default=0)
+    a1: Mapped[int] = mapped_column(Integer, default=0)
+    a2: Mapped[int] = mapped_column(Integer, default=0)
+    a3: Mapped[int] = mapped_column(Integer, default=0)
+    a4: Mapped[int] = mapped_column(Integer, default=0)
+    a5: Mapped[int] = mapped_column(Integer, default=0)
+    a6: Mapped[int] = mapped_column(Integer, default=0)
+    a7: Mapped[int] = mapped_column(Integer, default=0)
+    a8: Mapped[int] = mapped_column(Integer, default=0)
+    a9: Mapped[int] = mapped_column(Integer, default=0)
+    fseq: Mapped[Optional[str]] = mapped_column(String(20))
+    firstf: Mapped[int] = mapped_column(Integer, default=0)
+    loc: Mapped[Optional[str]] = mapped_column(String(10))
+    hittype: Mapped[Optional[str]] = mapped_column(String(5))
+    dpopp: Mapped[int] = mapped_column(Integer, default=0)
+    pivot: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Umpires
+    umphome: Mapped[Optional[str]] = mapped_column(String(50))
+    ump1b: Mapped[Optional[str]] = mapped_column(String(50))
+    ump2b: Mapped[Optional[str]] = mapped_column(String(50))
+    ump3b: Mapped[Optional[str]] = mapped_column(String(50))
+    umplf: Mapped[Optional[str]] = mapped_column(String(50))
+    umprf: Mapped[Optional[str]] = mapped_column(String(50))
+
+    # File Info
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    gametype: Mapped[Optional[str]] = mapped_column(String(20))
+    pbp: Mapped[Optional[str]] = mapped_column(String(10))
 
 
 class HistoricalDataORM(Base):

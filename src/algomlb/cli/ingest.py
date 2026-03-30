@@ -9,6 +9,10 @@ from algomlb.ingestion import (
     OddsAPIClient,
 )
 from algomlb.ingestion.historical import HistoricalDataLoader
+from algomlb.ingestion.ballpark_ingester import BallparkIngester
+from algomlb.ingestion.historical_odds import HistoricalOddsIngester
+from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
+from algomlb.ingestion.retrosheet_ingester import RetrosheetIngester
 
 app = typer.Typer(help="Ingest data from external APIs.", no_args_is_help=True)
 
@@ -157,3 +161,63 @@ def historical(
                     data={"records_processed": records_processed},
                 )
             )
+
+
+@app.command()
+def ballparks(
+    ctx: typer.Context,
+    csv_path: str = typer.Option(
+        None, "--csv", help="Path to ballpark CSV (from Kaggle)"
+    ),
+):
+    """Ingest MLB ballpark structural data from CSV."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        ingester = BallparkIngester(session)
+        # Default to the cached kaggle path if not specified
+        path = (
+            csv_path
+            or "/home/opc/.cache/kagglehub/datasets/paulrjohnson/mlb-ballparks/versions/4/ballparks.csv"
+        )
+        ingester.ingest_from_csv(path)
+
+
+@app.command()
+def historical_odds(
+    ctx: typer.Context,
+    date: str = typer.Option(..., "--date", help="Date to ingest (YYYY-MM-DD)"),
+):
+    """Ingest opening and closing odds snapshots for a specific date."""
+    import datetime
+
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        ingester = HistoricalOddsIngester(repo)
+
+        day = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        ingester.ingest_day_snapshots(day)
+
+
+@app.command()
+def umpire_scorecards(
+    ctx: typer.Context,
+    csv_path: str = typer.Option(..., "--csv", help="Path to umpire scorecard CSV"),
+):
+    """Ingest umpire accuracy and bias data from CSV."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        ingester = UmpireScorecardIngester(session)
+        ingester.ingest_from_csv(csv_path)
+
+
+@app.command()
+def retrosheet(
+    ctx: typer.Context,
+    csv_path: str = typer.Option(..., "--csv", help="Path to parsed Retrosheet CSV"),
+):
+    """Ingest Retrosheet play-by-play events from parsed CSV."""
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        ingester = RetrosheetIngester(session)
+        ingester.ingest_from_csv(csv_path)

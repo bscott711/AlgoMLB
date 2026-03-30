@@ -18,10 +18,12 @@ class GameStatus(StrEnum):
 class Game(BaseModel):
     """Represents a scheduled or completed baseball game."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
     game_id: str = Field(..., description="Unique identifier for the game")
-    date: datetime.date = Field(..., description="Date of the game")
+    date: datetime.date = Field(
+        ..., description="Date of the game", validation_alias="game_date"
+    )
     home_team: str = Field(..., min_length=2, max_length=50)
     away_team: str = Field(..., min_length=2, max_length=50)
     home_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)
@@ -98,3 +100,39 @@ class BankrollTransaction(BaseModel):
     game_id: Optional[str] = Field(
         default=None, description="Reference to the Game ID if applicable"
     )
+
+
+class HistoricalOdds(BaseModel):
+    """Represents historical opening or closing odds for a game."""
+
+    model_config = ConfigDict(frozen=True)
+
+    game_id: str = Field(..., description="MLB Game ID reference")
+    bookmaker: str = Field(..., max_length=50)
+    market_type: str = Field(..., description="h2h, spreads, or totals")
+    odds_type: str = Field(..., description="opening or closing")
+    home_price: int = Field(..., description="American odds for home team")
+    away_price: int = Field(..., description="American odds for away team")
+    spread: Optional[float] = Field(default=None)
+    total: Optional[float] = Field(default=None)
+    snapshot_at: datetime.datetime = Field(..., description="Market snapshot timestamp")
+
+
+class Ballpark(BaseModel):
+    """Represents MLB ballpark physical and environmental characteristics."""
+
+    model_config = ConfigDict(frozen=True)
+
+    team_name: str = Field(..., max_length=50)
+    ballpark: str = Field(..., max_length=100)
+    left_field: Optional[int] = Field(default=None)
+    center_field: Optional[int] = Field(default=None)
+    right_field: Optional[int] = Field(default=None)
+    min_wall_height: Optional[float] = Field(default=None)
+    max_wall_height: Optional[float] = Field(default=None)
+    hr_park_effects: Optional[float] = Field(default=None)
+    extra_distance: Optional[float] = Field(default=None)
+    avg_temp: Optional[float] = Field(default=None)
+    elevation: Optional[int] = Field(default=None)
+    roof: Optional[float] = Field(default=None)
+    daytime: Optional[float] = Field(default=None)
