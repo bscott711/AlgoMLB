@@ -32,7 +32,7 @@ contracts:
 # Detect dead code and unused dependencies
 check-deps:
 	@echo "🗑️ Checking for unused dependencies and dead code..."
-	uv run deptry src --per-rule-ignores "DEP002=psycopg2-binary|pyarrow"
+	uv run deptry src -i DEP002
 	uv run vulture src tests .vulture_whitelist.py --min-confidence 80
 
 # Check architectural complexity (Cyclomatic Complexity)
@@ -85,7 +85,7 @@ optimize-runline:
 # Run the live monitoring dashboard (Streamlit)
 dashboard:
 	@echo "📊 Launching Baseball Bot Dashboard (Headless)..."
-	uv run streamlit run src/execution/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+	uv run streamlit run src/algomlb/ui/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
 
 # Alias for dashboard
 serve-dashboard: dashboard

@@ -23,6 +23,10 @@ dependencies = [
     "pybaseball>=2.2.7",
     "pandas>=2.3.3",
     "pyarrow>=23.0.1",
+    "xgboost>=3.2.0",
+    "scikit-learn>=1.8.0",
+    "joblib>=1.5.3",
+    "numpy>=2.4.4",
 ]
 
 [project.scripts]
@@ -75,10 +79,7 @@ containers = [
     "algomlb",
 ]
 
-[tool.coverage.run]
-omit = [
-    "src/algomlb/ui/*",
-]
+# UI is no longer omitted from coverage.
 
 [tool.coverage.report]
 exclude_lines = [

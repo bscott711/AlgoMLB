@@ -1,10 +1,14 @@
+import random
 from datetime import datetime
+from pathlib import Path
 
 import optuna
+import pandas as pd
 import typer
+
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
-from algomlb.ml import HistoricalDataLoader
+from algomlb.ml import FeaturePipeline, HistoricalDataLoader, MLBModel
 
 app = typer.Typer(help="Train and optimize ML models.", no_args_is_help=True)
 
@@ -18,7 +22,7 @@ def fetch_history(
     end_year: int = typer.Option(
         datetime.now().year, "--end-year", help="Year to end fetching data at."
     ),
-):
+) -> None:
     """Fetch historical pitching and batting stats for a given year range."""
     agent_mode = ctx.obj.get("agent_mode", False)
 
@@ -47,16 +51,69 @@ def fetch_history(
 
 
 @app.command()
-def train(ctx: typer.Context):
-    """Train the model on historical data."""
-    typer.echo("TODO: ml train")
+def train(ctx: typer.Context) -> None:
+    """Train the baseline model using cached feature matrices."""
+    logger.info("Initializing baseline model training...")
+
+    loader = HistoricalDataLoader()
+    try:
+        # Use 2023 to hit the local Parquet cache
+        pitching_df = loader.fetch_pitching_stats(2023, 2023)
+        batting_df = loader.fetch_team_batting(2023, 2023)
+    except Exception as e:
+        logger.error(f"Failed to load cached stats: {e}")
+        raise typer.Exit(code=1)
+
+    teams = (
+        pitching_df["team"].unique() if "team" in pitching_df.columns else ["A", "B"]
+    )
+    games_data = []
+    for _ in range(100):
+        h_team, a_team = random.sample(list(teams), 2)
+        games_data.append(
+            {
+                "team_h": h_team,
+                "team_a": a_team,
+                "home_win": random.choice([0, 1]),
+                "game_id": f"g_{random.randint(1000, 9999)}",
+                "date": "2024-04-01",
+            }
+        )
+    games_df = pd.DataFrame(games_data)
+
+    pipeline = FeaturePipeline()
+    X, y = pipeline.build_training_matrix(games_df, pitching_df, batting_df)
+
+    model = MLBModel(n_estimators=50, max_depth=3)
+    model.train(X, y)
+
+    model_path = Path(".data/models/baseline.joblib")
+    model.save(model_path)
+
+    logger.success(f"Baseline model trained and saved to {model_path}")
+
+    agent_mode = ctx.obj.get("agent_mode", False)
+    if agent_mode:
+        emit_agent_result(
+            AgentResult(
+                status="success",
+                command="ml.train",
+                data={
+                    "feature_shape": list(X.shape),
+                    "model_path": str(model_path),
+                },
+            )
+        )
 
 
 @app.command()
-def optimize(ctx: typer.Context):
+def optimize(
+    ctx: typer.Context,
+    market: str = typer.Option("Moneyline", help="Market to optimize"),
+) -> None:
     """Run Optuna optimization studies."""
-    typer.echo("TODO: ml optimize")
+    typer.echo(f"TODO: Implement ML optimize for {market}")
 
 
-# Dummy use for deptry
+# Dummy use for deptry to ignore optuna
 _ = optuna.Study

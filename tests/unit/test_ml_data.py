@@ -90,15 +90,10 @@ def test_ml_fetch_history_cli(mock_loader_class, dummy_pitching_df, dummy_battin
     assert agent_output["data"]["pitching_shape"] == [1, 2]
 
 
-def test_ml_train_stub():
-    """Verify ml train stub runs."""
-    result = runner.invoke(app, ["ml", "train"])
+def test_ml_optimize_cli():
+    """Verify ml optimize CLI runs the TODO implementation."""
+    result = runner.invoke(app, ["ml", "optimize", "--market", "Runline"])
     assert result.exit_code == 0
     assert "TODO" in result.stdout
 
-
-def test_ml_optimize_stub():
-    """Verify ml optimize stub runs."""
-    result = runner.invoke(app, ["ml", "optimize"])
-    assert result.exit_code == 0
-    assert "TODO" in result.stdout
+    assert "Runline" in result.stdout
