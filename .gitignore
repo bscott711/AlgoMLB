@@ -91,5 +91,13 @@ Thumbs.db
 
 #Jupyter Notebook
 
-.ipynb_checkpointslogs/
+# Logs
+logs/
 logs/algomlb.log
+
+# Project Data
+.data/
+
+# Temporary reports
+coverage_full.txt
+deptry_help.txt

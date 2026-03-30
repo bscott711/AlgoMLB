@@ -32,7 +32,7 @@ contracts:
 # Detect dead code and unused dependencies
 check-deps:
 	@echo "🗑️ Checking for unused dependencies and dead code..."
-	uv run deptry src
+	uv run deptry src --per-rule-ignores "DEP002=psycopg2-binary|pyarrow"
 	uv run vulture src tests .vulture_whitelist.py --min-confidence 80
 
 # Check architectural complexity (Cyclomatic Complexity)

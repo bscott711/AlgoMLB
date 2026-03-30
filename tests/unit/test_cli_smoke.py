@@ -15,8 +15,17 @@ def test_cli_help():
 
 
 def test_cli_db_stubs():
-    assert runner.invoke(app, ["db", "init"]).exit_code == 0
+    with patch("algomlb.cli.db.create_db_engine"):
+        assert runner.invoke(app, ["db", "init"]).exit_code == 0
     assert runner.invoke(app, ["db", "status"]).exit_code == 0
+
+
+def test_cli_db_init_failure():
+    """Verify error handling in db init."""
+    with patch("algomlb.cli.db.create_db_engine") as mock_engine:
+        mock_engine.side_effect = Exception("DB Error")
+        result = runner.invoke(app, ["db", "init"])
+        assert result.exit_code == 1
 
 
 def test_cli_ingest_stubs():
