@@ -1,0 +1,242 @@
+{
+  "Arizona Diamondbacks": {
+    "ballpark": "Chase Field",
+    "city": "Phoenix",
+    "state": "AZ",
+    "lat": 33.4453,
+    "long": -112.0667,
+    "synonyms": ["Chase Field"]
+  },
+  "Atlanta Braves": {
+    "ballpark": "Truist Park",
+    "city": "Atlanta",
+    "state": "GA",
+    "lat": 33.8907,
+    "long": -84.4678,
+    "synonyms": ["Truist Park", "Suntrust Park"]
+  },
+  "Baltimore Orioles": {
+    "ballpark": "Oriole Park at Camden Yards",
+    "city": "Baltimore",
+    "state": "MD",
+    "lat": 39.2839,
+    "long": -76.6217,
+    "synonyms": ["Oriole Park at Camden Yards"]
+  },
+  "Boston Red Sox": {
+    "ballpark": "Fenway Park",
+    "city": "Boston",
+    "state": "MA",
+    "lat": 42.3467,
+    "long": -71.0972,
+    "synonyms": ["Fenway Park"]
+  },
+  "Chicago Cubs": {
+    "ballpark": "Wrigley Field",
+    "city": "Chicago",
+    "state": "IL",
+    "lat": 41.9483,
+    "long": -87.6553,
+    "synonyms": ["Wrigley Field"]
+  },
+  "Chicago White Sox": {
+    "ballpark": "Guaranteed Rate Field",
+    "city": "Chicago",
+    "state": "IL",
+    "lat": 41.8300,
+    "long": -87.6339,
+    "synonyms": ["Guaranteed Rate Field"]
+  },
+  "Cincinnati Reds": {
+    "ballpark": "Great American Ball Park",
+    "city": "Cincinnati",
+    "state": "OH",
+    "lat": 39.0979,
+    "long": -84.5071,
+    "synonyms": ["Great American Ball Park"]
+  },
+  "Cleveland Guardians": {
+    "ballpark": "Progressive Field",
+    "city": "Cleveland",
+    "state": "OH",
+    "lat": 41.4958,
+    "long": -81.6852,
+    "synonyms": ["Progressive Field"]
+  },
+  "Colorado Rockies": {
+    "ballpark": "Coors Field",
+    "city": "Denver",
+    "state": "CO",
+    "lat": 39.7559,
+    "long": -104.9942,
+    "synonyms": ["Coors Field"]
+  },
+  "Detroit Tigers": {
+    "ballpark": "Comerica Park",
+    "city": "Detroit",
+    "state": "MI",
+    "lat": 42.3391,
+    "long": -83.0485,
+    "synonyms": ["Comerica Park"]
+  },
+  "Houston Astros": {
+    "ballpark": "Daikin Park",
+    "city": "Houston",
+    "state": "TX",
+    "lat": 29.7569,
+    "long": -95.3555,
+    "synonyms": ["Minute Maid Park", "Daikin Park"]
+  },
+  "Kansas City Royals": {
+    "ballpark": "Kauffman Stadium",
+    "city": "Kansas City",
+    "state": "MO",
+    "lat": 39.0514,
+    "long": -94.4803,
+    "synonyms": ["Kauffman Stadium"]
+  },
+  "Los Angeles Angels": {
+    "ballpark": "Angel Stadium",
+    "city": "Anaheim",
+    "state": "CA",
+    "lat": 33.8003,
+    "long": -117.8827,
+    "synonyms": ["Angel Stadium"]
+  },
+  "Los Angeles Dodgers": {
+    "ballpark": "Dodger Stadium",
+    "city": "Los Angeles",
+    "state": "CA",
+    "lat": 34.0739,
+    "long": -118.2400,
+    "synonyms": ["Dodger Stadium"]
+  },
+  "Miami Marlins": {
+    "ballpark": "loanDepot park",
+    "city": "Miami",
+    "state": "FL",
+    "lat": 25.7781,
+    "long": -80.2197,
+    "synonyms": ["loanDepot park", "Marlins Park"]
+  },
+  "Milwaukee Brewers": {
+    "ballpark": "American Family Field",
+    "city": "Milwaukee",
+    "state": "WI",
+    "lat": 43.0283,
+    "long": -87.9711,
+    "synonyms": ["American Family Field", "Miller Park"]
+  },
+  "Minnesota Twins": {
+    "ballpark": "Target Field",
+    "city": "Minneapolis",
+    "state": "MN",
+    "lat": 44.9817,
+    "long": -93.2776,
+    "synonyms": ["Target Field"]
+  },
+  "New York Mets": {
+    "ballpark": "Citi Field",
+    "city": "Queens",
+    "state": "NY",
+    "lat": 40.7571,
+    "long": -73.8458,
+    "synonyms": ["Citi Field"]
+  },
+  "New York Yankees": {
+    "ballpark": "Yankee Stadium",
+    "city": "Bronx",
+    "state": "NY",
+    "lat": 40.8296,
+    "long": -73.9265,
+    "synonyms": ["Yankee Stadium"]
+  },
+  "Oakland Athletics": {
+    "ballpark": "Sutter Health Park",
+    "city": "West Sacramento",
+    "state": "CA",
+    "lat": 38.5772,
+    "long": -121.5222,
+    "synonyms": ["Oakland Coliseum", "Sutter Health Park"]
+  },
+  "Philadelphia Phillies": {
+    "ballpark": "Citizens Bank Park",
+    "city": "Philadelphia",
+    "state": "PA",
+    "lat": 39.9060,
+    "long": -75.1665,
+    "synonyms": ["Citizens Bank Park"]
+  },
+  "Pittsburgh Pirates": {
+    "ballpark": "PNC Park",
+    "city": "Pittsburgh",
+    "state": "PA",
+    "lat": 40.4469,
+    "long": -80.0057,
+    "synonyms": ["PNC Park"]
+  },
+  "San Diego Padres": {
+    "ballpark": "Petco Park",
+    "city": "San Diego",
+    "state": "CA",
+    "lat": 32.7076,
+    "long": -117.1569,
+    "synonyms": ["Petco Park"]
+  },
+  "San Francisco Giants": {
+    "ballpark": "Oracle Park",
+    "city": "San Francisco",
+    "state": "CA",
+    "lat": 37.7785,
+    "long": -122.3893,
+    "synonyms": ["Oracle Park", "AT&T Park"]
+  },
+  "Seattle Mariners": {
+    "ballpark": "T-Mobile Park",
+    "city": "Seattle",
+    "state": "WA",
+    "lat": 47.5838,
+    "long": -122.3317,
+    "synonyms": ["T-Mobile Park", "Safeco Field"]
+  },
+  "St. Louis Cardinals": {
+    "ballpark": "Busch Stadium",
+    "city": "St. Louis",
+    "state": "MO",
+    "lat": 38.6247,
+    "long": -90.1925,
+    "synonyms": ["Busch Stadium"]
+  },
+  "Tampa Bay Rays": {
+    "ballpark": "Tropicana Field",
+    "city": "St. Petersburg",
+    "state": "FL",
+    "lat": 27.7682,
+    "long": -82.6533,
+    "synonyms": ["Tropicana Field"]
+  },
+  "Texas Rangers": {
+    "ballpark": "Globe Life Field",
+    "city": "Arlington",
+    "state": "TX",
+    "lat": 32.7473,
+    "long": -97.0822,
+    "synonyms": ["Globe Life Field", "Globe Life Park in Arlington"]
+  },
+  "Toronto Blue Jays": {
+    "ballpark": "Rogers Centre",
+    "city": "Toronto",
+    "state": "ON",
+    "lat": 43.6414,
+    "long": -79.3893,
+    "synonyms": ["Rogers Centre"]
+  },
+  "Washington Nationals": {
+    "ballpark": "Nationals Park",
+    "city": "Washington",
+    "state": "DC",
+    "lat": 38.8732,
+    "long": -77.0075,
+    "synonyms": ["Nationals Park"]
+  }
+}
