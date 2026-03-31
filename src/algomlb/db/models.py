@@ -173,18 +173,74 @@ class BallparkORM(Base):
 
 
 class UmpireScorecardORM(Base):
-    """Represents data from Umpire Scorecards (accuracy/consistency)."""
+    """Umpire accuracy and bias data from umpscorecards.us API."""
 
     __tablename__ = "umpire_scorecards"
+    __table_args__ = (UniqueConstraint("game_pk", name="uq_umpire_scorecards_game_pk"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    game_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    game_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     umpire_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    home_team: Mapped[str] = mapped_column(String(5), nullable=False)
+    away_team: Mapped[str] = mapped_column(String(5), nullable=False)
+    home_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Accuracy Metrics
+    called_pitches: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    called_correct: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    called_wrong: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     accuracy: Mapped[float] = mapped_column(Float, nullable=False)
+    x_overall_accuracy: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    accuracy_above_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_x_correct_calls: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+    x_correct_calls: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    correct_calls_above_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Consistency & Favor
     consistency: Mapped[float] = mapped_column(Float, nullable=False)
     favoritism_home: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Per-Side Impact
+    home_batter_impact: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_pitcher_impact: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    away_batter_impact: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    away_pitcher_impact: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    total_run_impact: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     expected_runs: Mapped[float] = mapped_column(Float, nullable=False)
     actual_runs: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Challenge / ABS Metrics
+    n_overturned: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    n_challenged: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    challenge_success_rate: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+    n_overturned_home: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    n_challenged_home: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    n_overturned_away: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    n_challenged_away: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # ABS Zone Data
+    abs_away_a: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_away_b: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_away_c: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_away_d: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_home_a: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_home_b: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_home_c: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    abs_home_d: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Metadata Flags
+    fully_valid: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    num_pitches_no_data: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
 
 class RetrosheetEventORM(Base):

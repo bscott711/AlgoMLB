@@ -105,29 +105,20 @@ def test_ingest_historical_odds_command(mock_session_factory, mock_ingester_clas
 @patch("algomlb.cli.ingest.UmpireScorecardIngester")
 @patch("algomlb.cli.ingest.get_session_factory")
 def test_ingest_umpire_scorecards_command(mock_session_factory, mock_ingester_class):
-    """Test 'ingest umpire-scorecards' CLI paths (CSV, URL, Kaggle)."""
+    """Test 'ingest umpire-scorecards' CLI paths (--scrape and default warning)."""
     mock_ingester = mock_ingester_class.return_value
+    mock_ingester.ingest_from_api.return_value = 100
 
-    # Test --csv
-    result = runner.invoke(
-        app, ["ingest", "umpire-scorecards", "--csv", "fake_ump.csv"]
-    )
+    # Test --scrape
+    result = runner.invoke(app, ["ingest", "umpire-scorecards", "--scrape"])
     assert result.exit_code == 0
-    mock_ingester.ingest_from_csv.assert_called_once_with("fake_ump.csv")
+    mock_ingester.ingest_from_api.assert_called_once()
 
-    # Test --url
-    mock_ingester.reset_mock()
-    result = runner.invoke(
-        app, ["ingest", "umpire-scorecards", "--url", "http://fake.com/ump.csv"]
-    )
-    assert result.exit_code == 0
-    mock_ingester.ingest_from_url.assert_called_once_with("http://fake.com/ump.csv")
-
-    # Test default (Kaggle)
+    # Test default (no flag) — should warn
     mock_ingester.reset_mock()
     result = runner.invoke(app, ["ingest", "umpire-scorecards"])
     assert result.exit_code == 0
-    mock_ingester.ingest_from_kaggle.assert_called_once()
+    mock_ingester.ingest_from_api.assert_not_called()
 
 
 @patch("algomlb.cli.ingest.RetrosheetIngester")

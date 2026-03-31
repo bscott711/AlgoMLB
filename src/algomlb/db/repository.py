@@ -120,7 +120,7 @@ class DatabaseRepository:
         return tx
 
     def save_pitch_events(self, events: List[PitchEventORM]) -> None:
-        """Bulk save pitch events using PostgreSQL UPSERT."""
+        """Bulk save pitch events using PostgreSQL UPSERT with chunking."""
         if not events:
             return
 
@@ -133,11 +133,16 @@ class DatabaseRepository:
             for evt in events
         ]
 
-        stmt = pg_insert(PitchEventORM).values(rows_as_dicts)
-        stmt = stmt.on_conflict_do_nothing(
-            index_elements=["game_id", "at_bat_number", "pitch_number"]
-        )
-        self.session.execute(stmt)
+        # Chunk to stay under SQL variable limits (SQLite=999, Postgres=65535)
+        # 50 rows * ~13 fields = 650 variables (safe default)
+        chunk_size = 50
+        for i in range(0, len(rows_as_dicts), chunk_size):
+            chunk = rows_as_dicts[i : i + chunk_size]
+            stmt = pg_insert(PitchEventORM).values(chunk)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["game_id", "at_bat_number", "pitch_number"]
+            )
+            self.session.execute(stmt)
         self.session.commit()
 
     def save_historical_data(self, data: List[HistoricalDataORM]) -> None:
@@ -163,9 +168,30 @@ class DatabaseRepository:
         self.session.commit()
 
     def save_umpire_scorecards(self, scorecards: List[UmpireScorecardORM]) -> None:
-        """Bulk merge umpire scorecard data."""
-        for sc in scorecards:
-            self.session.merge(sc)
+        """Bulk upsert umpire scorecard data via game_pk with chunking."""
+        if not scorecards:
+            return
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        rows_as_dicts = [
+            {k: v for k, v in sc.__dict__.items() if not k.startswith("_")}
+            for sc in scorecards
+        ]
+
+        # Chunk to stay under SQL variable limits (SQLite=999, Postgres=65535)
+        # 50 rows * ~44 fields = 2200 variables (safe for Postgres, barely over default SQLite)
+        # Wait, if SQLite limit is 999, 50 * 44 = 2200 is too much for SQLite but fine for Postgres.
+        # Let's use 20 for safer SQLite compatibility and still good Postgres performance.
+        chunk_size = 20
+        for i in range(0, len(rows_as_dicts), chunk_size):
+            chunk = rows_as_dicts[i : i + chunk_size]
+            stmt = pg_insert(UmpireScorecardORM).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["game_pk"],
+                set_={c: stmt.excluded[c] for c in rows_as_dicts[0] if c != "id"},
+            )
+            self.session.execute(stmt)
         self.session.commit()
 
     def save_retrosheet_events(self, events: List[RetrosheetEventORM]) -> None:

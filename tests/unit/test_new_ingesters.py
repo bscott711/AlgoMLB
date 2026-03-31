@@ -1,27 +1,21 @@
 import pytest
-import pandas as pd
-from typing import Any
-from sqlalchemy.orm import sessionmaker
-from algomlb.db.models import (
-    Base,
-    UmpireScorecardORM,
-    RetrosheetEventORM,
-    GameResultORM,
-)
-from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
-from algomlb.ingestion.retrosheet_ingester import RetrosheetIngester
 import datetime
 import respx
 import httpx
-import zipfile
-import io
+import json
+from typing import Any
 from unittest.mock import patch
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from algomlb.db.models import (
+    Base,
+    GameResultORM,
+)
+from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 
 
 @pytest.fixture
 def test_session():
-    from sqlalchemy import create_engine
-
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -30,598 +24,297 @@ def test_session():
     session.close()
 
 
-def test_umpire_scorecard_ingester_no_game(test_session, tmp_path):
-    # Setup - CSV data with no corresponding game in DB
-    csv_file = tmp_path / "umpire_no_game.csv"
-    df = pd.DataFrame(
-        [
-            {
-                "date": "2023-04-01",
-                "home_team": "NO_GAME",
-                "away_team": "TOR",
-                "umpire_name": "Pat Hoberg",
-                "accuracy": 98.5,
-                "consistency": 99.0,
-                "favoritism_home": 0.5,
-                "expected_runs": 8.0,
-                "actual_runs": 8.0,
-            }
-        ]
-    )
-    df.to_csv(csv_file, index=False)
+def _make_api_row(**overrides: Any) -> dict[str, Any]:
+    """Build a minimal valid API row with sensible defaults."""
+    base: dict[str, Any] = {
+        "game_pk": 718760,
+        "failed": False,
+        "has_basic_game_data": True,
+        "has_detailed_game_data": True,
+        "fully_valid": True,
+        "num_pitches_no_data": 0,
+        "below_missing_cutoff": True,
+        "asterisk": False,
+        "ND": False,
+        "date": "2023-04-01",
+        "type": "R",
+        "umpire": "Chad Whitson",
+        "home_team": "HOU",
+        "away_team": "CWS",
+        "home_score": 6,
+        "away_score": 4,
+        "called_pitches": 175,
+        "called_correct": 169,
+        "called_wrong": 6,
+        "overall_accuracy": 96.57,
+        "baseline_x_correct_calls": 167.6,
+        "x_correct_calls": 168.1,
+        "correct_calls_above_x": 0.92,
+        "x_overall_accuracy": 96.05,
+        "accuracy_above_x": 0.52,
+        "consistency": 94.86,
+        "favor": -0.28,
+        "home_batter_impact": -0.93,
+        "home_pitcher_impact": 0.65,
+        "away_batter_impact": -0.65,
+        "away_pitcher_impact": 0.93,
+        "total_run_impact": 1.58,
+        "n_overturned": None,
+        "n_challenged": None,
+        "challenge_success_rate": None,
+        "n_overturned_home": None,
+        "n_challenged_home": None,
+        "n_overturned_away": None,
+        "n_challenged_away": None,
+        "abs_away_A": None,
+        "abs_away_B": None,
+        "abs_away_C": None,
+        "abs_away_D": None,
+        "abs_home_A": None,
+        "abs_home_B": None,
+        "abs_home_C": None,
+        "abs_home_D": None,
+    }
+    base.update(overrides)
+    return base
 
+
+# ------------------------------------------------------------------
+# UmpireScorecardIngester._api_row_to_orm
+# ------------------------------------------------------------------
+
+
+def test_api_row_to_orm_maps_all_fields(test_session):
     ingester = UmpireScorecardIngester(test_session)
-    ingester.ingest_from_csv(str(csv_file))
+    row = _make_api_row()
+    orm = ingester._api_row_to_orm(row)
 
-    assert test_session.query(UmpireScorecardORM).count() == 0
+    assert orm is not None
+    assert orm.game_pk == 718760
+    assert orm.umpire_name == "Chad Whitson"
+    assert orm.home_team == "HOU"
+    assert orm.away_team == "CWS"
+    assert orm.game_date == datetime.date(2023, 4, 1)
+    assert orm.game_type == "R"
+    assert orm.home_score == 6
+    assert orm.away_score == 4
+    assert orm.called_pitches == 175
+    assert orm.called_correct == 169
+    assert orm.called_wrong == 6
+    assert orm.accuracy == pytest.approx(96.57)
+    assert orm.consistency == pytest.approx(94.86)
+    assert orm.favoritism_home == pytest.approx(-0.28)
+    assert orm.home_batter_impact == pytest.approx(-0.93)
+    assert orm.total_run_impact == pytest.approx(1.58)
+    assert orm.actual_runs == pytest.approx(10.0)  # 6 + 4
+    # Nullable fields
+    assert orm.n_overturned is None
+    assert orm.abs_away_a is None
 
 
-def test_umpire_scorecard_ingester(test_session, tmp_path):
-    # Setup - Need a game to map to
+def test_api_row_to_orm_skips_no_game_pk(test_session):
+    ingester = UmpireScorecardIngester(test_session)
+    row = _make_api_row(game_pk=None)
+    assert ingester._api_row_to_orm(row) is None
+
+
+def test_api_row_to_orm_skips_old_date(test_session):
+    ingester = UmpireScorecardIngester(test_session, since_year=2023)
+    row = _make_api_row(date="2022-09-15")
+    assert ingester._api_row_to_orm(row) is None
+
+
+def test_api_row_to_orm_resolves_game_id(test_session):
+    """When a matching GameResultORM exists, game_id should be populated."""
     game = GameResultORM(
-        game_id="20230401NYYTOR",
+        game_id="718760",
         game_date=datetime.date(2023, 4, 1),
-        home_team="New York Yankees",
-        away_team="Toronto Blue Jays",
+        home_team="Houston Astros",
+        away_team="Chicago White Sox",
     )
     test_session.add(game)
     test_session.commit()
 
-    csv_file = tmp_path / "umpire.csv"
-    df = pd.DataFrame(
-        [
-            {
-                "date": "2023-04-01",
-                "home_team": "NYY",
-                "away_team": "TOR",
-                "umpire_name": "Pat Hoberg",
-                "accuracy": 98.5,
-                "consistency": 99.0,
-                "favoritism_home": 0.5,
-                "expected_runs": 8.0,
-                "actual_runs": 8.0,
-            }
-        ]
-    )
-    df.to_csv(csv_file, index=False)
-
     ingester = UmpireScorecardIngester(test_session)
-    ingester.ingest_from_csv(str(csv_file))
-
-    sc = test_session.query(UmpireScorecardORM).first()
-    assert sc is not None
-    assert sc.umpire_name == "Pat Hoberg"
-    assert sc.game_id == "20230401NYYTOR"
+    orm = ingester._api_row_to_orm(_make_api_row())
+    assert orm is not None
+    assert orm.game_id == "718760"
 
 
-def test_retrosheet_ingester_full(test_session, tmp_path):
-    csv_file = tmp_path / "retro_full.csv"
-    # Create a minimal row that satisfies all columns expected by the ingester
-    cols = [
-        "gid",
-        "pn",
-        "event",
-        "inning",
-        "top_bot",
-        "vis_home",
-        "site",
-        "batteam",
-        "pitteam",
-        "score_v",
-        "score_h",
-        "batter",
-        "pitcher",
-        "lp",
-        "bat_f",
-        "bathand",
-        "pithand",
-        "balls",
-        "strikes",
-        "count",
-        "pitches",
-        "nump",
-        "pa",
-        "ab",
-        "single",
-        "double",
-        "triple",
-        "hr",
-        "sh",
-        "sf",
-        "hbp",
-        "walk",
-        "k",
-        "xi",
-        "roe",
-        "fc",
-        "othout",
-        "noout",
-        "bip",
-        "bunt",
-        "ground",
-        "fly",
-        "line",
-        "iw",
-        "gdp",
-        "othdp",
-        "tp",
-        "fle",
-        "wp",
-        "pb",
-        "bk",
-        "oa",
-        "di",
-        "sb2",
-        "sb3",
-        "sbh",
-        "cs2",
-        "cs3",
-        "csh",
-        "pko1",
-        "pko2",
-        "pko3",
-        "k_safe",
-        "e1",
-        "e2",
-        "e3",
-        "e4",
-        "e5",
-        "e6",
-        "e7",
-        "e8",
-        "e9",
-        "outs_pre",
-        "outs_post",
-        "br1_pre",
-        "br2_pre",
-        "br3_pre",
-        "br1_post",
-        "br2_post",
-        "br3_post",
-        "lob_id1",
-        "lob_id2",
-        "lob_id3",
-        "pr1_pre",
-        "pr2_pre",
-        "pr3_pre",
-        "pr1_post",
-        "pr2_post",
-        "pr3_post",
-        "run_b",
-        "run1",
-        "run2",
-        "run3",
-        "prun_b",
-        "prun1",
-        "prun2",
-        "prun3",
-        "ur_b",
-        "ur1",
-        "ur2",
-        "ur3",
-        "rbi_b",
-        "rbi1",
-        "rbi2",
-        "rbi3",
-        "runs",
-        "rbi",
-        "er",
-        "tur",
-        "f2",
-        "f3",
-        "f4",
-        "f5",
-        "f6",
-        "f7",
-        "f8",
-        "f9",
-        "po1",
-        "po2",
-        "po3",
-        "po4",
-        "po5",
-        "po6",
-        "po7",
-        "po8",
-        "po9",
-        "a1",
-        "a2",
-        "a3",
-        "a4",
-        "a5",
-        "a6",
-        "a7",
-        "a8",
-        "a9",
-        "fseq",
-        "firstf",
-        "loc",
-        "hittype",
-        "dpopp",
-        "pivot",
-        "umphome",
-        "ump1b",
-        "ump2b",
-        "ump3b",
-        "umplf",
-        "umprf",
-        "date",
-        "gametype",
-        "pbp",
-    ]
-    data1: dict[str, Any] = {c: 0 for c in cols}
-    data1.update(
-        {
-            "gid": "ATL202304010",
-            "pn": 1,
-            "date": "2023-04-01",
-            "site": "ATL03",
-            "event": "K",
-            "inning": 1,
-            "batter": "b1",
-            "pitcher": "p1",
-            "count": "11",
-            "fseq": "2",
-        }
-    )
-    data2 = data1.copy()
-    data2.update({"pn": 2, "event": "S"})
-    data3 = data1.copy()
-    data3.update({"pn": 3, "event": "W"})
-
-    df = pd.DataFrame([data1, data2, data3])
-    df.to_csv(csv_file, index=False)
-
-    ingester = RetrosheetIngester(test_session, chunk_size=2)
-    ingester.ingest_from_csv(str(csv_file))
-
-    assert test_session.query(RetrosheetEventORM).count() == 3
+def test_api_row_to_orm_no_game_id_when_no_match(test_session):
+    """When no GameResultORM matches, game_id should be None."""
+    ingester = UmpireScorecardIngester(test_session)
+    orm = ingester._api_row_to_orm(_make_api_row())
+    assert orm is not None
+    assert orm.game_id is None
 
 
-def test_retrosheet_ingester_error_handling(test_session, tmp_path):
-    csv_file = tmp_path / "retro_error.csv"
-    # Row with missing required field 'gid' to trigger exception
-    df = pd.DataFrame([{"pn": 1, "date": "2023-04-01"}])
-    df.to_csv(csv_file, index=False)
+def test_api_row_to_orm_with_abs_data(test_session):
+    """Test ABS zone fields are captured when present."""
+    ingester = UmpireScorecardIngester(test_session)
+    row = _make_api_row(abs_away_A=12.5, abs_away_B=3.2, abs_home_C=7.1, abs_home_D=1.0)
+    orm = ingester._api_row_to_orm(row)
+    assert orm is not None
+    assert orm.abs_away_a == pytest.approx(12.5)
+    assert orm.abs_away_b == pytest.approx(3.2)
+    assert orm.abs_away_c is None
+    assert orm.abs_home_c == pytest.approx(7.1)
+    assert orm.abs_home_d == pytest.approx(1.0)
 
-    ingester = RetrosheetIngester(test_session)
-    # Should not raise exception but log error
-    ingester.ingest_from_csv(str(csv_file))
-    assert test_session.query(RetrosheetEventORM).count() == 0
 
-
-def test_retrosheet_ingester_missing_date(test_session, tmp_path):
-    csv_file = tmp_path / "retro_missing_date.csv"
-    # Use a minimal set of all expected columns to avoid KeyErrors
-    cols = [
-        "gid",
-        "pn",
-        "event",
-        "inning",
-        "top_bot",
-        "vis_home",
-        "site",
-        "batteam",
-        "pitteam",
-        "score_v",
-        "score_h",
-        "batter",
-        "pitcher",
-        "lp",
-        "bat_f",
-        "bathand",
-        "pithand",
-        "balls",
-        "strikes",
-        "count",
-        "pitches",
-        "nump",
-        "pa",
-        "ab",
-        "single",
-        "double",
-        "triple",
-        "hr",
-        "sh",
-        "sf",
-        "hbp",
-        "walk",
-        "k",
-        "xi",
-        "roe",
-        "fc",
-        "othout",
-        "noout",
-        "bip",
-        "bunt",
-        "ground",
-        "fly",
-        "line",
-        "iw",
-        "gdp",
-        "othdp",
-        "tp",
-        "fle",
-        "wp",
-        "pb",
-        "bk",
-        "oa",
-        "di",
-        "sb2",
-        "sb3",
-        "sbh",
-        "cs2",
-        "cs3",
-        "csh",
-        "pko1",
-        "pko2",
-        "pko3",
-        "k_safe",
-        "e1",
-        "e2",
-        "e3",
-        "e4",
-        "e5",
-        "e6",
-        "e7",
-        "e8",
-        "e9",
-        "outs_pre",
-        "outs_post",
-        "br1_pre",
-        "br2_pre",
-        "br3_pre",
-        "br1_post",
-        "br2_post",
-        "br3_post",
-        "lob_id1",
-        "lob_id2",
-        "lob_id3",
-        "pr1_pre",
-        "pr2_pre",
-        "pr3_pre",
-        "pr1_post",
-        "pr2_post",
-        "pr3_post",
-        "run_b",
-        "run1",
-        "run2",
-        "run3",
-        "prun_b",
-        "prun1",
-        "prun2",
-        "prun3",
-        "ur_b",
-        "ur1",
-        "ur2",
-        "ur3",
-        "rbi_b",
-        "rbi1",
-        "rbi2",
-        "rbi3",
-        "runs",
-        "rbi",
-        "er",
-        "tur",
-        "f2",
-        "f3",
-        "f4",
-        "f5",
-        "f6",
-        "f7",
-        "f8",
-        "f9",
-        "po1",
-        "po2",
-        "po3",
-        "po4",
-        "po5",
-        "po6",
-        "po7",
-        "po8",
-        "po9",
-        "a1",
-        "a2",
-        "a3",
-        "a4",
-        "a5",
-        "a6",
-        "a7",
-        "a8",
-        "a9",
-        "fseq",
-        "firstf",
-        "loc",
-        "hittype",
-        "dpopp",
-        "pivot",
-        "umphome",
-        "ump1b",
-        "ump2b",
-        "ump3b",
-        "umplf",
-        "umprf",
-        "date",
-        "gametype",
-        "pbp",
-    ]
-    data: dict[str, Any] = {c: 0 for c in cols}
-    data.update({"gid": "T1", "pn": 1, "date": None})
-    df = pd.DataFrame([data])
-    df.to_csv(csv_file, index=False)
-
-    ingester = RetrosheetIngester(test_session, since_year=0)
-    ingester.ingest_from_csv(str(csv_file))
-
-    event = test_session.query(RetrosheetEventORM).first()
-    assert event is not None
-    assert event.date == datetime.date(1900, 1, 1)
+# ------------------------------------------------------------------
+# UmpireScorecardIngester.ingest_from_api
+# ------------------------------------------------------------------
 
 
 @respx.mock
-def test_retrosheet_ingester_url(test_session):
-    ingester = RetrosheetIngester(test_session)
-    url = "https://example.com/plays.zip"
+def test_ingest_from_api_success(test_session):
+    ingester = UmpireScorecardIngester(test_session, since_year=2023)
 
-    # Create a mock ZIP with a CSV
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        # Re-use the columns list logic or just a simple mock CSV
-        z.writestr(
-            "test.csv", "gid,pn,event,inning,top_bot,date\nT1,1,K,1,0,2023-04-01\n"
-        )
+    row1 = _make_api_row(game_pk=100001, date="2023-06-01")
+    row2 = _make_api_row(game_pk=100002, date="2023-06-02")
+    response_body = json.dumps({"rows": [row1, row2]})
 
-    respx.get(url).mock(return_value=httpx.Response(200, content=buf.getvalue()))
+    respx.get(
+        "https://umpscorecards.us/api/games",
+        params={
+            "startDate": "2023-01-01",
+            "endDate": "2023-12-31",
+            "seasonType": "R",
+        },
+    ).mock(return_value=httpx.Response(200, content=response_body))
 
-    # We need to mock _row_to_orm or provide all columns to avoid KeyError
-    # Let's mock _row_to_orm to simplify since we tested mapping already
-    with patch.object(ingester, "_row_to_orm") as mock_mapping:
-        mock_mapping.return_value = RetrosheetEventORM(
-            game_id="T1",
-            play_number=1,
-            event_text="K",
-            inning=1,
-            top_bot=0,
-            vis_home=0,
-            site="TEST",
-            bat_team="ATL",
-            pit_team="NYY",
-            batter_id="b1",
-            pitcher_id="p1",
-            lp=1,
-            bat_f=2,
-            date=datetime.date(2023, 4, 1),
-        )
-        ingester.ingest_from_url(url)
+    # SQLite doesn't support pg_insert, so we mock save_umpire_scorecards
+    with patch.object(ingester.repo, "save_umpire_scorecards") as mock_save:
+        count = ingester.ingest_from_api(seasons=[2023])
 
-    assert test_session.query(RetrosheetEventORM).count() > 0
+    assert count == 2
+    mock_save.assert_called_once()
+    saved_scorecards = mock_save.call_args[0][0]
+    assert len(saved_scorecards) == 2
+    assert saved_scorecards[0].game_pk == 100001
+    assert saved_scorecards[1].game_pk == 100002
 
 
 @respx.mock
-def test_umpire_scorecard_ingester_url(test_session):
-    game = GameResultORM(
-        game_id="20230401NYYTOR",
-        game_date=datetime.date(2023, 4, 1),
-        home_team="New York Yankees",
-        away_team="Toronto Blue Jays",
-    )
-    test_session.add(game)
-    test_session.commit()
+def test_ingest_from_api_filters_failed_rows(test_session):
+    ingester = UmpireScorecardIngester(test_session, since_year=2023)
 
-    ingester = UmpireScorecardIngester(test_session)
-    url = "https://example.com/umpire.csv"
-    csv_content = "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2023-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
+    good = _make_api_row(game_pk=200001)
+    failed = _make_api_row(game_pk=200002, failed=True)
+    response_body = json.dumps({"rows": [good, failed]})
 
-    respx.get(url).mock(return_value=httpx.Response(200, content=csv_content.encode()))
+    respx.get(
+        "https://umpscorecards.us/api/games",
+        params={
+            "startDate": "2023-01-01",
+            "endDate": "2023-12-31",
+            "seasonType": "R",
+        },
+    ).mock(return_value=httpx.Response(200, content=response_body))
 
-    ingester.ingest_from_url(url)
-    assert test_session.query(UmpireScorecardORM).count() == 1
+    with patch.object(ingester.repo, "save_umpire_scorecards") as mock_save:
+        count = ingester.ingest_from_api(seasons=[2023])
 
-
-def test_umpire_scorecard_ingester_kaggle(test_session, tmp_path):
-    game = GameResultORM(
-        game_id="20230401NYYTOR",
-        game_date=datetime.date(2023, 4, 1),
-        home_team="New York Yankees",
-        away_team="Toronto Blue Jays",
-    )
-    test_session.add(game)
-    test_session.commit()
-
-    ingester = UmpireScorecardIngester(test_session)
-
-    # Create dummy kaggle download path
-    kaggle_dir = tmp_path / "kaggle_data"
-    kaggle_dir.mkdir()
-    csv_file = kaggle_dir / "data.csv"
-    csv_file.write_text(
-        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2023-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
-    )
-
-    with patch("kagglehub.dataset_download") as mock_download:
-        mock_download.return_value = str(kaggle_dir)
-        ingester.ingest_from_kaggle()
-
-    assert test_session.query(UmpireScorecardORM).count() == 1
+    assert count == 1
+    saved = mock_save.call_args[0][0]
+    assert len(saved) == 1
+    assert saved[0].game_pk == 200001
 
 
-def test_umpire_scorecard_ingester_kaggle_no_csv(test_session, tmp_path):
-    ingester = UmpireScorecardIngester(test_session)
-    kaggle_dir = tmp_path / "empty_kaggle_data"
-    kaggle_dir.mkdir()
+@respx.mock
+def test_ingest_from_api_empty_response(test_session):
+    ingester = UmpireScorecardIngester(test_session, since_year=2023)
 
-    with patch("kagglehub.dataset_download") as mock_download:
-        mock_download.return_value = str(kaggle_dir)
-        # Should log error and return
-        ingester.ingest_from_kaggle()
+    respx.get(
+        "https://umpscorecards.us/api/games",
+        params={
+            "startDate": "2023-01-01",
+            "endDate": "2023-12-31",
+            "seasonType": "R",
+        },
+    ).mock(return_value=httpx.Response(200, content='{"rows": []}'))
 
-    assert test_session.query(UmpireScorecardORM).count() == 0
+    with patch.object(ingester.repo, "save_umpire_scorecards") as mock_save:
+        count = ingester.ingest_from_api(seasons=[2023])
 
-
-def test_umpire_scorecard_ingester_filters_old_data(test_session, tmp_path):
-    ingester = UmpireScorecardIngester(test_session, since_year=2020)  # Filter out 2019
-    csv_file = tmp_path / "old_umpire.csv"
-    csv_file.write_text(
-        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,actual_runs\n2019-04-01,NYY,TOR,Pat Hoberg,98.5,99.0,0.5,8.0,8.0\n"
-    )
-
-    ingester.ingest_from_csv(str(csv_file))
-    assert test_session.query(UmpireScorecardORM).count() == 0
+    assert count == 0
+    mock_save.assert_not_called()
 
 
-def test_retrosheet_ingester_filters_old_data(test_session, tmp_path):
-    ingester = RetrosheetIngester(test_session, since_year=2020)
-    csv_file = tmp_path / "old_retro.csv"
-    csv_file.write_text(
-        "date,gid,pn,event,inning,top_bot\n20190401,ATL201904010,1,K,1,0\n"
-    )
+@respx.mock
+def test_ingest_from_api_default_seasons(test_session):
+    """When no seasons passed, defaults to since_year through current year."""
+    ingester = UmpireScorecardIngester(test_session, since_year=2025)
 
-    ingester.ingest_from_csv(str(csv_file))
-    assert test_session.query(RetrosheetEventORM).count() == 0
+    # Mock the current year (2025+2026 if current year is 2026)
+    current_year = datetime.datetime.now().year
+    expected_seasons = list(range(2025, current_year + 1))
+
+    for year in expected_seasons:
+        respx.get(
+            "https://umpscorecards.us/api/games",
+            params={
+                "startDate": f"{year}-01-01",
+                "endDate": f"{year}-12-31",
+                "seasonType": "R",
+            },
+        ).mock(return_value=httpx.Response(200, content='{"rows": []}'))
+
+    with patch.object(ingester.repo, "save_umpire_scorecards"):
+        count = ingester.ingest_from_api()
+
+    assert count == 0
 
 
-def test_umpire_scorecard_ingester_missing_team(test_session, tmp_path):
-    ingester = UmpireScorecardIngester(test_session)
-    csv_file = tmp_path / "missing_team.csv"
-    csv_file.write_text(
-        "date,home_team,away_team,umpire_name,accuracy,consistency\n2022-04-01,,TOR,Ump1,95.0,95.0\n"
-    )
+@respx.mock
+def test_ingest_from_api_multiple_seasons(test_session):
+    """Test that multiple seasons are fetched with rate limiting."""
+    ingester = UmpireScorecardIngester(test_session, since_year=2023)
 
-    ingester.ingest_from_csv(str(csv_file))
-    assert test_session.query(UmpireScorecardORM).count() == 0
+    for year in [2023, 2024]:
+        row = _make_api_row(game_pk=300000 + year, date=f"{year}-06-15")
+        respx.get(
+            "https://umpscorecards.us/api/games",
+            params={
+                "startDate": f"{year}-01-01",
+                "endDate": f"{year}-12-31",
+                "seasonType": "R",
+            },
+        ).mock(return_value=httpx.Response(200, content=json.dumps({"rows": [row]})))
+
+    with patch.object(ingester.repo, "save_umpire_scorecards") as mock_save:
+        with patch("algomlb.ingestion.umpire_ingester.time.sleep") as mock_sleep:
+            count = ingester.ingest_from_api(seasons=[2023, 2024])
+
+    assert count == 2
+    assert mock_save.call_count == 2
+    mock_sleep.assert_called_once_with(1.0)
 
 
-def test_umpire_scorecard_ingester_safe_float_and_runs(test_session, tmp_path):
-    """Test _safe_float with ND and non-numeric values, and test home/away_team_runs mapping."""
-    # Setup - Need a game to map to
-    game = GameResultORM(
-        game_id="G1",
-        game_date=datetime.date(2023, 4, 1),
-        home_team="New York Yankees",
-        away_team="Toronto Blue Jays",
-    )
-    test_session.add(game)
-    test_session.commit()
+# ------------------------------------------------------------------
+# Static helpers
+# ------------------------------------------------------------------
 
-    ingester = UmpireScorecardIngester(test_session)
 
-    # Directly test _safe_float for coverage
-    assert ingester._safe_float("ND") == 0.0
-    assert ingester._safe_float("invalid") == 0.0
-    assert ingester._safe_float(None) == 0.0
+def test_safe_float():
+    assert UmpireScorecardIngester._safe_float(None) == 0.0
+    assert UmpireScorecardIngester._safe_float("ND") == 0.0
+    assert UmpireScorecardIngester._safe_float("invalid") == 0.0
+    assert UmpireScorecardIngester._safe_float(42.5) == 42.5
+    assert UmpireScorecardIngester._safe_float("3.14") == pytest.approx(3.14)
 
-    # Test CSV with home_team_runs/away_team_runs and invalid numeric formats
-    csv_file = tmp_path / "umpire_runs.csv"
-    csv_file.write_text(
-        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,home_team_runs,away_team_runs\n"
-        "2023-04-01,NYY,TOR,Pat Hoberg,98.5,ND,0.5,8.0,4,4\n"
-        "2023-04-01,NYY,TOR,Missing Team,,98.5,0.5,8.0,4,4\n"
-    )
-    # The second row is fine but would have been flagged if missing teams, but we use NYY/TOR there.
-    # Let's add a row with missing teams to specifically hit 61-62
-    with open(csv_file, "a") as f:
-        f.write("2023-04-01,,TOR,No Home,95,95,0,0,0,0\n")
 
-    ingester.ingest_from_csv(str(csv_file))
-    # Should have 2 valid rows (the ones with teams)
-    assert test_session.query(UmpireScorecardORM).count() == 2
+def test_safe_float_or_none():
+    assert UmpireScorecardIngester._safe_float_or_none(None) is None
+    assert UmpireScorecardIngester._safe_float_or_none("ND") is None
+    assert UmpireScorecardIngester._safe_float_or_none("bad") is None
+    assert UmpireScorecardIngester._safe_float_or_none(1.5) == 1.5
+
+
+def test_safe_int():
+    assert UmpireScorecardIngester._safe_int(None) is None
+    assert UmpireScorecardIngester._safe_int("ND") is None
+    assert UmpireScorecardIngester._safe_int("bad") is None
+    assert UmpireScorecardIngester._safe_int(42) == 42
+    assert UmpireScorecardIngester._safe_int(3.9) == 3

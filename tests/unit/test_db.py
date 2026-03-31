@@ -284,14 +284,16 @@ def test_save_historical_odds(test_session: Session) -> None:
 
 
 def test_save_umpire_scorecards(test_session: Session) -> None:
-    """Test bulk merging umpire scorecard records."""
-    repo = DatabaseRepository(test_session)
+    """Test bulk upsert umpire scorecard records."""
     from algomlb.db.models import UmpireScorecardORM
 
     scorecards = [
         UmpireScorecardORM(
-            game_id="G1",
+            game_pk=718760,
+            game_date=date(2023, 4, 1),
             umpire_name="Ump1",
+            home_team="HOU",
+            away_team="CWS",
             accuracy=95.0,
             consistency=95.0,
             favoritism_home=0.0,
@@ -299,12 +301,63 @@ def test_save_umpire_scorecards(test_session: Session) -> None:
             actual_runs=1.0,
         )
     ]
+    repo = DatabaseRepository(test_session)
+    # Call the repository method
     repo.save_umpire_scorecards(scorecards)
 
     from sqlalchemy import select
 
     retrieved = test_session.execute(select(UmpireScorecardORM)).scalars().all()
     assert len(retrieved) == 1
+    assert retrieved[0].accuracy == 95.0
+
+
+def test_save_umpire_scorecards_update(test_session: Session) -> None:
+    """Test bulk upsert update on conflict."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import UmpireScorecardORM
+
+    pk = 12345
+    sc1 = UmpireScorecardORM(
+        game_pk=pk,
+        game_date=date(2023, 4, 1),
+        umpire_name="Test Ump",
+        home_team="HOU",
+        away_team="CWS",
+        accuracy=90.0,
+        consistency=90.0,
+        favoritism_home=0.1,
+        expected_runs=1.0,
+        actual_runs=1.0,
+    )
+    repo.save_umpire_scorecards([sc1])
+
+    # Now update
+    sc2 = UmpireScorecardORM(
+        game_pk=pk,
+        game_date=date(2023, 4, 1),
+        umpire_name="Test Ump",
+        home_team="HOU",
+        away_team="CWS",
+        accuracy=99.0,
+        consistency=99.0,
+        favoritism_home=0.2,
+        expected_runs=1.0,
+        actual_runs=1.0,
+    )
+    repo.save_umpire_scorecards([sc2])
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(UmpireScorecardORM)).scalars().all()
+    assert len(retrieved) == 1
+    assert retrieved[0].accuracy == 99.0
+
+
+def test_save_umpire_scorecards_empty(test_session: Session) -> None:
+    """Test saving empty list return early."""
+    repo = DatabaseRepository(test_session)
+    repo.save_umpire_scorecards([])
 
 
 def test_save_retrosheet_events(test_session: Session) -> None:
@@ -336,3 +389,32 @@ def test_save_retrosheet_events(test_session: Session) -> None:
 
     retrieved = test_session.execute(select(RetrosheetEventORM)).scalars().all()
     assert len(retrieved) == 1
+
+
+def test_save_umpire_scorecards_large_batch(test_session: Session) -> None:
+    """Test chunking with 50 rows (each with 44 fields = 2200 variables)."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import UmpireScorecardORM
+    from datetime import date
+
+    scorecards = []
+    for i in range(50):
+        sc = UmpireScorecardORM(
+            game_pk=1000 + i,
+            game_date=date(2025, 3, 27),
+            umpire_name="Test Umpire",
+            home_team="NYY",
+            away_team="MIL",
+            accuracy=95.0,
+            consistency=94.0,
+            favoritism_home=0.5,
+            expected_runs=1.0,
+            actual_runs=2.0,
+        )
+        scorecards.append(sc)
+
+    repo.save_umpire_scorecards(scorecards)
+
+    # Verify all 50 rows were saved
+    count = test_session.query(UmpireScorecardORM).count()
+    assert count == 50

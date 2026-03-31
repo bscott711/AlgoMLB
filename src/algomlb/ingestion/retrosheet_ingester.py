@@ -31,6 +31,7 @@ class RetrosheetIngester:
         logger.info(
             f"Ingesting Retrosheet events from {csv_path} (since {self.since_year})..."
         )
+        total_ingested = 0
         # Use chunking to avoid memory issues with the massive Retrosheet file
         for chunk in pd.read_csv(csv_path, chunksize=self.chunk_size):
             events = []
@@ -41,8 +42,11 @@ class RetrosheetIngester:
 
             if events:
                 self.repo.save_retrosheet_events(events)
+                total_ingested += len(events)
 
-        logger.success("Successfully processed Retrosheet file.")
+        logger.success(
+            f"Successfully processed Retrosheet file: {total_ingested} events ingested."
+        )
 
     def _handle_row(self, row: Any) -> Optional[RetrosheetEventORM]:
         """Process a single row with filtering and ORM conversion."""
@@ -79,26 +83,27 @@ class RetrosheetIngester:
 
         # Type-safe helpers for extracting row values
         def get_int(col: str) -> int:
-            val = row[col]
+            val = row.get(col)
             return int(val) if pd.notnull(val) else 0
 
         def get_str(col: str) -> str:
-            val = row[col]
+            val = row.get(col)
             return str(val) if pd.notnull(val) else ""
 
         def get_opt_int(col: str) -> Optional[int]:
-            val = row[col]
+            val = row.get(col)
             return int(val) if pd.notnull(val) else None
 
         def get_opt_str(col: str) -> Optional[str]:
-            val = row[col]
+            val = row.get(col)
             return str(val) if pd.notnull(val) else None
 
         def get_date(col: str) -> datetime.date:
-            val = row[col]
+            val = row.get(col)
             if pd.isnull(val):
                 return datetime.date(1900, 1, 1)
-            return pd.to_datetime(val).date()
+            # Ensure value is treated as a string to avoid integer date parsing issues (e.g., 20230330 -> 1970)
+            return pd.to_datetime(str(val)).date()
 
         # Mapping dictionary to handle the high volume of fields
         data: dict[str, Any] = {

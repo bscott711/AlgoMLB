@@ -204,22 +204,22 @@ def historical_odds(
 @app.command()
 def umpire_scorecards(
     ctx: typer.Context,
-    csv_path: Optional[str] = typer.Option(
-        None, "--csv", help="Path to umpire scorecard CSV"
-    ),
-    url: Optional[str] = typer.Option(None, "--url", help="Direct URL to umpire CSV"),
     since: int = typer.Option(2019, "--since", help="Starting year for ingestion"),
+    scrape: bool = typer.Option(
+        False, "--scrape", help="Scrape from umpscorecards.us API"
+    ),
 ):
-    """Ingest umpire accuracy and bias data (local file, URL, or Kaggle)."""
+    """Ingest umpire accuracy and bias data from umpscorecards.us API."""
     session_factory = get_session_factory()
     with session_factory() as session:
         ingester = UmpireScorecardIngester(session, since_year=since)
-        if csv_path:
-            ingester.ingest_from_csv(csv_path)
-        elif url:
-            ingester.ingest_from_url(url)
+        if scrape:
+            count = ingester.ingest_from_api()
+            logger.success(f"Scraped {count} scorecards from umpscorecards.us API.")
         else:
-            ingester.ingest_from_kaggle()
+            logger.warning(
+                "No ingestion source specified. Use --scrape to fetch from the API."
+            )
 
 
 @app.command()

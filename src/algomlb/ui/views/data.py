@@ -32,7 +32,7 @@ with engine.connect() as conn:
 
 m1.metric("Pitch Events", f"{total_pitches:,}", "Historical")
 m2.metric("Game IDs", f"{total_games:,}", "Parsed")
-m3.metric("Umpire Cards", f"{total_umps:,}", "Kaggle + Live")
+m3.metric("Umpire Cards", f"{total_umps:,}", "Scraped API")
 m4.metric("Market Snapshots", f"{total_odds:,}", "Odds API")
 
 st.markdown("---")

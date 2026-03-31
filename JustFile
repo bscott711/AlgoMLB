@@ -101,13 +101,40 @@ optimize-runline:
 	@echo "🚀 Launching Full Runline Optimization Pipeline..."
 	uv run python -m src.ml.optimize --market Runline --deep --restart
 
-# Run the live monitoring dashboard (Streamlit)
+# Calculate the public IP address for the dashboard URL
+public-ip := `curl -s --connect-timeout 2 https://ifconfig.me || echo "unknown"`
+
+# Launch the Streamlit dashboard in the foreground
 dashboard:
-	@echo "📊 Launching Baseball Bot Dashboard (Headless)..."
-	uv run streamlit run src/algomlb/ui/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+	@echo "📊 Launching Baseball Bot Dashboard (Port 8502)..."
+	uv run streamlit run src/algomlb/ui/app.py --server.port 8502 --server.address 0.0.0.0 --server.headless false
 
 # Alias for dashboard
 serve-dashboard: dashboard
+
+# Launch the Streamlit dashboard in the background
+serve-bg:
+	@echo "🚀 Launching Baseball Bot Dashboard in the background (Port 8502)..."
+	@mkdir -p logs
+	@nohup uv run streamlit run src/algomlb/ui/app.py --server.port 8502 --server.address 0.0.0.0 --server.headless true > logs/dashboard.log 2>&1 & echo $! > logs/dashboard.pid
+	@echo "✅ Dashboard started! PID saved to logs/dashboard.pid."
+	@echo "🔗 Local URL:  http://localhost:8502"
+	@echo "🔗 Public URL: http://{{public-ip}}:8502"
+	@echo "📝 Use 'just tail-logs' to monitor startup."
+
+# Stop the background dashboard
+stop-bg:
+	@echo "🛑 Stopping background dashboard..."
+	@if [ -f logs/dashboard.pid ]; then \
+		kill -9 $(cat logs/dashboard.pid) 2>/dev/null || true; \
+		rm logs/dashboard.pid; \
+	fi
+	@pkill -9 -f "streamlit run src/algomlb/ui/app.py" 2>/dev/null || true
+	@echo "✅ Stopped."
+
+# Monitor the background dashboard logs
+tail-logs:
+	@tail -f logs/dashboard.log
 
 # Commit all changes with a message
 commit message:
