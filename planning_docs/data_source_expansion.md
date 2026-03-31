@@ -7,7 +7,7 @@ This plan outlines the integration of new data sources to enrich the AlgoMLB fea
 
 ## 1. Umpire Scorecards (`umpscorecards.us`)
 
-### Value Proposition
+### Umpire Value Proposition
 Statcast provides the "ground truth" location of pitches, but it doesn't quantify the **umpire's decision accuracy**. Integrating scorecard data allows the models to account for umpire-specific strike zones, which affects walk rates, strikeout rates, and total runs.
 
 ### Proposed Schema: `UmpireScorecardORM`
@@ -24,22 +24,23 @@ Statcast provides the "ground truth" location of pitches, but it doesn't quantif
 
 ## 2. Retrosheet Play-by-Play (`retrosheet.org`)
 
-### Value Proposition
+### Retrosheet Value Proposition
 Provides granular "Official Record" metadata (errors, fielder assignments, assists) complementary to Statcast telemetry. Essential for training on historical data and modeling defensive/umpiring outcomes.
 
-### Status: IMPLEMENTED
+### Retrosheet Status: IMPLEMENTED
 Integrated via `RetrosheetIngester`, which processes event-level CSVs into `RetrosheetEventORM`.
 
 ## 3. Ballpark Location Metadata
 
-### Value Proposition
+### Ballpark Value Proposition
 Stadium geography (elevation, latitude/longitude) is critical for trajectory modeling and travel fatigue calculation.
 
 ### Implementation: `BallparkIngester`
+
 - **Hybrid Data Model**: Merges structural data from Kaggle with high-precision geographic coordinates from a local JSON source of truth (`ballpark_locations.json`).
 - **Synonym Mapping**: Encodes stadium name history (e.g., "SBC Park" -> "AT&T Park" -> "Oracle Park") to ensure robust data joins.
 
-### Status: IMPLEMENTED
+### Ballpark Status: IMPLEMENTED
 Integrated via `BallparkIngester` and surfaced in the "Ballpark Context" dashboard view.
 
 ## 4. Ingestion Summary & Next Steps

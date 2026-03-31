@@ -3,7 +3,6 @@ import time
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import select
 
 from algomlb.db.models import GameResultORM, HistoricalOddsORM
 from algomlb.db.repository import DatabaseRepository
@@ -16,40 +15,48 @@ class HistoricalOddsIngester:
     Points to two snapshots per game: ~24h before (Opening) and ~5m before (Closing).
     """
 
+    # Maps Odds API names to our database team names (standard MLB full names)
+    TEAM_NAME_MAPPING = {
+        "Oakland A's": "Oakland Athletics",
+        "Cleveland Indians": "Cleveland Guardians",
+        "Chicago White Sox": "Chicago White Sox",
+        # Add others if discovered during backfill
+    }
+
     def __init__(
         self, repo: DatabaseRepository, client: Optional[OddsAPIClient] = None
     ):
         self.repo = repo
         self.client = client or OddsAPIClient()
 
-    def run_backfill(self, start_date: datetime.date, end_date: datetime.date):
+    def run_backfill(
+        self, start_date: datetime.date, end_date: datetime.date, reverse: bool = True
+    ):
         """
-        Iterate through games in the date range and fetch opening/closing odds.
-        Note: The Odds API historical endpoint is credit-intensive.
+        Iterate through days and fetch opening/closing snapshots.
         """
-        # 1. Get all games in the range from our DB
-        with self.repo.session.begin_nested():
-            stmt = select(GameResultORM).where(
-                GameResultORM.game_date >= start_date,
-                GameResultORM.game_date <= end_date,
-            )
-            games = self.repo.session.execute(stmt).scalars().all()
+        logger.info(
+            f"Starting historical odds backfill: {start_date} to {end_date} (reverse={reverse})"
+        )
+        current = end_date if reverse else start_date
+        step = datetime.timedelta(days=-1) if reverse else datetime.timedelta(days=1)
 
-        if not games:
-            logger.warning(f"No games found in DB for range {start_date} to {end_date}")
-            return
+        total_days = (end_date - start_date).days + 1
+        days_processed = 0
 
-        logger.info(f"Starting historical odds backfill for {len(games)} games...")
+        while (reverse and current >= start_date) or (
+            not reverse and current <= end_date
+        ):
+            try:
+                self.ingest_day_snapshots(current)
+                days_processed += 1
+                logger.info(f"Progress: {days_processed}/{total_days} days.")
+            except Exception as e:
+                logger.error(f"Failed to process {current}: {e}")
 
-        for game in games:
-            # We need a 'commence_time'. In our DB we only have 'game_date'.
-            # For historical backfill, we might need to fetch the schedule again
-            # or assume a default time if not stored.
-            # However, Statcast results don't have start time in seconds.
-            # Let's use 12:00 PM local or similar if we don't have it.
-            # BETTER: Fetch a daily snapshot at 10:00 AM UTC for 'Opening'
-            # and 11:55 PM UTC for 'Closing' for that day's games.
-            pass
+            current += step
+            # Small sleep to be respectful to API and logs
+            time.sleep(0.5)
 
     def ingest_day_snapshots(self, date: datetime.date):
         """
@@ -116,7 +123,10 @@ class HistoricalOddsIngester:
                     "snapshot_at": o.timestamp,
                 }
 
-            processed[key][o.sportsbook][o.market_type]["outcomes"][o.outcome] = o.price
+            processed[key][o.sportsbook][o.market_type]["outcomes"][o.outcome] = {
+                "price": o.price,
+                "point": o.point,
+            }
         return processed
 
     def _build_orms(self, processed, odds_type):
@@ -137,24 +147,39 @@ class HistoricalOddsIngester:
         return orms
 
     def _find_game(self, home, away, g_date):
-        """Finds a matching game in the database."""
+        """Finds a matching game in the database using name mapping."""
+        # Normalize names
+        home_norm = self.TEAM_NAME_MAPPING.get(home, home)
+        away_norm = self.TEAM_NAME_MAPPING.get(away, away)
+
         return (
             self.repo.session.query(GameResultORM)
-            .filter_by(home_team=home, away_team=away, game_date=g_date)
+            .filter_by(home_team=home_norm, away_team=away_norm, game_date=g_date)
             .first()
         )
 
     def _create_orm(self, game_id, home, away, book, market_type, odds_type, data):
-        """Creates a single HistoricalOddsORM record if valid prices exist."""
+        """Creates a single HistoricalOddsORM record with spread/total support."""
         outcomes = data["outcomes"]
         home_price, away_price = 0, 0
+        spread, total = None, None
 
-        # Logic for H2H markets
         if market_type == "h2h":
-            home_price = int(outcomes.get(home, 0))
-            away_price = int(outcomes.get(away, 0))
-
-        # TODO: Add logic for spreads/totals (spread, total fields in ORM)
+            home_price = int(outcomes.get(home, {}).get("price", 0))
+            away_price = int(outcomes.get(away, {}).get("price", 0))
+        elif market_type == "spreads":
+            # For spreads, we need the point and the price
+            home_data = outcomes.get(home, {})
+            away_data = outcomes.get(away, {})
+            home_price = int(home_data.get("price", 0))
+            away_price = int(away_data.get("price", 0))
+            spread = home_data.get("point")
+        elif market_type == "totals":
+            over_data = outcomes.get("Over", {})
+            under_data = outcomes.get("Under", {})
+            home_price = int(over_data.get("price", 0))  # home_price stores Over
+            away_price = int(under_data.get("price", 0))  # away_price stores Under
+            total = over_data.get("point")
 
         if home_price == 0 and away_price == 0:
             return None
@@ -166,6 +191,8 @@ class HistoricalOddsIngester:
             odds_type=odds_type,
             home_price=home_price,
             away_price=away_price,
+            spread=spread,
+            total=total,
             snapshot_at=data["snapshot_at"],
             fetched_at=datetime.datetime.now(datetime.UTC),
         )

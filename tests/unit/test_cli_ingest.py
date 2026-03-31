@@ -159,3 +159,30 @@ def test_ingest_retrosheet_command_fails(mock_session_factory, mock_ingester_cla
     assert result.exit_code == 0
     # Should still call for all years (2019-2026), just catching exceptions
     assert mock_ingester.ingest_from_url.call_count == 8
+
+
+@patch("algomlb.cli.ingest.HistoricalOddsIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_historical_odds_range_and_missing(
+    mock_session_factory, mock_ingester_class
+):
+    """Test 'ingest historical-odds' with range and missing parameters."""
+    mock_ingester = mock_ingester_class.return_value
+    import datetime
+
+    # Test range
+    result = runner.invoke(
+        app,
+        ["ingest", "historical-odds", "--start", "2023-04-01", "--end", "2023-04-03"],
+    )
+    assert result.exit_code == 0
+    mock_ingester.run_backfill.assert_called_once_with(
+        datetime.date(2023, 4, 1), datetime.date(2023, 4, 3), reverse=True
+    )
+
+    # Test missing
+    mock_ingester.reset_mock()
+    result = runner.invoke(app, ["ingest", "historical-odds"])
+    assert result.exit_code == 0
+    mock_ingester.run_backfill.assert_not_called()
+    mock_ingester.ingest_day_snapshots.assert_not_called()

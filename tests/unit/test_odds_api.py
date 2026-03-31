@@ -69,7 +69,7 @@ def test_fetch_historical_odds_basic(mock_settings, respx_mock):
         ],
     }
     respx_mock.get(
-        "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds-history/"
+        "https://api.the-odds-api.com/v4/historical/sports/baseball_mlb/odds"
     ).respond(json=mock_data)
 
     odds = client.fetch_historical_odds("2023-04-01T10:00:00Z")
@@ -124,7 +124,7 @@ def test_fetch_historical_odds_bad_date(mock_settings, respx_mock):
         ],
     }
     respx_mock.get(
-        "https://api.the-odds-api.com/v4/sports/baseball_mlb/odds-history/"
+        "https://api.the-odds-api.com/v4/historical/sports/baseball_mlb/odds"
     ).respond(json=mock_data)
     odds = client.fetch_historical_odds("2023-04-01T10:00:00Z")
     assert odds == []

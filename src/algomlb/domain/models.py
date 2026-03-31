@@ -50,6 +50,9 @@ class Odds(BaseModel):
     )
     outcome: str = Field(..., description="Outcome (e.g., Team Name, Over, Under)")
     price: float = Field(..., description="The odds price (e.g., decimal 1.91)")
+    point: Optional[float] = Field(
+        default=None, description="Spread or total point value (e.g., -1.5, 8.5)"
+    )
     timestamp: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(datetime.UTC)
     )

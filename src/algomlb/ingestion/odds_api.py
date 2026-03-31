@@ -61,6 +61,7 @@ class OddsAPIClient(BaseAPIClient):
 
                     for outcome in outcomes:
                         outcome_name = outcome.get("name", "unknown")
+                        point = outcome.get("point")
                         odds_list.append(
                             Odds(
                                 odds_game_id=game_id,
@@ -71,6 +72,7 @@ class OddsAPIClient(BaseAPIClient):
                                 market_type=market_key,
                                 outcome=outcome_name,
                                 price=float(outcome.get("price", 0.0)),
+                                point=float(point) if point is not None else None,
                             )
                         )
         return odds_list
@@ -88,7 +90,8 @@ class OddsAPIClient(BaseAPIClient):
         """
         import datetime
 
-        path = f"/v4/sports/{sport}/odds-history/"
+        # Correct v4 historical path: /v4/historical/sports/{sport}/odds
+        path = f"/v4/historical/sports/{sport}/odds"
         params = {
             "apiKey": self.api_key,
             "regions": regions,
@@ -130,8 +133,8 @@ class OddsAPIClient(BaseAPIClient):
                     for outcome in outcomes:
                         outcome_name = outcome.get("name", "unknown")
                         price = float(outcome.get("price", 0.0))
+                        point = outcome.get("point")
                         # Note: 'price' will be American format since oddsFormat=american
-                        # domain.Odds model might need adjustment if it expects decimal
                         odds_list.append(
                             Odds(
                                 odds_game_id=game_id,
@@ -142,6 +145,7 @@ class OddsAPIClient(BaseAPIClient):
                                 market_type=market_key,
                                 outcome=outcome_name,
                                 price=price,
+                                point=float(point) if point is not None else None,
                                 timestamp=datetime.datetime.fromisoformat(
                                     timestamp_str.replace("Z", "+00:00")
                                 )

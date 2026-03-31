@@ -187,9 +187,12 @@ def ballparks(
 @app.command()
 def historical_odds(
     ctx: typer.Context,
-    date: str = typer.Option(..., "--date", help="Date to ingest (YYYY-MM-DD)"),
+    date: str = typer.Option(None, "--date", help="Single date to ingest (YYYY-MM-DD)"),
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+    reverse: bool = typer.Option(True, "--reverse", help="Ingest in reverse order"),
 ):
-    """Ingest opening and closing odds snapshots for a specific date."""
+    """Ingest historical odds snapshots for a date or range."""
     import datetime
 
     session_factory = get_session_factory()
@@ -197,8 +200,15 @@ def historical_odds(
         repo = DatabaseRepository(session)
         ingester = HistoricalOddsIngester(repo)
 
-        day = datetime.datetime.strptime(date, "%Y-%m-%d").date()
-        ingester.ingest_day_snapshots(day)
+        if date:
+            day = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+            ingester.ingest_day_snapshots(day)
+        elif start and end:
+            s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
+            ingester.run_backfill(s_date, e_date, reverse=reverse)
+        else:
+            logger.error("Must provide either --date or both --start and --end.")
 
 
 @app.command()
