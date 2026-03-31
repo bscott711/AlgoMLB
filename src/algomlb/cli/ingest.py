@@ -1,4 +1,5 @@
 import typer
+import datetime
 from typing import Optional
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 from algomlb.core.logger import logger
@@ -238,7 +239,19 @@ def retrosheet(
         ingester = RetrosheetIngester(session, since_year=since)
         if csv_path:
             ingester.ingest_from_csv(csv_path)
+        elif url:
+            ingester.ingest_from_url(url)
         else:
-            # Default to the full historical parsed data if no URL/CSV is provided
-            target_url = url or "https://www.retrosheet.org/downloads/plays/plays.zip"
-            ingester.ingest_from_url(target_url)
+            # Default to seasonal downloads to stay within disk quotas
+            current_year = datetime.datetime.now().year
+            logger.info(
+                f"Ingesting Retrosheet seasons from {since} to {current_year}..."
+            )
+            for year in range(since, current_year + 1):
+                seasonal_url = (
+                    f"https://www.retrosheet.org/downloads/plays/{year}plays.zip"
+                )
+                try:
+                    ingester.ingest_from_url(seasonal_url)
+                except Exception as e:
+                    logger.warning(f"Could not ingest Retrosheet for {year}: {e}")

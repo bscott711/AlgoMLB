@@ -153,6 +153,18 @@ def test_ingest_retrosheet_command(mock_session_factory, mock_ingester_class):
     mock_ingester.reset_mock()
     result = runner.invoke(app, ["ingest", "retrosheet"])
     assert result.exit_code == 0
-    mock_ingester.ingest_from_url.assert_called_once_with(
-        "https://www.retrosheet.org/downloads/plays/plays.zip"
-    )
+    # 2019 to current year (2026) is 8 calls
+    assert mock_ingester.ingest_from_url.call_count == 8
+
+
+@patch("algomlb.cli.ingest.RetrosheetIngester")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_retrosheet_command_fails(mock_session_factory, mock_ingester_class):
+    """Test 'ingest retrosheet' CLI handles seasonal failures."""
+    mock_ingester = mock_ingester_class.return_value
+    mock_ingester.ingest_from_url.side_effect = Exception("Download failed")
+
+    result = runner.invoke(app, ["ingest", "retrosheet"])
+    assert result.exit_code == 0
+    # Should still call for all years (2019-2026), just catching exceptions
+    assert mock_ingester.ingest_from_url.call_count == 8
