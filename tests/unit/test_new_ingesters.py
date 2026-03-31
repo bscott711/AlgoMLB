@@ -61,8 +61,8 @@ def test_umpire_scorecard_ingester(test_session, tmp_path):
     game = GameResultORM(
         game_id="20230401NYYTOR",
         game_date=datetime.date(2023, 4, 1),
-        home_team="NYY",
-        away_team="TOR",
+        home_team="New York Yankees",
+        away_team="Toronto Blue Jays",
     )
     test_session.add(game)
     test_session.commit()
@@ -502,8 +502,8 @@ def test_umpire_scorecard_ingester_url(test_session):
     game = GameResultORM(
         game_id="20230401NYYTOR",
         game_date=datetime.date(2023, 4, 1),
-        home_team="NYY",
-        away_team="TOR",
+        home_team="New York Yankees",
+        away_team="Toronto Blue Jays",
     )
     test_session.add(game)
     test_session.commit()
@@ -522,8 +522,8 @@ def test_umpire_scorecard_ingester_kaggle(test_session, tmp_path):
     game = GameResultORM(
         game_id="20230401NYYTOR",
         game_date=datetime.date(2023, 4, 1),
-        home_team="NYY",
-        away_team="TOR",
+        home_team="New York Yankees",
+        away_team="Toronto Blue Jays",
     )
     test_session.add(game)
     test_session.commit()
@@ -578,3 +578,50 @@ def test_retrosheet_ingester_filters_old_data(test_session, tmp_path):
 
     ingester.ingest_from_csv(str(csv_file))
     assert test_session.query(RetrosheetEventORM).count() == 0
+
+
+def test_umpire_scorecard_ingester_missing_team(test_session, tmp_path):
+    ingester = UmpireScorecardIngester(test_session)
+    csv_file = tmp_path / "missing_team.csv"
+    csv_file.write_text(
+        "date,home_team,away_team,umpire_name,accuracy,consistency\n2022-04-01,,TOR,Ump1,95.0,95.0\n"
+    )
+
+    ingester.ingest_from_csv(str(csv_file))
+    assert test_session.query(UmpireScorecardORM).count() == 0
+
+
+def test_umpire_scorecard_ingester_safe_float_and_runs(test_session, tmp_path):
+    """Test _safe_float with ND and non-numeric values, and test home/away_team_runs mapping."""
+    # Setup - Need a game to map to
+    game = GameResultORM(
+        game_id="G1",
+        game_date=datetime.date(2023, 4, 1),
+        home_team="New York Yankees",
+        away_team="Toronto Blue Jays",
+    )
+    test_session.add(game)
+    test_session.commit()
+
+    ingester = UmpireScorecardIngester(test_session)
+
+    # Directly test _safe_float for coverage
+    assert ingester._safe_float("ND") == 0.0
+    assert ingester._safe_float("invalid") == 0.0
+    assert ingester._safe_float(None) == 0.0
+
+    # Test CSV with home_team_runs/away_team_runs and invalid numeric formats
+    csv_file = tmp_path / "umpire_runs.csv"
+    csv_file.write_text(
+        "date,home_team,away_team,umpire_name,accuracy,consistency,favoritism_home,expected_runs,home_team_runs,away_team_runs\n"
+        "2023-04-01,NYY,TOR,Pat Hoberg,98.5,ND,0.5,8.0,4,4\n"
+        "2023-04-01,NYY,TOR,Missing Team,,98.5,0.5,8.0,4,4\n"
+    )
+    # The second row is fine but would have been flagged if missing teams, but we use NYY/TOR there.
+    # Let's add a row with missing teams to specifically hit 61-62
+    with open(csv_file, "a") as f:
+        f.write("2023-04-01,,TOR,No Home,95,95,0,0,0,0\n")
+
+    ingester.ingest_from_csv(str(csv_file))
+    # Should have 2 valid rows (the ones with teams)
+    assert test_session.query(UmpireScorecardORM).count() == 2

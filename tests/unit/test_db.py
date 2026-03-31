@@ -257,3 +257,82 @@ def test_save_ballparks(test_session: Session) -> None:
 
     retrieved = test_session.execute(select(BallparkORM)).scalars().all()
     assert len(retrieved) == 2
+
+
+def test_save_historical_odds(test_session: Session) -> None:
+    """Test bulk saving historical odds records."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import HistoricalOddsORM
+
+    odds = [
+        HistoricalOddsORM(
+            game_id=1,
+            bookmaker="test_bk",
+            market_type="h2h",
+            odds_type="opening",
+            home_price=100,
+            away_price=-110,
+            snapshot_at=datetime.now(UTC),
+        )
+    ]
+    repo.save_historical_odds(odds)
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(HistoricalOddsORM)).scalars().all()
+    assert len(retrieved) == 1
+
+
+def test_save_umpire_scorecards(test_session: Session) -> None:
+    """Test bulk merging umpire scorecard records."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import UmpireScorecardORM
+
+    scorecards = [
+        UmpireScorecardORM(
+            game_id="G1",
+            umpire_name="Ump1",
+            accuracy=95.0,
+            consistency=95.0,
+            favoritism_home=0.0,
+            expected_runs=1.0,
+            actual_runs=1.0,
+        )
+    ]
+    repo.save_umpire_scorecards(scorecards)
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(UmpireScorecardORM)).scalars().all()
+    assert len(retrieved) == 1
+
+
+def test_save_retrosheet_events(test_session: Session) -> None:
+    """Test bulk merging retrosheet event records."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.db.models import RetrosheetEventORM
+
+    events = [
+        RetrosheetEventORM(
+            game_id="G1",
+            play_number=1,
+            event_text="K",
+            inning=1,
+            top_bot=0,
+            vis_home=0,
+            site="TEST",
+            bat_team="ATL",
+            pit_team="NYY",
+            batter_id="b1",
+            pitcher_id="p1",
+            lp=1,
+            bat_f=2,
+            date=date(2023, 4, 1),
+        )
+    ]
+    repo.save_retrosheet_events(events)
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(RetrosheetEventORM)).scalars().all()
+    assert len(retrieved) == 1

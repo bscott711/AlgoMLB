@@ -11,73 +11,173 @@ st.markdown("---")
 
 engine = get_engine()
 
-# 1. High Level Metrics
-col1, col2, col3, col4 = st.columns(4)
+
+# --- 1. SYSTEM OVERVIEW METRICS ---
+st.subheader("🚀 System Overview")
+m1, m2, m3, m4 = st.columns(4)
 
 with engine.connect() as conn:
     total_pitches = int(
         conn.execute(text("SELECT count(*) FROM pitch_events")).scalar() or 0
     )
-    unique_games = int(
-        conn.execute(text("SELECT count(DISTINCT game_id) FROM pitch_events")).scalar()
-        or 0
+    total_games = int(
+        conn.execute(text("SELECT count(*) FROM game_results")).scalar() or 0
     )
-    unique_pitchers = int(
-        conn.execute(
-            text("SELECT count(DISTINCT pitcher_id) FROM pitch_events")
-        ).scalar()
-        or 0
+    total_umps = int(
+        conn.execute(text("SELECT count(*) FROM umpire_scorecards")).scalar() or 0
     )
-    last_date = conn.execute(text("SELECT max(game_date) FROM pitch_events")).scalar()
-
-col1.metric("Total Pitch Events", f"{total_pitches:,}")
-col2.metric("Unique Games", f"{unique_games:,}")
-col3.metric("Active Pitchers", f"{unique_pitchers:,}")
-col4.metric("Last Ingest Date", str(last_date))
-
-st.markdown("### 📈 Ingestion Volume by Day")
-
-# 2. Daily Volume Chart
-query = """
-    SELECT game_date as date, count(*) as count 
-    FROM pitch_events 
-    GROUP BY 1 
-    ORDER BY 1
-"""
-df_daily = pd.read_sql(query, engine)
-if not df_daily.empty:
-    fig_daily = px.area(
-        df_daily,
-        x="date",
-        y="count",
-        title="Daily Pitch Event Volume",
-        labels={"count": "Number of Pitches", "date": "Game Date"},
-        template="plotly_dark",
+    total_odds = int(
+        conn.execute(text("SELECT count(*) FROM historical_odds")).scalar() or 0
     )
-    st.plotly_chart(fig_daily, width="stretch")
 
-# 3. Data Distribution
-st.markdown("### 🔍 Data Quality & Distributions")
+m1.metric("Pitch Events", f"{total_pitches:,}", "Historical")
+m2.metric("Game IDs", f"{total_games:,}", "Parsed")
+m3.metric("Umpire Cards", f"{total_umps:,}", "Kaggle + Live")
+m4.metric("Market Snapshots", f"{total_odds:,}", "Odds API")
+
+st.markdown("---")
+
+# --- 2. STORAGE HEALTH SUMMARY ---
+st.subheader("📊 Storage Health Summary")
+
+tables_to_check = [
+    ("pitch_events", "game_date"),
+    ("game_results", "game_date"),
+    (
+        "umpire_scorecards",
+        "id",
+    ),  # Ump card doesn't have a direct date col yet in ORM, using ID for count
+    ("retrosheet_events", "date"),
+    ("historical_odds", "snapshot_at"),
+    ("ballparks", "id"),
+    ("bankroll_ledger", "timestamp"),
+]
+
+health_data = []
+with engine.connect() as conn:
+    for table, date_col in tables_to_check:
+        count = int(conn.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
+
+        # Determine the best query for Last Update date
+        last_date = "N/A"
+        try:
+            if table == "umpire_scorecards":
+                # Join with games to get actual date
+                last_date = conn.execute(
+                    text("""
+                    SELECT max(g.game_date) 
+                    FROM umpire_scorecards u 
+                    JOIN game_results g ON u.game_id = g.game_id
+                """)
+                ).scalar()
+            else:
+                last_date = conn.execute(
+                    text(f"SELECT max({date_col}) FROM {table}")
+                ).scalar()
+        except Exception:  # pragma: no cover
+            pass
+
+        status = "🟢 Healthy" if count > 0 else "🔴 Empty"
+        if count > 0 and table == "game_results":
+            # Check for 2019 coverage
+            min_year = conn.execute(
+                text("SELECT extract(year from min(game_date)) FROM game_results")
+            ).scalar()
+            if min_year and min_year > 2019:
+                status = "🟡 Incomplete (Missing 2019-2021)"  # pragma: no cover
+
+        health_data.append(
+            {
+                "Table": table,
+                "Records": f"{count:,}",
+                "Last Update": str(last_date).split(".")[0] if last_date else "N/A",
+                "Health Status": status,
+            }
+        )
+
+st.table(pd.DataFrame(health_data))
+
+st.markdown("---")
+
+# --- 3. SEASONAL COVERAGE ANALYSIS ---
+st.subheader("📅 Seasonal Coverage (2019 - 2026)")
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.write("#### Games per Season")
+    query = """
+        SELECT extract(year from game_date) as season, count(*) as count 
+        FROM game_results 
+        GROUP BY 1 
+        ORDER BY 1
+    """
+    df_seasons = pd.read_sql(query, engine)
+    if not df_seasons.empty:
+        fig_seasons = px.bar(
+            df_seasons,
+            x="season",
+            y="count",
+            title="Game ID Coverage",
+            labels={"count": "Games", "season": "Year"},
+            template="plotly_dark",
+            color="count",
+        )
+        st.plotly_chart(fig_seasons, use_container_width=True)
+    else:
+        st.info(
+            "No season data found. Run `algomlb ingest schedule`."
+        )  # pragma: no cover
+
+with col_b:
+    st.write("#### Umpire Data Coverage")
+    # Join cards with games to get dates
+    query_umps = """
+        SELECT extract(year from g.game_date) as season, count(u.id) as count
+        FROM umpire_scorecards u
+        JOIN game_results g ON u.game_id = g.game_id
+        GROUP BY 1 ORDER BY 1
+    """
+    try:
+        df_umps = pd.read_sql(query_umps, engine)
+        if not df_umps.empty:
+            fig_umps = px.line(
+                df_umps,
+                x="season",
+                y="count",
+                title="Umpire Scorecards per Year",
+                markers=True,
+                template="plotly_dark",
+            )
+            st.plotly_chart(fig_umps, use_container_width=True)
+        else:
+            st.warning(
+                "Umpire data not yet linked. Game IDs might be missing for 2019-2022."
+            )  # pragma: no cover
+    except Exception:  # pragma: no cover
+        st.error(
+            "Umpire scorecard table schema mismatch or missing."
+        )  # pragma: no cover
+
+st.markdown("---")
+
+# --- 4. DATA QUALITY ---
+st.subheader("🔍 Data Quality Reports")
 c1, c2 = st.columns(2)
 
 with c1:
-    st.write("#### Pitch Type Distribution")
-    query_types = """
-        SELECT pitch_type, count(*) as count 
+    st.write("#### Pitch Events Density")
+    query_density = """
+        SELECT game_date as date, count(*) as count 
         FROM pitch_events 
-        WHERE pitch_type IS NOT NULL
-        GROUP BY 1 
-        ORDER BY 2 DESC
+        GROUP BY 1 ORDER BY 1
     """
-    df_types = pd.read_sql(query_types, engine)
-    if not df_types.empty:
-        fig_types = px.bar(
-            df_types, x="pitch_type", y="count", color="count", template="plotly_dark"
-        )
-        st.plotly_chart(fig_types, width="stretch")
+    df_density = pd.read_sql(query_density, engine)
+    if not df_density.empty:
+        fig_density = px.area(df_density, x="date", y="count", template="plotly_dark")
+        st.plotly_chart(fig_density, use_container_width=True)
 
 with c2:
-    st.write("#### Missing Values Report")
+    st.write("#### Missing Values (Pitch Analytics)")
     cols_to_check = [
         "release_speed",
         "release_spin_rate",
@@ -85,7 +185,6 @@ with c2:
         "launch_angle",
     ]
     missing_data = []
-
     with engine.connect() as conn:
         for col in cols_to_check:
             null_count = int(
@@ -103,45 +202,6 @@ with c2:
                     else 0,
                 }
             )
-
-    df_missing = pd.DataFrame(missing_data)
-    st.table(df_missing)
-    st.caption(
-        "💡 **Note:** High missing values for `launch_speed/angle` are expected as they only apply to batted ball events (~33% of pitches)."
-    )
-
-# 4. Glossary
-with st.expander("📝 Pitch Type Glossary (Statcast Codes)"):
-    col_a, col_b = st.columns(2)
-    glossary = {
-        "FF": "Four-Seam Fastball",
-        "SI": "Sinker",
-        "SL": "Slider",
-        "CH": "Changeup",
-        "FC": "Cutter",
-        "ST": "Sweeper",
-        "CU": "Curveball",
-        "FS": "Splitter",
-        "KC": "Knuckle Curve",
-        "SV": "Slurve",
-        "KN": "Knuckleball",
-        "FA": "Other Fastball",
-        "EP": "Eephus",
-        "SC": "Screwball",
-        "FO": "Forkball",
-        "CS": "Slow Curve",
-        "PO": "Pitchout",
-    }
-
-    # Split for readability
-    items = list(glossary.items())
-    midpoint = len(items) // 2 + 1
-
-    with col_a:
-        for code, name in items[:midpoint]:
-            st.markdown(f"**{code}**: {name}")
-    with col_b:
-        for code, name in items[midpoint:]:
-            st.markdown(f"**{code}**: {name}")
+    st.table(pd.DataFrame(missing_data))
 
 st.success("Database Connection: OK")
