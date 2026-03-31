@@ -174,6 +174,7 @@ class BallparkORM(Base):
     elevation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     roof: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     daytime: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hp_bearing_deg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
 
 class UmpireScorecardORM(Base):
