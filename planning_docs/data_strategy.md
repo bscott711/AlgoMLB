@@ -137,11 +137,12 @@ Build a **rest differential feature** for each game:
 ```python
 home_rest_days = days_since_last_game
 away_rest_days = days_since_last_game
-travel_distance_km = haversine(prev_city, current_city)  # use geopy
-timezone_change = abs(prev_tz_offset - current_tz_offset)  # jet lag proxy
+# NOW POSSIBLE: Latitude and longitude are stored in BallparkORM
+travel_distance_km = haversine(prev_city_coords, current_city_coords)
+timezone_change = abs(prev_tz_offset - current_tz_offset)
 ```
 
-Research shows teams playing on 0 days rest after >1,500-mile travel lose ~0.15 runs of scoring equity on average — small but consistent, and mostly unpriced in totals markets.
+Research shows teams playing on 0 days rest after >1,500-mile travel lose ~0.15 runs of scoring equity on average.
 
 ### Umpire Tendencies — Critical 2026 Update
 

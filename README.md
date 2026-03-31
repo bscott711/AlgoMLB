@@ -67,17 +67,17 @@ A highly structured, configuration-driven baseball quantitative betting system. 
 
 - [x] **API Clients:** Build resilient `httpx` base clients with rate-limit handling, retry logic, and circuit breakers.
 - [x] **Stats Ingestion (Primary):** Integrate MLB Stats API and Statcast (via `pybaseball`) for comprehensive historical pitching/hitting backfills.
-- [x] **Odds Ingestion (Primary):** Integrate The-Odds-API for live sportsbook odds.
-- [ ] **Scraper Fallback:** Build Playwright/httpx web scrapers ONLY if primary APIs fail.
-- [x] **ETL Pipeline:** Robust 7-day chunked ingestion with 30-day progressive database persistence.
-- [x] **Testing:** 100% unit test coverage achieved for the entire ingestion layer.
+- [ ] **Odds Ingestion (Primary):** Integrate The-Odds-API for live sportsbook odds and historical market backfills.
+- [x] **Umpire Tendencies:** Reverse-engineered `umpscorecards.us` API for granular decision accuracy and bias metrics.
+- [x] **Ballpark Enrichment:** Hybrid ingestion merging structural dimensions (Kaggle) with geographic coordinates and name synonyms (JSON).
+- [x] **Retrosheet Ingestion:** Integrated historical play-by-play events for advanced defensive and umpiring modeling.
 - [x] **Historical Backfill:** Completed 6-year Statcast pitch-level backfill (2019-2025, ~4.9M records).
 
 ### 🧠 Phase 3: Machine Learning & Backtesting (The Quant Layer)
 
 *Objective: State-of-the-art probability modeling with zero data leakage.*
 
-- [ ] **Feature Engineering:** Build pipelines for rolling averages, park factors, and pitcher/batter splits. Handle start-of-season cold starts.
+- [/] **Feature Engineering:** Build pipelines for rolling averages, park factors, and pitcher/batter splits. Initial data structures for ballpark and player metrics established.
 - [ ] **Baseline Model:** Implement a simple, interpretable baseline (e.g., Logistic Regression on run differentials or Elo ratings) to establish a performance floor.
 - [ ] **Backtest Engine:** Implement a strict, point-in-time temporal backtesting framework.
   - ⚠️ *Critical:* Computationally guarantee day $T$ predictions only use $\leq T-1$ data.
