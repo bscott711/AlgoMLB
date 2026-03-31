@@ -1,6 +1,7 @@
 # Project Status Report: AlgoMLB (March 2026)
 
 ## 🏗️ Architectural Foundations
+
 The project has moved from a series of "tracer bullet" implementations into a robust, layered architecture.
 
 - **Import Integrity**: 100% compliance with the unidirectional import ladder (`config -> domain -> db -> ingestion -> ml -> cli -> ui`).
@@ -8,6 +9,7 @@ The project has moved from a series of "tracer bullet" implementations into a ro
 - **Complexity Guardrails**: All methods are monitored for cyclomatic complexity to ensure long-term maintainability.
 
 ## 🗄️ Database & Ingestion
+
 The persistence layer is now fully operational with PostgreSQL and Alembic.
 
 - **Umpire Analytics**: Successfully integrated granular decision accuracy and bias data via `umpscorecards.us` API scraping.
@@ -17,6 +19,7 @@ The persistence layer is now fully operational with PostgreSQL and Alembic.
 - **Retrosheet**: Official play-by-play events are integrated for defensive modeling.
 
 ## 📊 Dashboard & UI
+
 The Streamlit-based control panel is live and functional.
 
 - **Live Analytics**: Real-time monitoring of game status and odds (In Progress).
@@ -26,6 +29,7 @@ The Streamlit-based control panel is live and functional.
 - **Resilience**: All views updated with null-safe formatting (NaN/None handling).
 
 ## 🧠 Upcoming Work: The Quant Layer (Phase 3)
+
 With the data ingestion foundation secured, focus shifts to pure ML engineering:
 
 1. **Feature Engineering**: Implementing the rolling average and platoon split pipelines described in the [Data Strategy](file:///home/opc/AlgoMLB/planning_docs/data_strategy.md).
