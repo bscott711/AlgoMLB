@@ -9,6 +9,7 @@ from algomlb.ingestion import (
     IngestionOrchestrator,
     MLBStatsAPIClient,
     OddsAPIClient,
+    PlayerTransactionsIngester,
 )
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.ballpark_ingester import BallparkIngester
@@ -32,8 +33,9 @@ def odds(ctx: typer.Context):
         odds_client = OddsAPIClient()
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
+        transactions_ingester = PlayerTransactionsIngester(repo)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader
+            repo, odds_client, stats_client, historical_loader, transactions_ingester
         )
 
         logger.info("Starting live odds ingestion...")
@@ -68,8 +70,9 @@ def schedule(
         odds_client = OddsAPIClient()
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
+        transactions_ingester = PlayerTransactionsIngester(repo)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader
+            repo, odds_client, stats_client, historical_loader, transactions_ingester
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -123,8 +126,9 @@ def historical(
         odds_client = OddsAPIClient()
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
+        transactions_ingester = PlayerTransactionsIngester(repo)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader
+            repo, odds_client, stats_client, historical_loader, transactions_ingester
         )
 
         records_processed = 0
@@ -265,3 +269,49 @@ def retrosheet(
                     ingester.ingest_from_url(seasonal_url)
                 except Exception as e:
                     logger.warning(f"Could not ingest Retrosheet for {year}: {e}")
+
+
+@app.command()
+def transactions(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+):
+    """Fetch MLB player transactions and IL stints."""
+    agent_mode = ctx.obj.get("agent_mode", False)
+    import datetime
+
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        odds_client = OddsAPIClient()
+        stats_client = MLBStatsAPIClient()
+        historical_loader = HistoricalDataLoader(repo)
+        transactions_ingester = PlayerTransactionsIngester(repo)
+        orchestrator = IngestionOrchestrator(
+            repo,
+            odds_client,
+            stats_client,
+            historical_loader,
+            transactions_ingester,
+        )
+
+        s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
+        e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else None
+
+        logger.info(
+            f"Starting transaction ingestion for {start or 'trailing 7d'} to {end or 'trailing 7d'}..."
+        )
+        records_inserted = orchestrator.run_transaction_ingestion(
+            start_date=s_date, end_date=e_date
+        )
+        logger.success(f"Successfully ingested {records_inserted} transaction records.")
+
+        if agent_mode:
+            emit_agent_result(
+                AgentResult(
+                    status="success",
+                    command="ingest.transactions",
+                    data={"records_inserted": records_inserted},
+                )
+            )

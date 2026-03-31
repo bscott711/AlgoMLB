@@ -12,13 +12,16 @@ def mock_dependencies():
     odds_client = MagicMock()
     stats_client = MagicMock()
     historical_loader = MagicMock()
-    return repo, odds_client, stats_client, historical_loader
+    transactions_ingester = MagicMock()
+    return repo, odds_client, stats_client, historical_loader, transactions_ingester
 
 
 def test_run_odds_ingestion(mock_dependencies):
-    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
     orchestrator = IngestionOrchestrator(
-        repo, odds_client, stats_client, historical_loader
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
     )
 
     # Mock return value
@@ -55,9 +58,11 @@ def test_run_odds_ingestion(mock_dependencies):
 
 
 def test_run_schedule_ingestion(mock_dependencies):
-    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
     orchestrator = IngestionOrchestrator(
-        repo, odds_client, stats_client, historical_loader
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
     )
 
     # Mock return value
@@ -80,9 +85,11 @@ def test_run_schedule_ingestion(mock_dependencies):
 
 
 def test_run_odds_ingestion_empty(mock_dependencies):
-    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
     orchestrator = IngestionOrchestrator(
-        repo, odds_client, stats_client, historical_loader
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
     )
 
     odds_client.fetch_live_odds.return_value = []
@@ -94,9 +101,11 @@ def test_run_odds_ingestion_empty(mock_dependencies):
 
 
 def test_run_historical_ingestion(mock_dependencies):
-    repo, odds_client, stats_client, historical_loader = mock_dependencies
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
     orchestrator = IngestionOrchestrator(
-        repo, odds_client, stats_client, historical_loader
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
     )
 
     import pandas as pd
@@ -109,3 +118,47 @@ def test_run_historical_ingestion(mock_dependencies):
     assert count == 2
     historical_loader.fetch_pitching_stats.assert_called_once_with(2023, 2023)
     historical_loader.fetch_team_batting.assert_called_once_with(2023, 2023)
+
+
+def test_run_transaction_ingestion(mock_dependencies):
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
+    )
+
+    transactions_ingester.ingest_range.return_value = 5
+    d1 = datetime.date(2024, 1, 1)
+    d2 = datetime.date(2024, 1, 31)
+
+    count = orchestrator.run_transaction_ingestion(d1, d2)
+
+    assert count == 5
+    transactions_ingester.ingest_range.assert_called_once_with(d1, d2)
+
+
+def test_run_transaction_ingestion_defaults(mock_dependencies):
+    repo, odds_client, stats_client, historical_loader, transactions_ingester = (
+        mock_dependencies
+    )
+    orchestrator = IngestionOrchestrator(
+        repo, odds_client, stats_client, historical_loader, transactions_ingester
+    )
+
+    transactions_ingester.ingest_range.return_value = 1
+    # Test only start_date provided
+    d1 = datetime.date(2024, 1, 1)
+    count = orchestrator.run_transaction_ingestion(start_date=d1)
+    assert count == 1
+    # Final date should be today
+    args = transactions_ingester.ingest_range.call_args[0]
+    assert args[0] == d1
+    assert args[1] == datetime.date.today()
+
+    # Test no dates provided
+    count = orchestrator.run_transaction_ingestion()
+    assert count == 1
+    args = transactions_ingester.ingest_range.call_args[0]
+    assert args[1] == datetime.date.today()
+    assert args[0] == datetime.date.today() - datetime.timedelta(days=7)

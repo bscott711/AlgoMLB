@@ -48,6 +48,8 @@ class GameResultORM(Base):
     away_pitcher_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     home_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    home_team_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_team_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[GameStatus] = mapped_column(
         Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED
     )
@@ -452,3 +454,31 @@ class PlayerRollingFeaturesORM(Base):
     date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     feature_name: Mapped[str] = mapped_column(String(50), nullable=False)
     feature_value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class PlayerTransactionORM(Base):
+    """Historical player transactions and IL stints."""
+
+    __tablename__ = "player_transactions"
+
+    transaction_id: Mapped[str] = mapped_column(String, primary_key=True)
+    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    team_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    transaction_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    effective_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    resolution_date: Mapped[Optional[datetime.date]] = mapped_column(
+        Date, nullable=True
+    )
+    type_desc: Mapped[str] = mapped_column(String, nullable=False)
+    il_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    injury_body_part: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    injury_descriptor: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    raw_description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    from sqlalchemy import Computed
+
+    days_on_il: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        Computed("resolution_date - effective_date", persisted=True),
+        nullable=True,
+    )

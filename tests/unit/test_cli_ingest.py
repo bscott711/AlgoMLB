@@ -186,3 +186,32 @@ def test_ingest_historical_odds_range_and_missing(
     assert result.exit_code == 0
     mock_ingester.run_backfill.assert_not_called()
     mock_ingester.ingest_day_snapshots.assert_not_called()
+
+
+@patch("algomlb.cli.ingest.IngestionOrchestrator")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_transactions_command(mock_session_factory, mock_orchestrator_class):
+    """Test the 'ingest transactions' CLI command outputs correctly in agent mode."""
+    # Setup mocks
+    mock_orchestrator = mock_orchestrator_class.return_value
+    mock_orchestrator.run_transaction_ingestion.return_value = 50
+
+    # Run command in agent mode
+    result = runner.invoke(
+        app, ["--agent-mode", "ingest", "transactions", "--start", "2024-03-01"]
+    )
+
+    assert result.exit_code == 0
+    # Resolve output
+    lines = result.stdout.strip().split("\n")
+    agent_output = None
+    for line in lines:
+        if line.startswith("{") and "ingest.transactions" in line:
+            agent_output = json.loads(line)
+            break
+
+    assert agent_output is not None
+    assert agent_output["status"] == "success"
+    assert agent_output["command"] == "ingest.transactions"
+    assert agent_output["data"]["records_inserted"] == 50
+    mock_orchestrator.run_transaction_ingestion.assert_called_once()

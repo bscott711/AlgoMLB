@@ -1,7 +1,12 @@
+import datetime
+from datetime import date
+from typing import Optional
+
 from algomlb.db.repository import DatabaseRepository
 from algomlb.ingestion.mlb_stats import MLBStatsAPIClient
 from algomlb.ingestion.odds_api import OddsAPIClient
 from algomlb.ingestion.historical import HistoricalDataLoader
+from algomlb.ingestion.transactions_ingester import PlayerTransactionsIngester
 
 
 class IngestionOrchestrator:
@@ -13,11 +18,13 @@ class IngestionOrchestrator:
         odds_client: OddsAPIClient,
         stats_client: MLBStatsAPIClient,
         historical_loader: HistoricalDataLoader,
+        transactions_ingester: PlayerTransactionsIngester,
     ):
         self.repo = repo
         self.odds_client = odds_client
         self.stats_client = stats_client
         self.historical_loader = historical_loader
+        self.transactions_ingester = transactions_ingester
 
     def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
         """Fetch and persist historical pitching and batting stats."""
@@ -42,3 +49,16 @@ class IngestionOrchestrator:
         for game in games:
             self.repo.save_game(game)
         return len(games)
+
+    def run_transaction_ingestion(
+        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> int:
+        """Fetch and persist player transactions for a given date range."""
+
+        today = datetime.date.today()
+        if start_date is None:
+            start_date = today - datetime.timedelta(days=7)
+        if end_date is None:
+            end_date = today
+
+        return self.transactions_ingester.ingest_range(start_date, end_date)

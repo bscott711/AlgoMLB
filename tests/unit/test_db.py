@@ -418,3 +418,69 @@ def test_save_umpire_scorecards_large_batch(test_session: Session) -> None:
     # Verify all 50 rows were saved
     count = test_session.query(UmpireScorecardORM).count()
     assert count == 50
+
+
+def test_save_player_transactions(test_session: Session) -> None:
+    """Test bulk upserting player transaction records."""
+    from algomlb.db.models import PlayerTransactionORM
+
+    repo = DatabaseRepository(test_session)
+    transactions = [
+        PlayerTransactionORM(
+            transaction_id="TX1",
+            player_id=1,
+            team_id=10,
+            transaction_date=date(2024, 3, 1),
+            type_desc="Placed on 10-Day IL",
+            raw_description="Hamstring strain",
+        ),
+        PlayerTransactionORM(
+            transaction_id="TX2",
+            player_id=2,
+            team_id=10,
+            transaction_date=date(2024, 3, 1),
+            type_desc="Activated",
+            raw_description="Activated from IL",
+        ),
+    ]
+
+    count = repo.save_player_transactions(transactions)
+    assert count == 2
+
+    # Check deduplication and update
+    transactions_update = [
+        PlayerTransactionORM(
+            transaction_id="TX1",
+            player_id=1,
+            team_id=10,
+            transaction_date=date(2024, 3, 1),
+            type_desc="Placed on 60-Day IL",  # Update
+            raw_description="Hamstring strain",
+        ),
+        PlayerTransactionORM(
+            transaction_id="TX1",  # Duplicate in same batch
+            player_id=1,
+            team_id=10,
+            transaction_date=date(2024, 3, 1),
+            type_desc="Placed on 60-Day IL",
+            raw_description="Hamstring strain",
+        ),
+    ]
+
+    count2 = repo.save_player_transactions(transactions_update)
+    assert count2 == 1  # Deduped to 1
+
+    from sqlalchemy import select
+
+    retrieved = test_session.execute(select(PlayerTransactionORM)).scalars().all()
+    # TX1 and TX2 still exist
+    assert len(retrieved) == 2
+    tx1 = test_session.get(PlayerTransactionORM, "TX1")
+    assert tx1 is not None
+    assert tx1.type_desc == "Placed on 60-Day IL"
+
+
+def test_save_player_transactions_empty(test_session: Session) -> None:
+    """Test saving empty list return early."""
+    repo = DatabaseRepository(test_session)
+    assert repo.save_player_transactions([]) == 0

@@ -11,6 +11,7 @@ from algomlb.db.models import (
     HistoricalOddsORM,
     LiveOddsORM,
     PitchEventORM,
+    PlayerTransactionORM,
     RetrosheetEventORM,
     UmpireScorecardORM,
 )
@@ -199,3 +200,41 @@ class DatabaseRepository:
         for event in events:
             self.session.merge(event)
         self.session.commit()
+
+    def save_player_transactions(self, transactions: List[PlayerTransactionORM]) -> int:
+        """Bulk upsert player transactions to handle updates/resolutions."""
+        if not transactions:
+            return 0
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # Deduplicate by transaction_id in the input list to prevent internal batch conflicts
+        deduped = {}
+        for tx in transactions:
+            deduped[tx.transaction_id] = tx
+
+        rows_as_dicts = [
+            {k: v for k, v in tx.__dict__.items() if not k.startswith("_")}
+            for tx in deduped.values()
+        ]
+
+        # Use 100 as chunk size for transactions (relatively light rows)
+        chunk_size = 100
+        total_upserted = 0
+        for i in range(0, len(rows_as_dicts), chunk_size):
+            chunk = rows_as_dicts[i : i + chunk_size]
+            stmt = pg_insert(PlayerTransactionORM).values(chunk)
+            # transaction_id is the primary key
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["transaction_id"],
+                set_={
+                    c: stmt.excluded[c]
+                    for c in rows_as_dicts[0]
+                    if c != "transaction_id"
+                },
+            )
+            self.session.execute(stmt)
+            total_upserted += len(chunk)
+
+        self.session.commit()
+        return total_upserted
