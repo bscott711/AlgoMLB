@@ -237,3 +237,73 @@ def test_parse_injury_mookie_betts():
     part, kind = parse_injury("Los Angeles Dodgers activated RF Mookie Betts.")
     assert part == "unknown"
     assert kind == "activated"
+
+
+def test_map_stats_api_to_orm_status_change():
+    """Test mapping an IL placement that arrives as a generic 'Status Change'."""
+    repo = MagicMock()
+    ingester = PlayerTransactionsIngester(repo)
+    tx = {
+        "id": "456",
+        "person": {"id": 1, "fullName": "Clayton Kershaw"},
+        "toTeam": {"id": 119, "teamName": "Dodgers"},
+        "date": "2024-03-04",
+        "typeDesc": "Status Change",
+        "description": "Dodgers placed Clayton Kershaw on the 60-day injured list. Recovery from left shoulder surgery.",
+    }
+    orm = ingester._map_stats_api_to_orm(tx)
+
+    assert orm is not None
+    assert orm.il_type == "60day"
+    assert orm.injury_body_part == "left shoulder"
+    assert orm.injury_descriptor == "surgery"
+    assert orm.player_name == "Clayton Kershaw"
+
+
+def test_ingest_range_legacy():
+    """Test that ingest_range routes to the legacy fetcher for pre-2019 dates."""
+    repo = MagicMock()
+    ingester = PlayerTransactionsIngester(repo)
+    # 2018 is pre-2019
+    start = date(2018, 5, 1)
+    end = date(2018, 5, 1)
+
+    count = ingester.ingest_range(start, end)
+    # Should call fetch_legacy_transactions which returns []
+    assert count == 0
+
+
+def test_map_stats_api_to_orm_15day():
+    """Test mapping a 15-Day IL transaction from StatsAPI."""
+    repo = MagicMock()
+    ingester = PlayerTransactionsIngester(repo)
+    tx = {
+        "id": "789",
+        "person": {"id": 1, "fullName": "Test Pitcher"},
+        "toTeam": {"id": 10, "teamName": "Test Team"},
+        "date": "2024-03-01",
+        "typeDesc": "Placed on 15-Day IL",
+        "description": "Pitching arm fatigue",
+    }
+    orm = ingester._map_stats_api_to_orm(tx)
+
+    assert orm is not None
+    assert orm.il_type == "15day"
+
+
+def test_map_stats_api_to_orm_7day():
+    """Test mapping a 7-Day IL transaction (concussion) from StatsAPI."""
+    repo = MagicMock()
+    ingester = PlayerTransactionsIngester(repo)
+    tx = {
+        "id": "101",
+        "person": {"id": 1, "fullName": "Test Catcher"},
+        "toTeam": {"id": 10, "teamName": "Test Team"},
+        "date": "2024-03-01",
+        "typeDesc": "Placed on 7-Day IL",
+        "description": "Concussion",
+    }
+    orm = ingester._map_stats_api_to_orm(tx)
+
+    assert orm is not None
+    assert orm.il_type == "7day"

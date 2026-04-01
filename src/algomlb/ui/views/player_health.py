@@ -68,11 +68,11 @@ st.subheader("📅 Temporal Roster Health")
 st.write("#### IL Placements by Month (Seasonality)")
 query_monthly = """
     SELECT 
-        to_char(transaction_date, 'Month') as month_name, 
+        to_char(transaction_date, 'Mon') as month_name, 
         extract(month from transaction_date) as month_num,
         count(*) as count
     FROM player_transactions
-    WHERE type_desc LIKE 'Placed on %% IL'
+    WHERE il_type IS NOT NULL
     GROUP BY 1, 2 ORDER BY 2
 """
 df_monthly = pd.read_sql(query_monthly, engine)
@@ -97,21 +97,43 @@ player_input = st.text_input(
 )
 
 if player_input:
-    if player_input.isdigit():
-        query_player = text("""
-            SELECT transaction_date, type_desc, raw_description, il_type, days_on_il, injury_body_part, injury_descriptor
+    # Use window functions to find duration since placement for activation records
+    base_query = """
+        WITH player_tx AS (
+            SELECT 
+                transaction_date, 
+                type_desc, 
+                raw_description, 
+                il_type, 
+                injury_body_part, 
+                injury_descriptor,
+                transaction_id,
+                -- Find previous placement/assignment for duration calculation
+                MAX(CASE WHEN (raw_description ILIKE '%%placed%%' OR raw_description ILIKE '%%assigned%%') THEN transaction_date END) 
+                    OVER (PARTITION BY player_id ORDER BY transaction_date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) as last_placed_date
             FROM player_transactions
-            WHERE player_id = :pid
-            ORDER BY transaction_date DESC
-        """)
+            WHERE {where_clause}
+        )
+        SELECT 
+            transaction_date, 
+            type_desc, 
+            il_type,
+            CASE 
+                WHEN (raw_description ILIKE '%%activated%%' OR raw_description ILIKE '%%reinstated%%') AND last_placed_date IS NOT NULL
+                THEN (transaction_date - last_placed_date)
+                ELSE 0
+            END as days_on_il,
+            injury_body_part, 
+            injury_descriptor,
+            raw_description
+        FROM player_tx
+        ORDER BY transaction_date DESC
+    """
+    if player_input.isdigit():
+        query_player = text(base_query.format(where_clause="player_id = :pid"))
         params = {"pid": int(player_input)}
     else:
-        query_player = text("""
-            SELECT transaction_date, type_desc, raw_description, il_type, days_on_il, injury_body_part, injury_descriptor
-            FROM player_transactions
-            WHERE player_name ILIKE :pname
-            ORDER BY transaction_date DESC
-        """)
+        query_player = text(base_query.format(where_clause="player_name ILIKE :pname"))
         params = {"pname": f"%{player_input}%"}
 
     with engine.connect() as conn:
@@ -119,12 +141,15 @@ if player_input:
 
     if not df_player.empty:
         st.write(f"History for '{player_input}'")
-        # Cleanup column display
+        # Ensure days_on_il is int
+        df_player["days_on_il"] = df_player["days_on_il"].fillna(0).astype(int)
         st.dataframe(df_player, use_container_width=True)
 
         # Summary metrics
         total_il_days = df_player["days_on_il"].sum()
-        il_count = df_player[df_player["il_type"].notnull()].shape[0]
+        il_count = df_player[
+            df_player["raw_description"].str.contains("placed", case=False, na=False)
+        ].shape[0]
 
         col_pa1, col_pa2 = st.columns(2)
         col_pa1.metric("Lifetime IL Days (since 2019)", f"{int(total_il_days)}")

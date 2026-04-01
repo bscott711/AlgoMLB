@@ -57,11 +57,25 @@ def test_player_health_view_restores_coverage(
             "type_desc": ["test"],
             "days_on_il": [10],
             "il_type": ["10day"],
+            "raw_description": ["test desc"],
         }
     )
     reload(health)
 
-    # 2. Test case: without data (hits warning line 119)
+    # 3. Test case: name search (hits isdigit == False branch)
+    _mock_text.return_value = "Kershaw"  # Set name input
+    mock_read_sql.return_value = pd.DataFrame(
+        {
+            "transaction_date": [date(2024, 3, 1)],
+            "type_desc": ["test"],
+            "raw_description": ["test desc"],
+            "il_type": ["10day"],
+            "days_on_il": [10],
+            "injury_body_part": ["shoulder"],
+            "injury_descriptor": ["surgery"],
+        }
+    )
+    # 4. Test case: without data
     mock_read_sql.return_value = pd.DataFrame()
     reload(health)
     assert health is not None

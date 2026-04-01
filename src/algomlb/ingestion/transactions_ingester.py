@@ -1,6 +1,6 @@
 import re
 from datetime import date, timedelta
-from typing import Iterator, List, Optional
+from typing import Any, Iterator, List, Optional
 
 import httpx
 from algomlb.db.models import PlayerTransactionORM
@@ -104,6 +104,29 @@ class PlayerTransactionsIngester:
         # This is a placeholder for actual legacy fetching logic
         return []
 
+    def _detect_il_type(self, type_desc: str, description: str) -> Optional[str]:
+        """Detect IL type from type description or raw text."""
+        type_lower = type_desc.lower()
+        desc_lower = description.lower()
+        if "10-day" in type_lower or "10-day injured list" in desc_lower:
+            return "10day"
+        if "60-day" in type_lower or "60-day injured list" in desc_lower:
+            return "60day"
+        if "15-day" in type_lower or "15-day injured list" in desc_lower:
+            return "15day"
+        if "7-day" in type_lower or "7-day injured list" in desc_lower:
+            return "7day"
+        return None
+
+    def _parse_iso_date(self, date_str: Any) -> Optional[date]:
+        """Safely parse an ISO date string."""
+        if not isinstance(date_str, str):
+            return None
+        try:
+            return date.fromisoformat(date_str)
+        except ValueError:
+            return None
+
     def _map_stats_api_to_orm(self, tx: dict) -> Optional[PlayerTransactionORM]:
         """Map a single StatsAPI transaction dictionary to an ORM object."""
         person = tx.get("person", {})
@@ -116,55 +139,28 @@ class PlayerTransactionsIngester:
         type_desc = tx.get("typeDesc", "unknown")
         description = tx.get("description", "")
 
-        il_type = None
-        if "10-Day IL" in type_desc:
-            il_type = "10day"
-        elif "60-Day IL" in type_desc:
-            il_type = "60day"
-
+        il_type = self._detect_il_type(type_desc, description)
         part, kind = parse_injury(description)
 
-        try:
-            trans_date_raw = tx.get("date")
-            if not trans_date_raw or not isinstance(trans_date_raw, str):
-                logger.warning(
-                    f"Skipping transaction {tx.get('id')} without valid date"
-                )
-                return None
-
-            trans_date = date.fromisoformat(trans_date_raw)
-
-            res_date_raw = tx.get("resolutionDate")
-            eff_date_raw = tx.get("effectiveDate")
-
-            res_date = (
-                date.fromisoformat(res_date_raw)
-                if isinstance(res_date_raw, str)
-                else None
-            )
-            eff_date = (
-                date.fromisoformat(eff_date_raw)
-                if isinstance(eff_date_raw, str)
-                else None
-            )
-
-            return PlayerTransactionORM(
-                transaction_id=str(tx.get("id")),
-                player_id=int(player_id),
-                player_name=player_name,
-                team_id=int(team_id),
-                transaction_date=trans_date,
-                effective_date=eff_date,
-                resolution_date=res_date,
-                type_desc=type_desc,
-                il_type=il_type,
-                injury_body_part=part if il_type else None,
-                injury_descriptor=kind if il_type else None,
-                raw_description=description,
-            )
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Error parsing date in transaction {tx.get('id')}: {e}")
+        trans_date = self._parse_iso_date(tx.get("date"))
+        if not trans_date:
+            logger.warning(f"Skipping transaction {tx.get('id')} without valid date")
             return None
+
+        return PlayerTransactionORM(
+            transaction_id=str(tx.get("id")),
+            player_id=int(player_id),
+            player_name=player_name,
+            team_id=int(team_id),
+            transaction_date=trans_date,
+            effective_date=self._parse_iso_date(tx.get("effectiveDate")),
+            resolution_date=self._parse_iso_date(tx.get("resolutionDate")),
+            type_desc=type_desc,
+            il_type=il_type,
+            injury_body_part=part if part != "unknown" else None,
+            injury_descriptor=kind if kind != "unknown" else None,
+            raw_description=description,
+        )
 
     def ingest_range(self, start_date: date, end_date: date):
         """Ingest transactions for a given date range using monthly chunks."""
