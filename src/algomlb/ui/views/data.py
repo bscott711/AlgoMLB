@@ -29,11 +29,14 @@ with engine.connect() as conn:
     total_odds = int(
         conn.execute(text("SELECT count(*) FROM historical_odds")).scalar() or 0
     )
+    total_txs = int(
+        conn.execute(text("SELECT count(*) FROM player_transactions")).scalar() or 0
+    )
 
 m1.metric("Pitch Events", f"{total_pitches:,}", "Historical")
 m2.metric("Game IDs", f"{total_games:,}", "Parsed")
 m3.metric("Umpire Cards", f"{total_umps:,}", "Scraped API")
-m4.metric("Market Snapshots", f"{total_odds:,}", "Odds API")
+m4.metric("Transactions", f"{total_txs:,}", "Player Health")
 
 st.markdown("---")
 
@@ -49,6 +52,7 @@ tables_to_check = [
     ),  # Ump card doesn't have a direct date col yet in ORM, using ID for count
     ("retrosheet_events", "date"),
     ("historical_odds", "snapshot_at"),
+    ("player_transactions", "transaction_date"),
     ("ballparks", "id"),
     ("bankroll_ledger", "timestamp"),
 ]
@@ -159,6 +163,27 @@ with col_b:
         )  # pragma: no cover
 
 st.markdown("---")
+
+# --- 4. TRANSACTION COVERAGE ---
+st.subheader("🩹 Transaction Data Coverage (2019 - 2025)")
+q_tx = """
+    SELECT extract(year from transaction_date) as season, count(*) as count
+    FROM player_transactions
+    GROUP BY 1 ORDER BY 1
+"""
+df_tx = pd.read_sql(q_tx, engine)
+if not df_tx.empty:
+    fig_tx = px.bar(
+        df_tx,
+        x="season",
+        y="count",
+        title="Transactions per Season",
+        template="plotly_dark",
+        color_discrete_sequence=["#FF4B4B"],
+    )
+    st.plotly_chart(fig_tx, use_container_width=True)
+else:
+    st.info("No transaction data found. Run `algomlb ingest transactions`.")
 
 # --- 4. DATA QUALITY ---
 st.subheader("🔍 Data Quality Reports")

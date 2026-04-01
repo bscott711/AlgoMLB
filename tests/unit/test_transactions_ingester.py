@@ -10,22 +10,22 @@ from algomlb.ingestion.transactions_ingester import (
 def test_parse_injury_known():
     # Test known body part and descriptor
     part, kind = parse_injury("placed on 10-day IL with a left hamstring strain")
-    assert part == "hamstring"
+    assert part == "left hamstring"
     assert kind == "strain"
 
 
 def test_parse_injury_various_cases():
     # Test case insensitivity and multiple keywords
     part, kind = parse_injury("Right Elbow Inflammation")
-    assert part == "elbow"
+    assert part == "right elbow"
     assert kind == "inflammation"
 
 
 def test_parse_injury_unknown():
-    # Test unknown description
+    # Test unknown description but known paternity
     part, kind = parse_injury("placed on the paternity list")
     assert part == "unknown"
-    assert kind == "unknown"
+    assert kind == "paternity"
 
 
 def test_parse_injury_complex():
@@ -33,8 +33,8 @@ def test_parse_injury_complex():
     part, kind = parse_injury(
         "reinstated from 60-day IL (recovering from Tommy John surgery on right elbow)"
     )
-    assert part == "elbow"
-    assert kind == "surgery"
+    assert part == "right elbow"
+    assert kind == "tommy john"  # Now we recognize Tommy John!
 
 
 def test_monthly_date_chunks_single_month():
@@ -209,3 +209,31 @@ def test_map_stats_api_to_orm_60day():
     assert orm.il_type == "60day"
     assert orm.injury_body_part == "elbow"
     assert orm.injury_descriptor == "surgery"
+
+
+def test_parse_injury_mookie_betts():
+    # Example 1: Left hand fracture
+    part, kind = parse_injury(
+        "Los Angeles Dodgers placed RF Mookie Betts on the 10-day injured list. Left hand fracture."
+    )
+    assert part == "left hand"
+    assert kind == "fracture"
+
+    # Example 2: Right rib fracture
+    part, kind = parse_injury(
+        "Los Angeles Dodgers placed RF Mookie Betts on the 10-day injured list. Right rib fracture."
+    )
+    assert part == "right rib"
+    assert kind == "fracture"
+
+    # Example 3: Right hip inflammation
+    part, kind = parse_injury(
+        "Los Angeles Dodgers placed RF Mookie Betts on the 10-day injured list. Right hip inflammation."
+    )
+    assert part == "right hip"
+    assert kind == "inflammation"
+
+    # Example 4: Activated (should still find descriptor if present, though il_type might be None in ingester logic)
+    part, kind = parse_injury("Los Angeles Dodgers activated RF Mookie Betts.")
+    assert part == "unknown"
+    assert kind == "activated"

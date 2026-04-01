@@ -11,6 +11,7 @@ pages = {
     ],
     "Player & Game Deep-Dive": [
         st.Page("views/stats.py", title="Player Performance", icon="⚾"),
+        st.Page("views/player_health.py", title="Player Health & IL", icon="🩹"),
         st.Page("views/umpires.py", title="Umpire Analytics", icon="👨‍⚖️"),
         st.Page("views/ballparks.py", title="Ballpark Context", icon="🏟️"),
     ],

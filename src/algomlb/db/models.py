@@ -463,6 +463,9 @@ class PlayerTransactionORM(Base):
 
     transaction_id: Mapped[str] = mapped_column(String, primary_key=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    player_name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, index=True
+    )
     team_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     transaction_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     effective_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)

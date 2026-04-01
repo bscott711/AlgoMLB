@@ -20,9 +20,11 @@ def test_ui_app_init():
     import algomlb.ui.views.picks as picks
     import algomlb.ui.views.bankroll as bankroll
     import algomlb.ui.views.data as data
+    import algomlb.ui.views.player_health as health
 
     assert app.pages is not None
     assert optuna is not None
     assert picks is not None
     assert bankroll is not None
     assert data is not None
+    assert health is not None

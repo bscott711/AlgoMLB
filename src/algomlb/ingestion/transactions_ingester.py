@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 from typing import Iterator, List, Optional
 
@@ -6,58 +7,54 @@ from algomlb.db.models import PlayerTransactionORM
 from algomlb.db.repository import DatabaseRepository
 from loguru import logger
 
-BODY_PARTS: tuple[str, ...] = (
-    "hamstring",
-    "oblique",
-    "elbow",
-    "shoulder",
-    "knee",
-    "forearm",
-    "back",
-    "hip",
-    "quadriceps",
-    "calf",
-    "wrist",
-    "ankle",
-    "thumb",
-    "groin",
-    "finger",
-    "neck",
-    "rib",
-    "lat",
-    "tricep",
-    "bicep",
-)
-DESCRIPTORS: tuple[str, ...] = (
-    "strain",
-    "inflammation",
-    "fracture",
-    "surgery",
-    "tightness",
-    "soreness",
-    "fatigue",
-    "nerve",
-    "tendinitis",
-    "sprain",
-    "bruise",
-    "contusion",
-    "tear",
-    "stress reaction",
-)
-IL_PLACEMENT_TYPES: frozenset[str] = frozenset(
-    {
-        "Placed on 10-Day IL",
-        "Placed on 60-Day IL",
-        "Placed on Restricted List",
-    }
-)
-
 
 def parse_injury(description: str) -> tuple[str, str]:
-    """Extract body part and descriptor from a raw transaction description."""
+    """Extract body part and descriptor from a raw transaction description using regex."""
     desc = description.lower()
-    part = next((p for p in BODY_PARTS if p in desc), "unknown")
-    kind = next((d for d in DESCRIPTORS if d in desc), "unknown")
+
+    # Body Part Regex: include lateralization (optional) and common terms
+    # We still use regex for body part to handle the (left|right) prefix cleanly
+    parts_pattern = r"(left|right|bilateral)?\s*(hamstring|oblique|elbow|shoulder|knee|forearm|back|hip|quadriceps|quad|calf|wrist|ankle|thumb|groin|finger|neck|rib|lat|tricep|bicep|hand|toe|foot|ucl|achilles|head)"
+    part_match = re.search(parts_pattern, desc)
+    part = part_match.group(0).strip() if part_match else "unknown"
+
+    # Descriptor: Priority-based keyword matching (matches list order, not string order)
+    medical_terms = [
+        "tommy john",
+        "tj",
+        "fracture",
+        "strain",
+        "inflammation",
+        "surgery",
+        "tightness",
+        "soreness",
+        "fatigue",
+        "nerve",
+        "tendinitis",
+        "sprain",
+        "bruise",
+        "contusion",
+        "tear",
+        "stress reaction",
+        "concussion",
+        "illness",
+        "flu",
+        "virus",
+    ]
+    status_terms = [
+        "paternity",
+        "bereavement",
+        "restricted",
+        "reinstated",
+        "activated",
+        "personal",
+        "placed",
+    ]
+
+    kind = next((t for t in medical_terms if t in desc), None)
+    if not kind:
+        kind = next((t for t in status_terms if t in desc), "unknown")
+
     return part, kind
 
 
@@ -109,7 +106,9 @@ class PlayerTransactionsIngester:
 
     def _map_stats_api_to_orm(self, tx: dict) -> Optional[PlayerTransactionORM]:
         """Map a single StatsAPI transaction dictionary to an ORM object."""
-        player_id = tx.get("person", {}).get("id")
+        person = tx.get("person", {})
+        player_id = person.get("id")
+        player_name = person.get("fullName")
         team_id = tx.get("toTeam", {}).get("id")
         if player_id is None or team_id is None:
             return None
@@ -152,6 +151,7 @@ class PlayerTransactionsIngester:
             return PlayerTransactionORM(
                 transaction_id=str(tx.get("id")),
                 player_id=int(player_id),
+                player_name=player_name,
                 team_id=int(team_id),
                 transaction_date=trans_date,
                 effective_date=eff_date,
