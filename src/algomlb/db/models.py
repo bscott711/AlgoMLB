@@ -1,7 +1,19 @@
 import datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, Float, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from algomlb.db.session import Base
@@ -40,6 +52,9 @@ class GameResultORM(Base):
         String(50), nullable=False, unique=True, index=True
     )  # MLB Game PK
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    game_datetime: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     home_team: Mapped[str] = mapped_column(String(50), nullable=False)
     away_team: Mapped[str] = mapped_column(String(50), nullable=False)
     home_pitcher: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -454,6 +469,80 @@ class PlayerRollingFeaturesORM(Base):
     date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     feature_name: Mapped[str] = mapped_column(String(50), nullable=False)
     feature_value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class OpenMeteoWeatherProgressionORM(Base):
+    """
+    Environmental arc from 1st pitch (T0) through the 9th inning (T4)
+    extracted from Open-Meteo Archive (ERA5) and Historical Forecast APIs.
+    """
+
+    __tablename__ = "openmeteo_weather_progression"
+
+    game_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("game_results.game_id"), primary_key=True
+    )
+
+    # T0-T4 Raw Hourly Slice: Temperature (F), Wind Speed (MPH), Wind Dir (DEG)
+    temp_t0_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_t0: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_t0: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    temp_t1_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_t1: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_t1: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    temp_t2_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_t2: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_t2: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    temp_t3_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_t3: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_t3: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    temp_t4_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_t4: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_t4: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    # Supplemental T0 (First Pitch) Actuals
+    humidity_t0: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    precip_t0_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+    pressure_t0_hpa: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    cloud_cover_t0_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+
+    # Derived Progression Aggregates
+    temp_delta_game: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))  # T3 - T0
+    temp_min_game: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_max_game: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_dir_variance_deg: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+    headwind_t0_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    headwind_t3_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    headwind_delta_game: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    crosswind_t0_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_shift_gt_45deg: Mapped[Optional[bool]] = mapped_column(Boolean)
+    temp_drop_gt_10f: Mapped[Optional[bool]] = mapped_column(Boolean)
+    precip_any_game: Mapped[Optional[bool]] = mapped_column(Boolean)
+
+    # T-24h Opening Forecast
+    forecast_temp_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_wind_speed_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_wind_dir_deg: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_headwind_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_crosswind_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_precip_prob: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_cloud_cover_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    forecast_source: Mapped[Optional[str]] = mapped_column(String(50))
+
+    # Market Surprise Deltas (Actual T0 - Forecast)
+    delta_temp_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    delta_wind_speed_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    delta_headwind_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    delta_precip_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+
+    era5_model_used: Mapped[Optional[str]] = mapped_column(String(50))
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class PlayerTransactionORM(Base):

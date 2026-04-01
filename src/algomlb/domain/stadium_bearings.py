@@ -29,6 +29,9 @@ STADIUM_HP_BEARINGS: Final[dict[str, float]] = {
     "progressive_field": 115.0,
     "rogers_centre": 110.0,
     "safeco_field": 195.0,  # T-Mobile Park
+    "oakland_coliseum": 40.0,
+    "sutter_health_park": 45.0,
+    "las_vegas_ballpark": 67.5,
     "target_field": 125.0,
     "tropicana_field": 180.0,
     "truist_park": 290.0,

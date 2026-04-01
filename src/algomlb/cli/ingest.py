@@ -9,6 +9,7 @@ from algomlb.ingestion import (
     IngestionOrchestrator,
     MLBStatsAPIClient,
     OddsAPIClient,
+    OpenMeteoIngester,
     PlayerTransactionsIngester,
 )
 from algomlb.ingestion.historical import HistoricalDataLoader
@@ -34,8 +35,14 @@ def odds(ctx: typer.Context):
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
+        openmeteo_ingester = OpenMeteoIngester(session)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader, transactions_ingester
+            repo,
+            odds_client,
+            stats_client,
+            historical_loader,
+            transactions_ingester,
+            openmeteo_ingester,
         )
 
         logger.info("Starting live odds ingestion...")
@@ -71,8 +78,14 @@ def schedule(
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
+        openmeteo_ingester = OpenMeteoIngester(session)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader, transactions_ingester
+            repo,
+            odds_client,
+            stats_client,
+            historical_loader,
+            transactions_ingester,
+            openmeteo_ingester,
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -127,8 +140,14 @@ def historical(
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
+        openmeteo_ingester = OpenMeteoIngester(session)
         orchestrator = IngestionOrchestrator(
-            repo, odds_client, stats_client, historical_loader, transactions_ingester
+            repo,
+            odds_client,
+            stats_client,
+            historical_loader,
+            transactions_ingester,
+            openmeteo_ingester,
         )
 
         records_processed = 0
@@ -288,12 +307,14 @@ def transactions(
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
+        openmeteo_ingester = OpenMeteoIngester(session)
         orchestrator = IngestionOrchestrator(
             repo,
             odds_client,
             stats_client,
             historical_loader,
             transactions_ingester,
+            openmeteo_ingester,
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -315,3 +336,51 @@ def transactions(
                     data={"records_inserted": records_inserted},
                 )
             )
+
+
+@app.command()
+def weather(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+    proxies: str = typer.Option(
+        None, "--proxies", help="Comma-separated list of proxy URLs"
+    ),
+    auto_proxies: bool = typer.Option(
+        False, "--auto-proxies", help="Automatically fetch free proxies"
+    ),
+):
+    """Fetch Open-Meteo weather progression and market deltas."""
+    from algomlb.ingestion.proxies import fetch_free_proxies
+
+    # Setup Infrastructure
+    session_factory = get_session_factory()
+
+    proxy_list = [p.strip() for p in proxies.split(",")] if proxies else []
+    if auto_proxies:
+        proxy_list.extend(fetch_free_proxies())
+
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        odds_client = OddsAPIClient()
+        stats_client = MLBStatsAPIClient()
+        historical_loader = HistoricalDataLoader(repo)
+        transactions_ingester = PlayerTransactionsIngester(repo)
+        openmeteo_ingester = OpenMeteoIngester(session, proxies=proxy_list or None)
+        orchestrator = IngestionOrchestrator(
+            repo,
+            odds_client,
+            stats_client,
+            historical_loader,
+            transactions_ingester,
+            openmeteo_ingester,
+        )
+
+        s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
+        e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else None
+
+        logger.info(
+            f"Starting weather ingestion for {start or 'trailing 7d'} to {end or 'trailing 7d'}..."
+        )
+        orchestrator.run_weather_ingestion(start_date=s_date, end_date=e_date)
+        logger.success("Successfully completed weather ingestion.")

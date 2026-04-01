@@ -16,6 +16,7 @@ from algomlb.db.models import (
     UmpireScorecardORM,
 )
 from algomlb.domain import BankrollTransaction, Game, Odds
+from algomlb.domain.teams import TEAM_NAME_TO_ABB
 
 
 class DatabaseRepository:
@@ -63,13 +64,55 @@ class DatabaseRepository:
         results = self.session.execute(stmt).scalars().all()
         return [Odds.model_validate(orm, from_attributes=True) for orm in results]
 
+    def _resolve_ballpark_id(self, game: Game) -> Optional[int]:
+        """Resolve the primary key of the ballpark for a given game."""
+        ballpark_id = None
+        if game.venue_name:
+            v_name = game.venue_name.strip()
+            bp = (
+                self.session.query(BallparkORM)
+                .filter(BallparkORM.ballpark.ilike(f"%{v_name}%"))
+                .first()
+            )
+            if bp:
+                ballpark_id = bp.id
+
+        if not ballpark_id:
+            h_team = game.home_team.strip()
+            abb = TEAM_NAME_TO_ABB.get(h_team)
+            if abb:
+                bp = self.session.query(BallparkORM).filter_by(team_name=abb).first()
+                if bp:
+                    ballpark_id = bp.id
+
+            # Final fallback: keyword match on team_name column
+            if not ballpark_id:
+                bp = (
+                    self.session.query(BallparkORM)
+                    .filter(BallparkORM.team_name.ilike(f"%{h_team}%"))
+                    .first()
+                )
+                if bp:
+                    ballpark_id = bp.id
+
+        if not ballpark_id:
+            from algomlb.core.logger import logger
+
+            logger.warning(
+                f"Could not resolve ballpark_id for game {game.game_id} (Home: {game.home_team}, Venue: {game.venue_name})"
+            )
+        return ballpark_id
+
     def save_game(self, game: Game) -> Game:
         """Save or update a game result record."""
+        ballpark_id = self._resolve_ballpark_id(game)
+
         existing = (
             self.session.query(GameResultORM).filter_by(game_id=game.game_id).first()
         )
         if existing:
             existing.game_date = game.date
+            existing.game_datetime = game.game_datetime
             existing.home_team = game.home_team
             existing.away_team = game.away_team
             existing.home_pitcher = game.home_pitcher
@@ -79,10 +122,13 @@ class DatabaseRepository:
             existing.home_score = game.home_score
             existing.away_score = game.away_score
             existing.status = game.status
+            if ballpark_id:
+                existing.ballpark_id = ballpark_id
         else:
             orm = GameResultORM(
                 game_id=game.game_id,
                 game_date=game.date,
+                game_datetime=game.game_datetime,
                 home_team=game.home_team,
                 away_team=game.away_team,
                 home_pitcher=game.home_pitcher,
@@ -92,6 +138,7 @@ class DatabaseRepository:
                 home_score=game.home_score,
                 away_score=game.away_score,
                 status=game.status,
+                ballpark_id=ballpark_id,
             )
             self.session.add(orm)
         self.session.commit()

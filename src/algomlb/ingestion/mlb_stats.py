@@ -17,6 +17,7 @@ class MLBStatsAPIClient(BaseAPIClient):
         self,
         start_date: Optional[datetime.date] = None,
         end_date: Optional[datetime.date] = None,
+        game_types: Optional[List[str]] = None,
     ) -> List[Game]:
         """
         Fetch MLB games for a specific date range and parse into Domain Game models.
@@ -25,12 +26,15 @@ class MLBStatsAPIClient(BaseAPIClient):
         e_str = (end_date or start_date or datetime.date.today()).strftime("%Y-%m-%d")
 
         # sportId=1 is the identifier for MLB
+        # Default to Regular Season (R) and Postseason (P) to ignore exhibition games
+        g_types = game_types or ["R", "P"]
         path = "/schedule"
         params = {
             "sportId": 1,
             "startDate": s_str,
             "endDate": e_str,
-            "hydrate": "probablePitcher",
+            "hydrate": "probablePitcher,venue",
+            "gameType": g_types,
         }
 
         response = self._request("GET", path, params=params)
@@ -71,10 +75,15 @@ class MLBStatsAPIClient(BaseAPIClient):
                 elif "postponed" in detailed_state:
                     status = GameStatus.POSTPONED
 
+                # Extract venue name
+                venue_name = game_data.get("venue", {}).get("name")
+
                 games_list.append(
                     Game(
                         game_id=game_id,
-                        date=game_data.get("gameDate", s_str)[:10],  # Truncate ISO time
+                        date=game_data.get("gameDate", s_str)[:10],
+                        game_datetime=game_data.get("gameDate"),
+                        venue_name=venue_name,
                         home_team=home_team,
                         away_team=away_team,
                         home_pitcher=home_pitcher,

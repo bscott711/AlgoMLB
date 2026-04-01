@@ -24,6 +24,10 @@ class Game(BaseModel):
     date: datetime.date = Field(
         ..., description="Date of the game", validation_alias="game_date"
     )
+    game_datetime: Optional[datetime.datetime] = Field(
+        default=None, description="ISO datetime of the 1st pitch"
+    )
+    venue_name: Optional[str] = Field(default=None, description="Ballpark name")
     home_team: str = Field(..., min_length=2, max_length=50)
     away_team: str = Field(..., min_length=2, max_length=50)
     home_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)

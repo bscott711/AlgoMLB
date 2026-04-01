@@ -63,7 +63,8 @@ def test_circular_std_spread():
 
 
 def test_stadium_bearings_count():
-    assert len(STADIUM_HP_BEARINGS) == 30
+    """Verify all MLB stadiums have orientation data."""
+    assert len(STADIUM_HP_BEARINGS) == 33
 
 
 def test_circular_std_extreme_unstable():

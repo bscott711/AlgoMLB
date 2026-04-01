@@ -7,6 +7,7 @@ from algomlb.ingestion.mlb_stats import MLBStatsAPIClient
 from algomlb.ingestion.odds_api import OddsAPIClient
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.transactions_ingester import PlayerTransactionsIngester
+from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 
 
 class IngestionOrchestrator:
@@ -19,12 +20,14 @@ class IngestionOrchestrator:
         stats_client: MLBStatsAPIClient,
         historical_loader: HistoricalDataLoader,
         transactions_ingester: PlayerTransactionsIngester,
+        openmeteo_ingester: OpenMeteoIngester,
     ):
         self.repo = repo
         self.odds_client = odds_client
         self.stats_client = stats_client
         self.historical_loader = historical_loader
         self.transactions_ingester = transactions_ingester
+        self.openmeteo_ingester = openmeteo_ingester
 
     def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
         """Fetch and persist historical pitching and batting stats."""
@@ -41,14 +44,34 @@ class IngestionOrchestrator:
             self.repo.save_live_odds(odds)
         return len(odds_list)
 
-    def run_schedule_ingestion(self, start_date=None, end_date=None) -> int:
-        """Fetch daily game schedule/results and persist games to the database."""
-        games = self.stats_client.fetch_daily_schedule(
-            start_date=start_date, end_date=end_date
-        )
-        for game in games:
-            self.repo.save_game(game)
-        return len(games)
+    def run_schedule_ingestion(
+        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> int:
+        """Fetch daily game schedule/results and chunk by year for API reliability."""
+        if not start_date:
+            start_date = date.today()
+        if not end_date:
+            end_date = start_date
+
+        current_start = start_date
+        total_ingested = 0
+
+        while current_start <= end_date:
+            # Chunk by year to avoid API truncation
+            year_end = date(current_start.year, 12, 31)
+            current_end = min(year_end, end_date)
+
+            games = self.stats_client.fetch_daily_schedule(
+                start_date=current_start, end_date=current_end
+            )
+            for game in games:
+                self.repo.save_game(game)
+
+            total_ingested += len(games)
+            # Move to start of next year or next day after end
+            current_start = current_end + datetime.timedelta(days=1)
+
+        return total_ingested
 
     def run_transaction_ingestion(
         self, start_date: Optional[date] = None, end_date: Optional[date] = None
@@ -62,3 +85,15 @@ class IngestionOrchestrator:
             end_date = today
 
         return self.transactions_ingester.ingest_range(start_date, end_date)
+
+    def run_weather_ingestion(
+        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> None:
+        """Fetch and persist Open-Meteo weather progression for a date range."""
+        today = datetime.date.today()
+        if start_date is None:
+            start_date = today - datetime.timedelta(days=7)
+        if end_date is None:
+            end_date = today
+
+        self.openmeteo_ingester.ingest_range(start_date, end_date)

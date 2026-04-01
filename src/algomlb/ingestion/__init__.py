@@ -4,6 +4,7 @@ from algomlb.ingestion.odds_api import OddsAPIClient
 from algomlb.ingestion.orchestrator import IngestionOrchestrator
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.transactions_ingester import PlayerTransactionsIngester
+from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 
 __all__ = [
     "BaseAPIClient",
@@ -12,4 +13,5 @@ __all__ = [
     "IngestionOrchestrator",
     "HistoricalDataLoader",
     "PlayerTransactionsIngester",
+    "OpenMeteoIngester",
 ]

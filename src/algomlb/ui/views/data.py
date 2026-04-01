@@ -55,6 +55,7 @@ tables_to_check = [
     ("player_transactions", "transaction_date"),
     ("ballparks", "id"),
     ("bankroll_ledger", "timestamp"),
+    ("openmeteo_weather_progression", "game_id"),
 ]
 
 health_data = []
@@ -72,6 +73,14 @@ with engine.connect() as conn:
                     SELECT max(g.game_date) 
                     FROM umpire_scorecards u 
                     JOIN game_results g ON u.game_id = g.game_id
+                """)
+                ).scalar()
+            elif table == "openmeteo_weather_progression":
+                last_date = conn.execute(
+                    text("""
+                    SELECT max(g.game_date) 
+                    FROM openmeteo_weather_progression w 
+                    JOIN game_results g ON w.game_id = g.game_id
                 """)
                 ).scalar()
             else:

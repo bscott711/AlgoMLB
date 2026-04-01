@@ -267,12 +267,19 @@ def test_mlb_stats_api_client_parsing(mock_settings):
         ]
     }
 
-    respx.get("https://stats.test/schedule").mock(
+    # Mock the schedule endpoint
+    route = respx.get("https://stats.test/schedule").mock(
         return_value=httpx.Response(200, json=sample_json)
     )
 
     games = client.fetch_daily_schedule()
     assert len(games) == 4
+
+    # Verify gameType param was sent correctly
+    params = route.calls.last.request.url.params
+    assert "gameType" in params
+    # httpx.QueryParams can have multiple values for same key
+    assert params.get_list("gameType") == ["R", "P"]
 
     # Check statuses
     assert games[0].status == GameStatus.COMPLETED
