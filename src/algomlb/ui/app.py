@@ -22,6 +22,11 @@ pages = {
         st.Page("views/data.py", title="Data & Ingest Health", icon="📡"),
         st.Page("views/weather.py", title="Weather Insights", icon="🌦️"),
     ],
+    "Engineering Docs": [
+        st.Page(
+            "views/database_relationships.py", title="Database Architecture", icon="🏗️"
+        ),
+    ],
 }
 
 pg = st.navigation(pages)
