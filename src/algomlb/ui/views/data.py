@@ -9,9 +9,11 @@ st.set_page_config(page_title="Data & Ingest Health", layout="wide")
 st.title("📡 Data Ingest & Storage Health")
 st.markdown("---")
 
+
 @st.cache_resource
 def get_cached_engine():
     return get_engine()
+
 
 engine = get_cached_engine()
 
@@ -132,7 +134,7 @@ with col_a:
     if not df_seasons.empty:
         # Prettify the status for the legend
         df_seasons["Status"] = df_seasons["status"].astype(str).str.title()
-        
+
         fig_seasons = px.bar(
             df_seasons,
             x="season",
@@ -147,8 +149,8 @@ with col_a:
                 "Scheduled": "#636EFA",
                 "In_Progress": "#FFA15A",
                 "Postponed": "#EF553B",
-                "Cancelled": "#D3D3D3"
-            }
+                "Cancelled": "#D3D3D3",
+            },
         )
         st.plotly_chart(fig_seasons, use_container_width=True)
     else:

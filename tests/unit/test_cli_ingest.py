@@ -215,3 +215,50 @@ def test_ingest_transactions_command(mock_session_factory, mock_orchestrator_cla
     assert agent_output["command"] == "ingest.transactions"
     assert agent_output["data"]["records_inserted"] == 50
     mock_orchestrator.run_transaction_ingestion.assert_called_once()
+
+
+@patch("algomlb.cli.ingest.IngestionOrchestrator")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_weather_command(mock_session_factory, mock_orchestrator_class):
+    """Test the 'ingest weather' CLI command."""
+    mock_orchestrator = mock_orchestrator_class.return_value
+    result = runner.invoke(app, ["ingest", "weather", "--start", "2024-04-01"])
+    assert result.exit_code == 0
+    mock_orchestrator.run_weather_ingestion.assert_called_once()
+
+
+@patch("algomlb.cli.ingest.HistoricalDataLoader")
+@patch("algomlb.cli.ingest.IngestionOrchestrator")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_historical_command_full(
+    mock_session_factory, mock_orchestrator_class, mock_loader_class
+):
+    """Test 'ingest historical' with start/end years and statcast flags."""
+    mock_orchestrator = mock_orchestrator_class.return_value
+    mock_loader = mock_loader_class.return_value
+    mock_loader.fetch_statcast.return_value = []
+
+    # Use agent mode for full coverage of the emit logic
+    result = runner.invoke(
+        app,
+        [
+            "--agent-mode",
+            "ingest",
+            "historical",
+            "--start-year",
+            "2023",
+            "--end-year",
+            "2023",
+            "--statcast",
+        ],
+    )
+    assert result.exit_code == 0
+    mock_orchestrator.run_historical_ingestion.assert_called_once_with(2023, 2023)
+
+    # Test with explicit start/end dates for statcast
+    mock_orchestrator.reset_mock()
+    result = runner.invoke(
+        app, ["ingest", "historical", "--start", "2023-04-01", "--end", "2023-04-05"]
+    )
+    assert result.exit_code == 0
+    mock_loader.fetch_statcast.assert_called()

@@ -9,9 +9,11 @@ st.set_page_config(page_title="Weather Analytics", layout="wide")
 st.title("🌦️ Weather & Environment Ingest Health")
 st.markdown("---")
 
+
 @st.cache_resource
 def get_cached_engine():
     return get_engine()
+
 
 engine = get_cached_engine()
 
@@ -72,7 +74,9 @@ st.markdown("---")
 
 # --- 3. IDENTIFY MISSING WEATHER ---
 st.subheader("🕵️ Missing Weather Audit")
-selected_year = st.selectbox("Select Season to Audit", [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], index=7)
+selected_year = st.selectbox(
+    "Select Season to Audit", [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], index=7
+)
 
 with engine.connect() as conn:
     q_missing = text("""
@@ -87,13 +91,17 @@ with engine.connect() as conn:
     df_missing = pd.read_sql(q_missing, engine, params={"year": int(selected_year)})
 
 if not df_missing.empty:
-    st.warning(f"Found {len(df_missing)} completed games missing weather data for {selected_year}.")
+    st.warning(
+        f"Found {len(df_missing)} completed games missing weather data for {selected_year}."
+    )
     st.dataframe(df_missing, use_container_width=True)
-    
+
     # Generate ingestion command for the user
     min_date = df_missing["game_date"].min()
     max_date = df_missing["game_date"].max()
-    st.info("💡 To fill this gap, you can run research-based ingestion for this date range:")
+    st.info(
+        "💡 To fill this gap, you can run research-based ingestion for this date range:"
+    )
     st.code(f"uv run algomlb ingest weather --start {min_date} --end {max_date}")
 else:
     st.success(f"All completed games in {selected_year} have weather data!")

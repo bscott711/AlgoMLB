@@ -1,9 +1,9 @@
-
 import requests
-from sqlalchemy import select, update
+from sqlalchemy import select
 from algomlb.db.session import get_session_factory
 from algomlb.db.models import GameResultORM
 from algomlb.domain import GameType
+
 
 def populate_game_types(year=2025):
     """
@@ -14,7 +14,7 @@ def populate_game_types(year=2025):
         # Fetch all games for the year
         stmt = select(GameResultORM).where(
             GameResultORM.game_date >= f"{year}-01-01",
-            GameResultORM.game_date <= f"{year}-12-31"
+            GameResultORM.game_date <= f"{year}-12-31",
         )
         games = session.execute(stmt).scalars().all()
         print(f"Found {len(games)} games in DB for {year}")
@@ -30,7 +30,6 @@ def populate_game_types(year=2025):
                 type_map[str(g.get("gamePk"))] = g.get("gameType")
 
         updated = 0
-        deleted = 0
         for game in games:
             g_type = type_map.get(game.game_id)
             if g_type:
@@ -42,6 +41,7 @@ def populate_game_types(year=2025):
 
         session.commit()
         print(f"Updated {updated} games with game_type labels.")
+
 
 if __name__ == "__main__":
     populate_game_types(2025)

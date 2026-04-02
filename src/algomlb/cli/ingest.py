@@ -370,7 +370,5 @@ def weather(
         logger.info(
             f"Starting weather ingestion for {start or 'trailing 7d'} to {end or 'trailing 7d'}..."
         )
-        orchestrator.run_weather_ingestion(
-            start_date=s_date, end_date=e_date
-        )
+        orchestrator.run_weather_ingestion(start_date=s_date, end_date=e_date)
         logger.success("Successfully completed weather ingestion.")

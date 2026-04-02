@@ -279,7 +279,7 @@ def test_mlb_stats_api_client_parsing(mock_settings):
     params = route.calls.last.request.url.params
     assert "gameType" in params
     # httpx.QueryParams can have multiple values for same key
-    assert params.get_list("gameType") == ["R", "P"]
+    assert params.get_list("gameType") == ["R", "P", "F", "D", "L", "W"]
 
     # Check statuses
     assert games[0].status == GameStatus.COMPLETED

@@ -2,15 +2,17 @@ import datetime
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
-from sqlalchemy.orm import Session
 
 from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 
 
 @pytest.fixture
 def mock_session():
-    return MagicMock(spec=Session)
+    mock = MagicMock()
+    mock.__enter__.return_value = mock
+    return mock
 
 
 @pytest.fixture
@@ -21,257 +23,224 @@ def mock_om_client():
 
 @pytest.fixture
 def ingester(mock_session, mock_om_client):
-    return OpenMeteoIngester(mock_session, proxies=["http://proxy1"])
+    return OpenMeteoIngester(session_factory=lambda: mock_session)
 
 
-def test_fetch_game_weather_progression(mock_om_client, ingester):
-    # Mock ERA5 response
+def test_fetch_season_weather_success(mock_om_client, ingester):
+    # Mocking Hourly data response from OpenMeteo SDK
     mock_hourly = MagicMock()
-    # 7 variables: temp, wind_speed, wind_dir, precip, humidity, pressure, cloud_cover
-    data_points = 48
+    mock_hourly.Time.return_value = 1711843200  # 2024-03-31 00:00:00
+    mock_hourly.TimeEnd.return_value = 1711843200 + 3600
+    mock_hourly.Interval.return_value = 3600
 
-    era5_vars = [
-        np.full(data_points, 75.0),  # 0: temp
-        np.full(data_points, 10.0),  # 1: wind_speed
-        np.full(data_points, 180.0),  # 2: wind_dir
-        np.full(data_points, 0.0),  # 3: precip
-        np.full(data_points, 50.0),  # 4: humidity
-        np.full(data_points, 1013.0),  # 5: pressure
-        np.full(data_points, 20.0),  # 6: cloud_cover
-    ]
-    mock_hourly.Variables.side_effect = lambda idx: MagicMock(
-        ValuesAsNumpy=lambda: era5_vars[idx]
+    # 7 variables
+    vars_mocks = [MagicMock() for _ in range(7)]
+    for v in vars_mocks:
+        v.ValuesAsNumpy.return_value = np.array([75.0])
+
+    mock_hourly.Variables.side_effect = lambda idx: vars_mocks[idx]
+
+    mock_res = MagicMock()
+    mock_res.Hourly.return_value = mock_hourly
+    mock_om_client.weather_api.return_value = [mock_res]
+
+    df = ingester.fetch_season_weather(
+        2024, start_date="2024-03-31", end_date="2024-03-31"
     )
 
-    # Mock Forecast response
-    mock_f_hourly = MagicMock()
-    f_vars = [
-        np.full(data_points, 70.0),  # 0: temp
-        np.full(data_points, 15.0),  # 1: wind_speed
-        np.full(data_points, 200.0),  # 2: wind_dir
-        np.full(data_points, 10.0),  # 3: precip_prob
-        np.full(data_points, 30.0),  # 4: cloud_cover
-    ]
-    mock_f_hourly.Variables.side_effect = lambda idx: MagicMock(
-        ValuesAsNumpy=lambda: f_vars[idx]
+    assert not df.empty
+    assert "temp" in df.columns
+    assert df.iloc[0]["temp"] == 75.0
+    assert df.iloc[0]["stadium_code"] == "ARI"  # First in dict
+
+
+def test_ingest_range_integration(mock_session, ingester):
+    # Mock database games
+    game = MagicMock()
+    game.game_id = "123"
+    game.game_date = datetime.date(2024, 4, 1)
+    game.game_datetime = datetime.datetime(2024, 4, 1, 19, 0, tzinfo=datetime.UTC)
+    ballpark = MagicMock()
+    ballpark.team_name = "ARI"
+    ballpark.hp_bearing_deg = 0.0
+
+    mock_session.execute.return_value.all.return_value = [(game, ballpark)]
+
+    # Mock fetch_season_weather to return exactly what's needed for "AZ" at 19:00:00Z
+    weather_df = pd.DataFrame(
+        {
+            "stadium_code": ["AZ"] * 5,
+            "datetime_utc": [
+                pd.Timestamp("2024-04-01 19:00:00", tz="UTC") + pd.Timedelta(hours=i)
+                for i in range(5)
+            ],
+            "temp": [80.0] * 5,
+            "wind_speed": [10.0] * 5,
+            "wind_dir": [180.0] * 5,
+            "precip": [0.0] * 5,
+            "humidity": [30.0] * 5,
+            "pressure": [1013.0] * 5,
+            "cloud_cover": [0.0] * 5,
+        }
     )
 
-    mock_resp_era5 = MagicMock()
-    mock_resp_era5.Hourly.return_value = mock_hourly
+    with patch.object(ingester, "fetch_season_weather", return_value=weather_df):
+        with patch(
+            "algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {"AZ": ["ARI"]}
+        ):
+            ingester.ingest_range(datetime.date(2024, 4, 1), datetime.date(2024, 4, 1))
 
-    mock_resp_forecast = MagicMock()
-    mock_resp_forecast.Hourly.return_value = mock_f_hourly
+    assert mock_session.merge.called, "Should have merged 1 record"
+    assert mock_session.commit.called
 
-    mock_om_client.weather_api.side_effect = [
-        [mock_resp_era5],  # Archive call
-        [mock_resp_forecast],  # Forecast call
+
+def test_get_hourly_vars_safety(ingester):
+    h = MagicMock()
+    # Missing variable 6
+    h.Variables.side_effect = lambda idx: MagicMock() if idx < 6 else None
+    res = ingester._get_hourly_vars(h)
+    assert res is None
+
+
+def test_create_weather_orm_logic(ingester):
+    rows = [
+        {
+            "temp": 70.0,
+            "wind_speed": 10.0,
+            "wind_dir": 0.0,
+            "precip": 0.0,
+            "humidity": 50.0,
+            "pressure": 1010.0,
+            "cloud_cover": 0.0,
+        }
+        for _ in range(5)
     ]
-
-    res = ingester.fetch_game_weather_progression(
-        stadium_key="angel_stadium",
-        lat=33.8,
-        lon=-117.8,
-        game_datetime_utc=datetime.datetime(2024, 5, 20, 19, 0, tzinfo=datetime.UTC),
-        timezone="America/Los_Angeles",
-    )
-
-    assert res["temp_t0_f"] == 75.0
-    assert res["forecast_temp_f"] == 70.0
-    assert res["delta_temp_f"] == 5.0
-    assert res["wind_speed_t0"] == 10.0
-    assert "headwind_t0_mph" in res
-    assert res["forecast_source"] == "openmeteo_forecast"
+    orm = ingester._create_weather_orm(2024, "game1", 90.0, rows)
+    assert orm.game_id == "game1"
+    assert orm.temp_t0_f == 70.0
+    # Bearing 90 (East), Wind 0 (North -> South) => Pure crosswind (10mph), 0 headwind
+    assert abs(orm.headwind_t0_mph) < 0.1
+    assert abs(orm.crosswind_t0_mph - 10.0) < 0.1
 
 
-@patch("algomlb.ingestion.openmeteo_ingester.logger")
-def test_ingest_game_not_found(mock_logger, ingester, mock_session):
-    mock_session.execute.return_value.first.return_value = None
-
-    ingester.ingest_game("744955")
-    mock_logger.warning.assert_called_with("Could not find game/ballpark for 744955")
+def test_ingest_range_empty_db(mock_session, ingester):
+    mock_session.execute.return_value.all.return_value = []
+    ingester.ingest_range(datetime.date(2024, 4, 1), datetime.date(2024, 4, 1))
+    assert not mock_session.commit.called
 
 
-def test_forecast_fallback_to_era5_proxy(mock_om_client, ingester):
-    # ERA5 works
+def test_process_year_weather_empty_api(ingester):
+    with patch.object(ingester, "fetch_season_weather", return_value=pd.DataFrame()):
+        ingester._process_year_weather(
+            2024, datetime.date(2024, 1, 1), datetime.date(2024, 1, 1), []
+        )
+
+
+def test_map_game_to_weather_missing_datetime(ingester):
+    game = MagicMock()
+    game.game_datetime = None
+    res = ingester._map_game_to_weather(2024, game, MagicMock(), {})
+    assert res is None
+
+
+def test_map_game_to_weather_missing_ballpark_code(ingester):
+    game = MagicMock()
+    game.game_datetime = datetime.datetime.now()
+    ballpark = MagicMock()
+    ballpark.team_name = "UNKNOWN_TEAM"
+    with patch("algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {}):
+        res = ingester._map_game_to_weather(2024, game, ballpark, {})
+    assert res is None
+
+
+def test_map_game_to_weather_insufficient_rows(ingester):
+    game = MagicMock()
+    game.game_datetime = datetime.datetime.now()
+    ballpark = MagicMock()
+    ballpark.team_name = "ARI"
+    with patch("algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {"AZ": ["ARI"]}):
+        res = ingester._map_game_to_weather(2024, game, ballpark, {})  # Empty lookup
+    assert res is None
+
+
+def test_fetch_season_weather_missing_hourly(mock_om_client, ingester):
+    mock_res = MagicMock()
+    mock_res.Hourly.return_value = None
+    mock_om_client.weather_api.return_value = [mock_res]
+    df = ingester.fetch_season_weather(2024)
+    assert df.empty
+
+
+def test_fetch_season_weather_url_branches(mock_om_client, ingester):
     mock_hourly = MagicMock()
-    era5_vars = [
-        np.full(48, 80.0),  # 0: temp
-        np.full(48, 5.0),  # 1: wind_speed
-        np.full(48, 90.0),  # 2: wind_dir
-        np.full(48, 0.0),  # 3: precip
-        np.full(48, 40.0),  # 4: humidity
-        np.full(48, 1010.0),  # 5: pressure
-        np.full(48, 10.0),  # 6: cloud_cover
-    ]
-    mock_hourly.Variables.side_effect = lambda idx: MagicMock(
-        ValuesAsNumpy=lambda: era5_vars[idx]
-    )
-    mock_resp_era5 = MagicMock()
-    mock_resp_era5.Hourly.return_value = mock_hourly
+    mock_hourly.Time.return_value = 0
+    mock_hourly.TimeEnd.return_value = 3600
+    mock_hourly.Interval.return_value = 3600
+    vars_mocks = [MagicMock() for _ in range(7)]
+    for v in vars_mocks:
+        v.ValuesAsNumpy.return_value = np.array([0.0])
+    mock_hourly.Variables.side_effect = lambda idx: vars_mocks[idx]
+    mock_res = MagicMock()
+    mock_res.Hourly.return_value = mock_hourly
+    mock_om_client.weather_api.return_value = [mock_res]
 
-    # Forecast fails
-    mock_om_client.weather_api.side_effect = [
-        [mock_resp_era5],
-        RuntimeError("API Down"),
-    ]
-
-    res = ingester.fetch_game_weather_progression(
-        stadium_key="angel_stadium",
-        lat=33.8,
-        lon=-117.8,
-        game_datetime_utc=datetime.datetime(2024, 5, 20, 19, 0, tzinfo=datetime.UTC),
-        timezone="America/Los_Angeles",
-    )
-
-    assert res["forecast_source"] == "era5_proxy"
-    assert res["forecast_temp_f"] == 80.0
-    assert res["delta_temp_f"] == 0.0
-
-
-@patch("algomlb.ingestion.openmeteo_ingester.logger")
-def test_ingest_game_missing_datetime(mock_logger, ingester, mock_session):
-    game_orm = MagicMock()
-    game_orm.game_datetime = None
-    ballpark_orm = MagicMock()
-    mock_session.execute.return_value.first.return_value = (game_orm, ballpark_orm)
-
-    ingester.ingest_game("744955")
-    mock_logger.warning.assert_called_with("Game 744955 missing game_datetime")
-
-
-@patch("algomlb.ingestion.openmeteo_ingester.logger")
-def test_ingest_game_success(mock_logger, ingester, mock_session):
-    game_orm = MagicMock()
-    game_orm.game_datetime = datetime.datetime(2024, 5, 1, 19, 0, tzinfo=datetime.UTC)
-    ballpark_orm = MagicMock()
-    ballpark_orm.ballpark = "Angel Stadium"
-    ballpark_orm.team_name = "LAA"
-    ballpark_orm.latitude = 33.8
-    ballpark_orm.longitude = -117.8
-    mock_session.execute.return_value.first.return_value = (game_orm, ballpark_orm)
-
-    # Mock fetch_game_weather_progression to return dummy data instead of calling API
-    with patch.object(ingester, "fetch_game_weather_progression") as mock_fetch:
-        mock_fetch.return_value = {"temp_t0_f": 75.0, "forecast_source": "test"}
-        ingester.ingest_game("744955")
-
-    mock_session.merge.assert_called()
-    mock_session.commit.assert_called()
-
-
-@patch("algomlb.ingestion.openmeteo_ingester.logger")
-def test_ingest_range(mock_logger, ingester, mock_session):
-    # Mock games in range
-    game_ids = ["gid1", "gid2"]
-    mock_session.execute.return_value.scalars.return_value.all.return_value = game_ids
-
-    with patch.object(ingester, "ingest_game") as mock_ingest:
-        ingester.ingest_range(datetime.date(2024, 1, 1), datetime.date(2024, 1, 2))
-        assert mock_ingest.call_count == 2
-        # Comparing SQLAlchemy statement contents is tricky, but let's just assert execution
-        mock_ingest.assert_any_call("gid1")
-        mock_ingest.assert_any_call("gid2")
-
-
-@patch("algomlb.ingestion.openmeteo_ingester.logger")
-def test_ingest_game_exception_handling(mock_logger, ingester, mock_session):
-    game_orm = MagicMock()
-    game_orm.game_datetime = datetime.datetime(2024, 5, 1, 19, 0, tzinfo=datetime.UTC)
-    ballpark_orm = MagicMock()
-    ballpark_orm.ballpark = "Angel Stadium"
-    ballpark_orm.team_name = "LAA"
-    mock_session.execute.return_value.first.return_value = (game_orm, ballpark_orm)
-
-    with patch.object(
-        ingester, "fetch_game_weather_progression", side_effect=Exception("API Error")
+    with patch(
+        "algomlb.ingestion.openmeteo_ingester.MLB_STADIUM_COORDS", {"TEST": (0, 0)}
     ):
-        ingester.ingest_game("744955")
-
-    mock_logger.error.assert_called()
-    mock_session.rollback.assert_called()
-
-
-def test_stadium_key_resolution(ingester):
-    # ... abbreviation match as before ...
-    bp = MagicMock()
-    bp.ballpark = ""
-    bp.team_name = "SF"
-    with patch.object(ingester, "fetch_game_weather_progression") as mock_fetch:
-        mock_fetch.return_value = {}
-        game = MagicMock()
-        game.game_datetime = datetime.datetime.now(datetime.UTC)
-        ingester.session.execute.return_value.first.return_value = (game, bp)
-        ingester.ingest_game("g1")
-        assert mock_fetch.call_args[0][0] == "at_t_park"
+        df1 = ingester.fetch_season_weather(2026)
+        assert df1.iloc[0]["stadium_code"] == "TEST"
+        df2 = ingester.fetch_season_weather(2023)
+        assert df2.iloc[0]["stadium_code"] == "TEST"
+        df3 = ingester.fetch_season_weather(2020)
+        assert df3.iloc[0]["stadium_code"] == "TEST"
 
 
-def test_midnight_rollover(ingester, mock_om_client):
-    # Mock ERA5 with rollover index (idx >= 24)
-    # This requires 48h of data or just forcing first_pitch_hour=23
+def test_fetch_season_weather_incomplete_data(mock_om_client, ingester):
+    # Case: h.Variables returns None halfway through
     mock_hourly = MagicMock()
-    mock_hourly.Variables.side_effect = lambda idx: MagicMock(
-        ValuesAsNumpy=lambda: np.full(48, 70.0)
+    mock_hourly.Variables.side_effect = lambda idx: MagicMock() if idx < 3 else None
+    mock_res = MagicMock()
+    mock_res.Hourly.return_value = mock_hourly
+    mock_om_client.weather_api.return_value = [mock_res]
+    with patch(
+        "algomlb.ingestion.openmeteo_ingester.MLB_STADIUM_COORDS", {"TEST": (0, 0)}
+    ):
+        df = ingester.fetch_season_weather(2024)
+    assert df.empty
+
+
+def test_process_year_weather_batch_logic(ingester, mock_session):
+    # Test batch commit and progress logging
+    games = [(MagicMock(), MagicMock()) for _ in range(201)]
+    for i, (g, bp) in enumerate(games):
+        g.game_id = f"g{i}"
+        g.game_datetime = datetime.datetime(2024, 4, 1, 10, 0, tzinfo=datetime.UTC)
+        bp.team_name = "ARI"
+        bp.hp_bearing_deg = 0.0
+
+    weather_df = pd.DataFrame(
+        {
+            "stadium_code": ["AZ"] * 5,
+            "datetime_utc": [
+                pd.Timestamp("2024-04-01 10:00:00", tz="UTC") + pd.Timedelta(hours=i)
+                for i in range(5)
+            ],
+            "temp": [70.0] * 5,
+            "wind_speed": [5.0] * 5,
+            "wind_dir": [90.0] * 5,
+            "precip": [0.0] * 5,
+            "humidity": [50.0] * 5,
+            "pressure": [1010.0] * 5,
+            "cloud_cover": [0.0] * 5,
+        }
     )
-    mock_resp_era5 = MagicMock()
-    mock_resp_era5.Hourly.return_value = mock_hourly
-    # Mock Forecast
-    mock_f_hourly = MagicMock()
-    mock_f_hourly.Variables.side_effect = lambda idx: MagicMock(
-        ValuesAsNumpy=lambda: np.full(48, 70.0)
-    )
-    mock_resp_forecast = MagicMock()
-    mock_resp_forecast.Hourly.return_value = mock_f_hourly
 
-    mock_om_client.weather_api.side_effect = [[mock_resp_era5], [mock_resp_forecast]]
-
-    # 11 PM local time
-    dt = datetime.datetime(2024, 5, 1, 23, 0).replace(tzinfo=datetime.UTC)
-    res = ingester.fetch_game_weather_progression(
-        "generic", 40, -70, dt, "America/New_York"
-    )
-    assert res["temp_t4_f"] == 70.0
-
-
-def test_ingest_range_progress_logging(ingester, mock_session):
-    # Test that it logs every 50 games
-    count = 100
-    mock_session.execute.return_value.scalars.return_value.all.return_value = [
-        f"g{i}" for i in range(count)
-    ]
-
-    with patch.object(ingester, "ingest_game") as mock_ingest:
-        with patch("algomlb.ingestion.openmeteo_ingester.logger") as mock_logger:
-            ingester.ingest_range(datetime.date(2024, 5, 1), datetime.date(2024, 5, 1))
-            assert mock_ingest.call_count == 100
-            # Should log at 50th and 100th
-            assert mock_logger.info.call_count >= 2
-
-
-def test_rotate_proxy(ingester):
-    ingester.proxies = ["p1", "p2"]
-    ingester._proxy_idx = 0
-    ingester._rotate_proxy()
-    assert ingester._proxy_idx == 1
-    assert ingester.cache_session.proxies["http"] == "p2"
-    ingester._rotate_proxy()
-    assert ingester._proxy_idx == 0
-    assert ingester.cache_session.proxies["http"] == "p1"
-
-
-def test_ingest_game_proxy_retry(ingester, mock_session):
-    # Mock fallback to logic that fails once then succeeds
-    # This is tricky because we use _ingest_game_logic
-    with patch.object(ingester, "_ingest_game_logic") as mock_logic:
-        mock_logic.side_effect = [Exception("Connection refused"), None]
-        ingester.proxies = ["p1", "p2"]
-        ingester.ingest_game("123")
-        assert mock_logic.call_count == 2
-        assert ingester._proxy_idx == 1
-
-
-def test_ingest_game_permanent_failure(ingester, mock_session):
-    with patch.object(ingester, "_ingest_game_logic") as mock_logic:
-        mock_logic.side_effect = Exception("Auth failure")  # Not a proxy error usually
-        ingester.ingest_game("123")
-        assert mock_logic.call_count == 1
-        mock_session.rollback.assert_called()
+    with patch.object(ingester, "fetch_season_weather", return_value=weather_df):
+        with patch(
+            "algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {"AZ": ["ARI"]}
+        ):
+            ingester._process_year_weather(
+                2024, datetime.date(2024, 4, 1), datetime.date(2024, 4, 1), games
+            )
+            # 201 games => commits at 200 and end. total >= 2
+            assert mock_session.commit.call_count >= 2

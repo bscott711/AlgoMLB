@@ -20,7 +20,12 @@ def test_data_health_view_restores_coverage(
     mock_conn = mock_get_engine.return_value.connect.return_value.__enter__.return_value
     mock_conn.execute.return_value.scalar.return_value = 1000
     mock_read_sql.return_value = pd.DataFrame(
-        {"season": [2024], "count": [500], "date": [date(2024, 3, 1)]}
+        {
+            "season": [2024],
+            "count": [500],
+            "date": [date(2024, 3, 1)],
+            "status": ["completed"],
+        }
     )
 
     reload(data)
