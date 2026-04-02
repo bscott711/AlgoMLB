@@ -20,7 +20,10 @@ engine = get_cached_engine()
 # --- 1. OVERVIEW METRICS ---
 with engine.connect() as conn:
     total_completed = int(
-        conn.execute(text("SELECT count(*) FROM game_results WHERE status = 'COMPLETED'")).scalar() or 0
+        conn.execute(
+            text("SELECT count(*) FROM game_results WHERE status = 'COMPLETED'")
+        ).scalar()
+        or 0
     )
     weather_games = int(
         conn.execute(
@@ -41,7 +44,9 @@ m1, m2, m3 = st.columns(3)
 m1.metric("Total Completed Games", f"{total_completed:,}")
 m2.metric("Games with Weather", f"{weather_games:,}")
 m3.metric(
-    "Backfill Coverage", f"{total_completed - weather_games:,} Missing", f"{coverage:.1f}% Covered"
+    "Backfill Coverage",
+    f"{total_completed - weather_games:,} Missing",
+    f"{coverage:.1f}% Covered",
 )
 
 st.markdown("---")
