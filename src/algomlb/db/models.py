@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from algomlb.db.session import Base
-from algomlb.domain import GameStatus, TransactionStatus
+from algomlb.domain import GameStatus, TransactionStatus, GameType
 
 
 class LiveOddsORM(Base):
@@ -67,6 +67,9 @@ class GameResultORM(Base):
     away_team_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[GameStatus] = mapped_column(
         Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED
+    )
+    game_type: Mapped[Optional[GameType]] = mapped_column(
+        Enum(GameType), nullable=True, default=GameType.REGULAR_SEASON
     )
     ballpark_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
@@ -206,7 +209,7 @@ class UmpireScorecardORM(Base):
         String(50), nullable=True, index=True
     )
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    game_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    game_type: Mapped[Optional[GameType]] = mapped_column(Enum(GameType), nullable=True)
     umpire_name: Mapped[str] = mapped_column(String(100), nullable=False)
     home_team: Mapped[str] = mapped_column(String(5), nullable=False)
     away_team: Mapped[str] = mapped_column(String(5), nullable=False)
@@ -443,7 +446,7 @@ class RetrosheetEventORM(Base):
 
     # File Info
     date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    gametype: Mapped[Optional[str]] = mapped_column(String(20))
+    gametype: Mapped[Optional[GameType]] = mapped_column(Enum(GameType), nullable=True)
     pbp: Mapped[Optional[str]] = mapped_column(String(10))
 
 
@@ -540,6 +543,30 @@ class OpenMeteoWeatherProgressionORM(Base):
     delta_precip_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
 
     era5_model_used: Mapped[Optional[str]] = mapped_column(String(50))
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class OpenMeteoDailyForecastORM(Base):
+    """
+    Season-long daily forecast snapshots (2021+) captured at T-24h
+    from Open-Meteo Historical Forecast API.
+    """
+
+    __tablename__ = "openmeteo_daily_forecasts"
+
+    game_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("game_results.game_id"), primary_key=True
+    )
+    temp_max_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    temp_min_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    precip_sum_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+    wind_speed_max_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    weather_code: Mapped[Optional[int]] = mapped_column(Integer)
+    precip_prob_max_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    uv_index_max: Mapped[Optional[float]] = mapped_column(Numeric(4, 1))
+    sunshine_duration_sec: Mapped[Optional[float]] = mapped_column(Float)
     fetched_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

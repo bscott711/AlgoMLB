@@ -98,7 +98,9 @@ logs/algomlb.log
 # Project Data
 .data/
 migrations/
+data/
 
 # Temporary reports
 coverage_full.txt
 deptry_help.txt
+data.zip

@@ -349,6 +349,7 @@ def weather(
     auto_proxies: bool = typer.Option(
         False, "--auto-proxies", help="Automatically fetch free proxies"
     ),
+    workers: int = typer.Option(1, "--workers", help="Number of parallel workers"),
 ):
     """Fetch Open-Meteo weather progression and market deltas."""
     from algomlb.ingestion.proxies import fetch_free_proxies
@@ -366,7 +367,7 @@ def weather(
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
-        openmeteo_ingester = OpenMeteoIngester(session, proxies=proxy_list or None)
+        openmeteo_ingester = OpenMeteoIngester(session_factory, proxies=proxy_list or None)
         orchestrator = IngestionOrchestrator(
             repo,
             odds_client,
@@ -382,5 +383,7 @@ def weather(
         logger.info(
             f"Starting weather ingestion for {start or 'trailing 7d'} to {end or 'trailing 7d'}..."
         )
-        orchestrator.run_weather_ingestion(start_date=s_date, end_date=e_date)
+        orchestrator.run_weather_ingestion(
+            start_date=s_date, end_date=e_date, workers=workers
+        )
         logger.success("Successfully completed weather ingestion.")

@@ -87,7 +87,10 @@ class IngestionOrchestrator:
         return self.transactions_ingester.ingest_range(start_date, end_date)
 
     def run_weather_ingestion(
-        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        workers: int = 10,
     ) -> None:
         """Fetch and persist Open-Meteo weather progression for a date range."""
         today = datetime.date.today()
@@ -96,4 +99,4 @@ class IngestionOrchestrator:
         if end_date is None:
             end_date = today
 
-        self.openmeteo_ingester.ingest_range(start_date, end_date)
+        self.openmeteo_ingester.ingest_range(start_date, end_date, workers=workers)

@@ -9,7 +9,11 @@ st.set_page_config(page_title="Weather Analytics", layout="wide")
 st.title("🌦️ Weather & Environment Ingest Health")
 st.markdown("---")
 
-engine = get_engine()
+@st.cache_resource
+def get_cached_engine():
+    return get_engine()
+
+engine = get_cached_engine()
 
 # --- 1. OVERVIEW METRICS ---
 with engine.connect() as conn:
@@ -44,7 +48,7 @@ query = """
         count(w.game_id) as weather_games
     FROM game_results g
     LEFT JOIN openmeteo_weather_progression w ON g.game_id = w.game_id
-    WHERE g.ballpark_id IS NOT NULL
+    WHERE g.status = 'COMPLETED'
     GROUP BY 1
     ORDER BY 1
 """
@@ -61,10 +65,42 @@ if not df.empty:
         cols[2].write(
             f"{row['weather_games']:,} / {row['total_games']:,} ({row['Percent Complete']}%)"
         )
+else:
+    st.info("No completed games found to analyze backfill progress.")
 
 st.markdown("---")
 
-# --- 3. ENVIRONMENTAL TRENDS ---
+# --- 3. IDENTIFY MISSING WEATHER ---
+st.subheader("🕵️ Missing Weather Audit")
+selected_year = st.selectbox("Select Season to Audit", [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026], index=7)
+
+with engine.connect() as conn:
+    q_missing = text("""
+        SELECT g.game_id, g.game_date, g.home_team, g.away_team
+        FROM game_results g
+        LEFT JOIN openmeteo_weather_progression w ON g.game_id = w.game_id
+        WHERE extract(year from g.game_date) = :year
+          AND g.status = 'COMPLETED'
+          AND w.game_id IS NULL
+        ORDER BY g.game_date ASC
+    """)
+    df_missing = pd.read_sql(q_missing, engine, params={"year": int(selected_year)})
+
+if not df_missing.empty:
+    st.warning(f"Found {len(df_missing)} completed games missing weather data for {selected_year}.")
+    st.dataframe(df_missing, use_container_width=True)
+    
+    # Generate ingestion command for the user
+    min_date = df_missing["game_date"].min()
+    max_date = df_missing["game_date"].max()
+    st.info("💡 To fill this gap, you can run research-based ingestion for this date range:")
+    st.code(f"uv run algomlb ingest weather --start {min_date} --end {max_date}")
+else:
+    st.success(f"All completed games in {selected_year} have weather data!")
+
+st.markdown("---")
+
+# --- 4. ENVIRONMENTAL TRENDS ---
 st.subheader("🌡️ Environmental Distributions (Ingested Data)")
 col1, col2 = st.columns(2)
 
@@ -96,7 +132,7 @@ with col2:
         )
         st.plotly_chart(fig_wind, use_container_width=True)
 
-# --- 4. TOP WINDIER/HOTTER STADIUMS ---
+# --- 5. TOP WINDIER/HOTTER STADIUMS ---
 st.subheader("🏟️ Stadium Climate Profiles")
 query_stadiums = """
     SELECT 

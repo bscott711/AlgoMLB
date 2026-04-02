@@ -8,11 +8,21 @@ from pydantic import BaseModel, ConfigDict, Field
 class GameStatus(StrEnum):
     """Status of a MLB game."""
 
-    SCHEDULED = "scheduled"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-    POSTPONED = "postponed"
+    SCHEDULED = "SCHEDULED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    POSTPONED = "POSTPONED"
+
+
+class GameType(StrEnum):
+    """MLB Game Type codes (R=Regular, P=Postseason, S=Spring, E=Exhibition, A=All-Star)."""
+
+    REGULAR_SEASON = "R"
+    POSTSEASON = "P"
+    SPRING_TRAINING = "S"
+    EXHIBITION = "E"
+    ALL_STAR = "A"
 
 
 class Game(BaseModel):
@@ -21,6 +31,9 @@ class Game(BaseModel):
     model_config = ConfigDict(frozen=True, populate_by_name=True)
 
     game_id: str = Field(..., description="Unique identifier for the game")
+    game_type: GameType = Field(
+        default=GameType.REGULAR_SEASON, description="R, P, S, etc."
+    )
     date: datetime.date = Field(
         ..., description="Date of the game", validation_alias="game_date"
     )
@@ -79,10 +92,10 @@ class Odds(BaseModel):
 class TransactionStatus(StrEnum):
     """Status of a bankroll transaction."""
 
-    PENDING = "pending"
-    SETTLED = "settled"
-    CANCELLED = "cancelled"
-    ADJUSTMENT = "adjustment"
+    PENDING = "PENDING"
+    SETTLED = "SETTLED"
+    CANCELLED = "CANCELLED"
+    ADJUSTMENT = "ADJUSTMENT"
 
 
 class BankrollTransaction(BaseModel):

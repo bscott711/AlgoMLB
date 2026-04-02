@@ -9,7 +9,11 @@ st.set_page_config(page_title="Data & Ingest Health", layout="wide")
 st.title("📡 Data Ingest & Storage Health")
 st.markdown("---")
 
-engine = get_engine()
+@st.cache_resource
+def get_cached_engine():
+    return get_engine()
+
+engine = get_cached_engine()
 
 
 # --- 1. SYSTEM OVERVIEW METRICS ---
@@ -119,21 +123,32 @@ col_a, col_b = st.columns(2)
 with col_a:
     st.write("#### Games per Season")
     query = """
-        SELECT extract(year from game_date) as season, count(*) as count 
+        SELECT extract(year from game_date) as season, status, count(*) as count 
         FROM game_results 
-        GROUP BY 1 
-        ORDER BY 1
+        GROUP BY 1, 2 
+        ORDER BY season, status
     """
     df_seasons = pd.read_sql(query, engine)
     if not df_seasons.empty:
+        # Prettify the status for the legend
+        df_seasons["Status"] = df_seasons["status"].astype(str).str.title()
+        
         fig_seasons = px.bar(
             df_seasons,
             x="season",
             y="count",
-            title="Game ID Coverage",
-            labels={"count": "Games", "season": "Year"},
+            color="Status",
+            title="Game ID Coverage By Status",
+            labels={"count": "Number of Games", "season": "Year"},
             template="plotly_dark",
-            color="count",
+            barmode="stack",
+            color_discrete_map={
+                "Completed": "#00CC96",
+                "Scheduled": "#636EFA",
+                "In_Progress": "#FFA15A",
+                "Postponed": "#EF553B",
+                "Cancelled": "#D3D3D3"
+            }
         )
         st.plotly_chart(fig_seasons, use_container_width=True)
     else:
