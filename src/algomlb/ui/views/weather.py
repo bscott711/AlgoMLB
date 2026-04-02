@@ -1,4 +1,4 @@
-import streamlit as st  # pragma: no cover
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 from sqlalchemy import text

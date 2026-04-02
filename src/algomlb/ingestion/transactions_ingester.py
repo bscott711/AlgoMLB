@@ -1,6 +1,7 @@
 import re
 from datetime import date, timedelta
-from typing import Any, Iterator, List, Optional
+from datetime import date, timedelta
+from typing import Iterator, Mapping, Optional, cast
 
 import httpx
 from algomlb.db.models import PlayerTransactionORM
@@ -76,7 +77,7 @@ class PlayerTransactionsIngester:
     def __init__(self, repo: DatabaseRepository):
         self.repo = repo
 
-    def fetch_transactions(self, start_date: date, end_date: date) -> List[dict]:
+    def fetch_transactions(self, start_date: date, end_date: date) -> list[Mapping[str, object]]:
         """Fetch transactions from StatsAPI."""
         try:
             response = httpx.get(
@@ -94,7 +95,7 @@ class PlayerTransactionsIngester:
             logger.error(f"Error fetching transactions: {e}")
             return []
 
-    def fetch_legacy_transactions(self, start_date: date, end_date: date) -> List[dict]:
+    def fetch_legacy_transactions(self, start_date: date, end_date: date) -> list[Mapping[str, object]]:
         """
         Fetch legacy transactions from BAM endpoint.
         Note: Implementation placeholder for details of BAM endpoint.
@@ -118,7 +119,7 @@ class PlayerTransactionsIngester:
             return "7day"
         return None
 
-    def _parse_iso_date(self, date_str: Any) -> Optional[date]:
+    def _parse_iso_date(self, date_str: object) -> Optional[date]:
         """Safely parse an ISO date string."""
         if not isinstance(date_str, str):
             return None
@@ -127,17 +128,17 @@ class PlayerTransactionsIngester:
         except ValueError:
             return None
 
-    def _map_stats_api_to_orm(self, tx: dict) -> Optional[PlayerTransactionORM]:
+    def _map_stats_api_to_orm(self, tx: Mapping[str, object]) -> Optional[PlayerTransactionORM]:
         """Map a single StatsAPI transaction dictionary to an ORM object."""
-        person = tx.get("person", {})
+        person = cast(Mapping[str, object], tx.get("person", {}))
         player_id = person.get("id")
-        player_name = person.get("fullName")
-        team_id = tx.get("toTeam", {}).get("id")
+        player_name = cast(str, person.get("fullName"))
+        team_id = cast(Mapping[str, object], tx.get("toTeam", {})).get("id")
         if player_id is None or team_id is None:
             return None
 
-        type_desc = tx.get("typeDesc", "unknown")
-        description = tx.get("description", "")
+        type_desc = cast(str, tx.get("typeDesc", "unknown"))
+        description = cast(str, tx.get("description", ""))
 
         il_type = self._detect_il_type(type_desc, description)
         part, kind = parse_injury(description)
@@ -149,9 +150,9 @@ class PlayerTransactionsIngester:
 
         return PlayerTransactionORM(
             transaction_id=str(tx.get("id")),
-            player_id=int(player_id),
+            player_id=int(cast(str | int, player_id)),
             player_name=player_name,
-            team_id=int(team_id),
+            team_id=int(cast(str | int, team_id)),
             transaction_date=trans_date,
             effective_date=self._parse_iso_date(tx.get("effectiveDate")),
             resolution_date=self._parse_iso_date(tx.get("resolutionDate")),

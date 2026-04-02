@@ -24,9 +24,9 @@ def test_session():
     session.close()
 
 
-def _make_api_row(**overrides: Any) -> dict[str, Any]:
+def _make_api_row(**overrides: object) -> dict[str, object]:
     """Build a minimal valid API row with sensible defaults."""
-    base: dict[str, Any] = {
+    base: dict[str, object] = {
         "game_pk": 718760,
         "failed": False,
         "has_basic_game_data": True,

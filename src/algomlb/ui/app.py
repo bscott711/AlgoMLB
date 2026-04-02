@@ -21,6 +21,7 @@ pages = {
     "System Health": [
         st.Page("views/data.py", title="Data & Ingest Health", icon="📡"),
         st.Page("views/weather.py", title="Weather Insights", icon="🌦️"),
+        st.Page("views/db_explorer.py", title="Database Explorer", icon="🔍"),
     ],
     "Engineering Docs": [
         st.Page(

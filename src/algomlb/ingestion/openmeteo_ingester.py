@@ -1,5 +1,6 @@
 import datetime
-from typing import Any, Optional
+from typing import Callable, Mapping, Optional, Sequence
+from sqlalchemy.orm import Session, sessionmaker
 from zoneinfo import ZoneInfo
 
 import openmeteo_requests
@@ -93,7 +94,7 @@ class OpenMeteoIngester:
     and perform direct-to-db game progressions.
     """
 
-    def __init__(self, session_factory: Any):
+    def __init__(self, session_factory: sessionmaker | Callable[[], Session]):
         self.session_factory = session_factory
         self.cache_session = requests_cache.CachedSession(
             ".openmeteo_cache", expire_after=-1, allowable_codes=(200,)
@@ -104,7 +105,7 @@ class OpenMeteoIngester:
     def fetch_weather_batch(
         self,
         year: int,
-        locations: list[dict],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
+        locations: Sequence[Mapping[str, object]],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> pd.DataFrame:
@@ -257,7 +258,7 @@ class OpenMeteoIngester:
         )
         self._persist_year_weather(year, year_games, weather_lookup)
 
-    def _get_unique_locations(self, games) -> list[dict]:
+    def _get_unique_locations(self, games) -> list[Mapping[str, object]]:
         """Helper to deduplicate ballpark locations for API batching."""
         unique = {}
         for _, bp in games:

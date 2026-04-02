@@ -1,0 +1,18 @@
+db_health:
+  known_placeholders:
+    - alembic_version
+    - bankroll_ledger
+    - historical_data
+    - historical_odds
+    - player_rolling_features
+  allow_null_columns:
+    game_results:
+      - temperature
+      - wind_speed
+      - humidity
+      - home_rest_days
+      - away_rest_days
+      - home_team_id
+      - away_team_id
+    live_odds:
+      - game_result_id

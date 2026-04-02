@@ -136,6 +136,20 @@ stop-bg:
 tail-logs:
 	@tail -f logs/dashboard.log
 
+# ==========================================
+# 5. DATABASE HEALTH (P0 Foundation)
+# ==========================================
+
+# Run functional database health tests (requires live DB)
+test-db:
+	@echo "🧪 Running functional DB health tests..."
+	uv run pytest -m functional tests/functional/db/
+
+# Generate a CLI health report of the database schema
+db-health-summary:
+	@echo "📡 Generating Database Health Summary..."
+	PYTHONPATH=src uv run python scripts/db_health_summary.py
+
 # Commit all changes with a message
 commit message:
 	git add .

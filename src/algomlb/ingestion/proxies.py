@@ -20,6 +20,6 @@ def fetch_free_proxies() -> list[str]:
 
         logger.info(f"Successfully fetched {len(formatted)} free proxies.")
         return formatted
-    except Exception as e:  # pragma: no cover
+    except Exception as e:
         logger.error(f"Failed to fetch free proxies: {e}")
         return []

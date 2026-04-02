@@ -1,6 +1,6 @@
 from typing import Self
 from dotenv import load_dotenv
-from pydantic import Field, PostgresDsn, SecretStr, model_validator
+from pydantic import BaseModel, Field, PostgresDsn, SecretStr, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -74,6 +74,20 @@ class MLConfig(BaseSettings):
     )
 
 
+class DBHealthConfig(BaseModel):
+    """Configuration for database health and introspection."""
+
+    allow_null_columns: dict[str, list[str]] = Field(
+        default_factory=dict, description="Table-to-column mapping of allowed NULLs"
+    )
+    known_placeholders: list[str] = Field(
+        default_factory=list, description="Tables that are expected to be empty"
+    )
+    table_naming_pattern: str = Field(
+        default="^[a-z][a-z0-9_]*$", description="Regex for table naming convention"
+    )
+
+
 class Settings(BaseSettings):
     """Root application settings orchestrator."""
 
@@ -84,6 +98,7 @@ class Settings(BaseSettings):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     ml: MLConfig = Field(default_factory=MLConfig)
+    db_health: DBHealthConfig = Field(default_factory=DBHealthConfig)
 
     model_config = SettingsConfigDict(
         env_file=".env",

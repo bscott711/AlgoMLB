@@ -1,6 +1,6 @@
 import time
 import datetime
-from typing import Any, Optional
+from typing import Mapping, Optional, TypeAlias, cast
 
 import httpx
 from sqlalchemy.orm import Session
@@ -72,21 +72,21 @@ class UmpireScorecardIngester:
     # Row mapping
     # ------------------------------------------------------------------
 
-    def _api_row_to_orm(self, row: dict[str, Any]) -> Optional[UmpireScorecardORM]:
+    def _api_row_to_orm(self, row: Mapping[str, object]) -> Optional[UmpireScorecardORM]:
         """Convert a single API JSON row to an ORM object."""
         game_pk = row.get("game_pk")
         if not game_pk:
             return None
 
-        game_date = datetime.datetime.strptime(row["date"], "%Y-%m-%d").date()
+        game_date = datetime.datetime.strptime(cast(str, row["date"]), "%Y-%m-%d").date()
         if game_date.year < self.since_year:
             return None
 
         # Lookup the game_results FK if the game exists in our DB
-        game_id = self._find_game_id(game_pk)
+        game_id = self._find_game_id(cast(int | str, game_pk))
 
         return UmpireScorecardORM(
-            game_pk=int(game_pk),
+            game_pk=int(cast(int, game_pk)),
             game_id=game_id,
             game_date=game_date,
             game_type=row.get("type"),
@@ -124,7 +124,7 @@ class UmpireScorecardIngester:
             total_run_impact=self._safe_float_or_none(row.get("total_run_impact")),
             expected_runs=self._safe_float(row.get("total_run_impact", 0)),
             actual_runs=self._safe_float(
-                (row.get("home_score") or 0) + (row.get("away_score") or 0)
+                (cast(float, row.get("home_score")) or 0.0) + (cast(float, row.get("away_score")) or 0.0)
             ),
             # Challenges
             n_overturned=self._safe_int(row.get("n_overturned")),
@@ -146,7 +146,7 @@ class UmpireScorecardIngester:
             abs_home_c=self._safe_float_or_none(row.get("abs_home_C")),
             abs_home_d=self._safe_float_or_none(row.get("abs_home_D")),
             # Metadata
-            fully_valid=row.get("fully_valid"),
+            fully_valid=cast(bool, row.get("fully_valid")),
             num_pitches_no_data=self._safe_int(row.get("num_pitches_no_data")),
         )
 
@@ -154,37 +154,37 @@ class UmpireScorecardIngester:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _find_game_id(self, game_pk: int) -> Optional[str]:
+    def _find_game_id(self, game_pk: int | str) -> Optional[str]:
         """Lookup MLB game_id from GameResultORM by matching game_pk."""
         game = self.session.query(GameResultORM).filter_by(game_id=str(game_pk)).first()
         return game.game_id if game else None
 
     @staticmethod
-    def _safe_float(value: Any, default: float = 0.0) -> float:
+    def _safe_float(value: object, default: float = 0.0) -> float:
         """Safely convert a value to float."""
         if value is None or value == "ND":
             return default
         try:
-            return float(value)
+            return float(value)  # type: ignore
         except (ValueError, TypeError):
             return default
 
     @staticmethod
-    def _safe_float_or_none(value: Any) -> Optional[float]:
+    def _safe_float_or_none(value: object) -> Optional[float]:
         """Safely convert a value to float, returning None for missing data."""
         if value is None or value == "ND":
             return None
         try:
-            return float(value)
+            return float(value)  # type: ignore
         except (ValueError, TypeError):
             return None
 
     @staticmethod
-    def _safe_int(value: Any) -> Optional[int]:
+    def _safe_int(value: object) -> Optional[int]:
         """Safely convert a value to int, returning None for missing data."""
         if value is None or value == "ND":
             return None
         try:
-            return int(value)
+            return int(value)  # type: ignore
         except (ValueError, TypeError):
             return None

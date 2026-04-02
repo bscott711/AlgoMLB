@@ -1,58 +1,5 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
-from algomlb.db.session import get_session_factory
-from sqlalchemy import MetaData
-
-
-def get_table_stats():
-    metadata = MetaData()
-    engine = get_session_factory().kw["bind"]
-    metadata.reflect(bind=engine)
-
-    stats = []
-    with get_session_factory()() as session:
-        for table_name in metadata.tables.keys():
-            from sqlalchemy import text
-
-            try:
-                count = session.execute(
-                    text(f"SELECT COUNT(*) FROM {table_name}")
-                ).scalar()
-                stats.append({"Table": table_name, "Rows": count})
-            except Exception:
-                stats.append({"Table": table_name, "Rows": "N/A"})
-    return pd.DataFrame(stats)
-
-
-def get_table_sample(table_name, limit=5):
-    engine = get_session_factory().kw["bind"]
-    try:
-        return pd.read_sql(f"SELECT * FROM {table_name} LIMIT {limit}", engine)
-    except Exception as e:
-        return pd.DataFrame({"Error": [str(e)]})
-
-
-def get_table_metadata():
-    # (existing function, slightly modified to match new data structures below)
-    metadata = MetaData()
-    engine = get_session_factory().kw["bind"]
-    metadata.reflect(bind=engine)
-
-    tables_info = []
-    for table_name, table in metadata.tables.items():
-        for column in table.columns:
-            tables_info.append(
-                {
-                    "Table": table_name,
-                    "Column": column.name,
-                    "Type": str(column.type),
-                    "PK": "🔑" if column.primary_key else "",
-                    "FK": "🔗" if len(column.foreign_keys) > 0 else "",
-                    "Nullable": "✅" if column.nullable else "❌",
-                }
-            )
-    return pd.DataFrame(tables_info)
 
 
 # Page Layout
@@ -184,49 +131,6 @@ components.html(
 )
 
 st.divider()
-
-# Table Inspector
-st.markdown("### 🔍 Intelligent Table Inspector")
-
-try:
-    df_meta = get_table_metadata()
-    df_stats = get_table_stats()
-
-    col_nav, col_details = st.columns([1, 4])
-
-    with col_nav:
-        selected_table = st.selectbox(
-            "Select Entity", sorted(df_meta["Table"].unique())
-        )
-        row_count = df_stats[df_stats["Table"] == selected_table]["Rows"].values[0]
-        st.markdown(
-            f"""
-        <div class="metric-card">
-            <div style="font-size: 0.8rem; color: #94a3b8;">TOTAL ROWS</div>
-            <div style="font-size: 1.8rem; font-weight: 700; color: #60a5fa;">{row_count:,}</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-    with col_details:
-        tab_schema, tab_data = st.tabs(["📋 Schema Definition", "📁 Data Preview"])
-
-        with tab_schema:
-            table_detail = df_meta[df_meta["Table"] == selected_table].copy()
-            st.dataframe(
-                table_detail.drop(columns=["Table"]),
-                use_container_width=True,
-                hide_index=True,
-            )
-
-        with tab_data:
-            st.markdown(f"Showing lastest 10 rows from `{selected_table}`")
-            sample_df = get_table_sample(selected_table, limit=10)
-            st.dataframe(sample_df, use_container_width=True)
-
-except Exception as e:
-    st.error(f"Error loading system metadata: {e}")
 
 # Details Section
 with st.expander("Architecture Decisions & Mapping Notes"):

@@ -93,7 +93,7 @@ with engine.connect() as conn:
                 last_date = conn.execute(
                     text(f"SELECT max({date_col}) FROM {table}")
                 ).scalar()
-        except Exception:  # pragma: no cover
+        except Exception:
             pass
 
         status = "🟢 Healthy" if count > 0 else "🔴 Empty"
@@ -103,7 +103,7 @@ with engine.connect() as conn:
                 text("SELECT extract(year from min(game_date)) FROM game_results")
             ).scalar()
             if min_year and min_year > 2019:
-                status = "🟡 Incomplete (Missing 2019-2021)"  # pragma: no cover
+                status = "🟡 Incomplete (Missing 2019-2021)"
 
         health_data.append(
             {
@@ -156,7 +156,7 @@ with col_a:
     else:
         st.info(
             "No season data found. Run `algomlb ingest schedule`."
-        )  # pragma: no cover
+        )
 
 with col_b:
     st.write("#### Umpire Data Coverage")
@@ -182,11 +182,11 @@ with col_b:
         else:
             st.warning(
                 "Umpire data not yet linked. Game IDs might be missing for 2019-2022."
-            )  # pragma: no cover
-    except Exception:  # pragma: no cover
+            )
+    except Exception:
         st.error(
             "Umpire scorecard table schema mismatch or missing."
-        )  # pragma: no cover
+        )
 
 st.markdown("---")
 

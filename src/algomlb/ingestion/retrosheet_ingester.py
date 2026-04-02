@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Any, Optional
+from typing import Any, Mapping, Optional, cast
 import datetime
 import httpx
 import zipfile
@@ -48,7 +48,7 @@ class RetrosheetIngester:
             f"Successfully processed Retrosheet file: {total_ingested} events ingested."
         )
 
-    def _handle_row(self, row: Any) -> Optional[RetrosheetEventORM]:
+    def _handle_row(self, row: Mapping[str, object]) -> Optional[RetrosheetEventORM]:
         """Process a single row with filtering and ORM conversion."""
         try:
             date_val = str(row.get("date", ""))
@@ -78,35 +78,36 @@ class RetrosheetIngester:
                         if file.endswith(".csv"):
                             self.ingest_from_csv(os.path.join(root, file))
 
-    def _row_to_orm(self, row: Any) -> RetrosheetEventORM:
+    def _row_to_orm(self, row: Mapping[str, object]) -> RetrosheetEventORM:
         """Helper to convert a pandas row to a RetrosheetEventORM object."""
 
-        # Type-safe helpers for extracting row values
+        # Type-safe helpers for extracting row values from Mapping[str, object]
         def get_int(col: str) -> int:
             val = row.get(col)
-            return int(val) if pd.notnull(val) else 0
+            # Use cast(Any, val) to satisfy restrictive pd.isna stubs for object type
+            return int(float(cast(Any, val))) if val is not None and not pd.isna(cast(Any, val)) else 0
 
         def get_str(col: str) -> str:
             val = row.get(col)
-            return str(val) if pd.notnull(val) else ""
+            return str(val) if val is not None and not pd.isna(cast(Any, val)) else ""
 
         def get_opt_int(col: str) -> Optional[int]:
             val = row.get(col)
-            return int(val) if pd.notnull(val) else None
+            return int(float(cast(Any, val))) if val is not None and not pd.isna(cast(Any, val)) else None
 
         def get_opt_str(col: str) -> Optional[str]:
             val = row.get(col)
-            return str(val) if pd.notnull(val) else None
+            return str(val) if val is not None and not pd.isna(cast(Any, val)) else None
 
         def get_date(col: str) -> datetime.date:
             val = row.get(col)
-            if pd.isnull(val):
+            if val is None or pd.isna(cast(Any, val)):
                 return datetime.date(1900, 1, 1)
-            # Ensure value is treated as a string to avoid integer date parsing issues (e.g., 20230330 -> 1970)
+            # Ensure value is treated as a string to avoid integer date parsing issues
             return pd.to_datetime(str(val)).date()
 
         # Mapping dictionary to handle the high volume of fields
-        data: dict[str, Any] = {
+        data: dict[str, object] = {
             "game_id": get_str("gid"),
             "play_number": get_int("pn"),
             "event_text": get_str("event"),

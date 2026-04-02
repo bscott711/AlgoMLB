@@ -94,6 +94,11 @@ containers = [
 
 # UI is no longer omitted from coverage.
 
+[tool.pytest.ini_options]
+markers = [
+    "functional: functional database and infrastructure tests",
+]
+
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",

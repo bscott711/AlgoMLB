@@ -9,7 +9,7 @@ class AgentResult(BaseModel):
     status: str  # "success" | "error" | "warning"
     command: str  # e.g., "db.init"
     duration_ms: int = 0
-    data: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, object] = Field(default_factory=dict)
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
