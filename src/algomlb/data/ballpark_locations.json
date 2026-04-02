@@ -151,13 +151,29 @@
     "long": -73.9265,
     "synonyms": ["Yankee Stadium"]
   },
-  "Oakland Athletics": {
+  "Oakland Athletics (Oakland)": {
+    "ballpark": "Oakland Coliseum",
+    "city": "Oakland",
+    "state": "CA",
+    "lat": 37.7516,
+    "long": -122.2005,
+    "synonyms": ["Oakland Coliseum"]
+  },
+  "Oakland Athletics (Sacramento)": {
     "ballpark": "Sutter Health Park",
     "city": "West Sacramento",
     "state": "CA",
     "lat": 38.5772,
     "long": -121.5222,
-    "synonyms": ["Oakland Coliseum", "Sutter Health Park"]
+    "synonyms": ["Sutter Health Park"]
+  },
+  "Oakland Athletics (Las Vegas)": {
+    "ballpark": "Las Vegas Ballpark",
+    "city": "Las Vegas",
+    "state": "NV",
+    "lat": 36.1523,
+    "long": -115.3294,
+    "synonyms": ["Las Vegas Ballpark"]
   },
   "Philadelphia Phillies": {
     "ballpark": "Citizens Bank Park",

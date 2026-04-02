@@ -19,24 +19,29 @@ engine = get_cached_engine()
 
 # --- 1. OVERVIEW METRICS ---
 with engine.connect() as conn:
-    total_games = int(
-        conn.execute(text("SELECT count(*) FROM game_results")).scalar() or 0
+    total_completed = int(
+        conn.execute(text("SELECT count(*) FROM game_results WHERE status = 'COMPLETED'")).scalar() or 0
     )
     weather_games = int(
         conn.execute(
-            text("SELECT count(*) FROM openmeteo_weather_progression")
+            text("""
+                SELECT count(w.game_id) 
+                FROM openmeteo_weather_progression w
+                JOIN game_results g ON w.game_id = g.game_id
+                WHERE g.status = 'COMPLETED'
+            """)
         ).scalar()
         or 0
     )
 
     # Calculate coverage
-    coverage = (weather_games / total_games * 100) if total_games > 0 else 0
+    coverage = (weather_games / total_completed * 100) if total_completed > 0 else 0
 
 m1, m2, m3 = st.columns(3)
-m1.metric("Total Resolved Games", f"{total_games:,}")
+m1.metric("Total Completed Games", f"{total_completed:,}")
 m2.metric("Games with Weather", f"{weather_games:,}")
 m3.metric(
-    "Coverage Gap", f"{total_games - weather_games:,}", f"{coverage:.1f}% Covered"
+    "Backfill Coverage", f"{total_completed - weather_games:,} Missing", f"{coverage:.1f}% Covered"
 )
 
 st.markdown("---")

@@ -106,12 +106,39 @@ class BallparkIngester:
     def _update_geographic_data(
         self, orm: BallparkORM, park_name: str, synonym_map: dict
     ):
-        """Update location data from geographic source of truth."""
+        """Update location data from geographic source of truth including bearing."""
+        from algomlb.domain.stadium_bearings import STADIUM_HP_BEARINGS
+
         geo_info = synonym_map.get(park_name.lower())
         if geo_info:
             orm.city = geo_info["city"]
             orm.state = geo_info["state"]
             orm.latitude = geo_info["lat"]
             orm.longitude = geo_info["long"]
+
+            # Try to resolve hp_bearing_deg from STADIUM_HP_BEARINGS
+            # Normalize names: lowercase, replace spaces with underscores
+            norm_name = geo_info["ballpark"].lower().strip().replace(" ", "_")
+
+            # Handle common naming mismatches (case-insensitive)
+            naming_map = {
+                "oriole_park_at_camden_yards": "camden_yards",
+                "oracle_park": "at_t_park",
+                "t-mobile_park": "safeco_field",
+                "t_mobile_park": "safeco_field",
+                "american_family_field": "miller_park",
+                "guaranteed_rate_field": "guaranteed_rate_field",
+                "oakland-alameda_county_coliseum": "oakland_coliseum",
+            }
+            mapped_name = naming_map.get(norm_name, norm_name)
+
+            # Case-insensitive lookup in STADIUM_HP_BEARINGS
+            bearing_lookup = {k.lower(): v for k, v in STADIUM_HP_BEARINGS.items()}
+            if mapped_name in bearing_lookup:
+                orm.hp_bearing_deg = bearing_lookup[mapped_name]
+            else:
+                logger.warning(
+                    f"No bearing data found for: {mapped_name} ({park_name})"
+                )
         else:
             logger.warning(f"No geographic metadata found for: {park_name}")

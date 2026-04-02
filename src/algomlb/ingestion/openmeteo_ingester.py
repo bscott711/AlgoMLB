@@ -101,14 +101,15 @@ class OpenMeteoIngester:
         retry_session = retry(self.cache_session, retries=10, backoff_factor=1.0)
         self.om = openmeteo_requests.Client(session=retry_session)  # type: ignore
 
-    def fetch_season_weather(
+    def fetch_weather_batch(
         self,
         year: int,
+        locations: list[dict],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> pd.DataFrame:
-        """Downloads weather for stadiums. Defaults to full season batch if range not provided."""
-        if year >= 2026:  # For current season, use the high-reliability primary API
+        """Downloads weather for specific locations. Optimized for batching."""
+        if year >= 2026:
             url = "https://api.open-meteo.com/v1/forecast"
             models = "best_match"
         elif year >= 2022:
@@ -118,10 +119,6 @@ class OpenMeteoIngester:
             url = "https://archive-api.open-meteo.com/v1/archive"
             models = "era5"
 
-        teams = list(MLB_STADIUM_COORDS.keys())
-        lats, lons = zip(*MLB_STADIUM_COORDS.values())
-
-        # Heuristic: Start 6h before potential first game on start_date, end 12h after potential last game on end_date
         s_date = start_date or f"{year}-03-20"
         e_date = end_date or (
             f"{year}-11-05"
@@ -129,59 +126,56 @@ class OpenMeteoIngester:
             else datetime.date.today().strftime("%Y-%m-%d")
         )
 
-        params = {
-            "latitude": lats,
-            "longitude": lons,
-            "start_date": s_date,
-            "end_date": e_date,
-            "hourly": [
-                "temperature_2m",
-                "wind_speed_10m",
-                "wind_direction_10m",
-                "precipitation",
-                "relative_humidity_2m",
-                "surface_pressure",
-                "cloud_cover",
-            ],
-            "temperature_unit": "fahrenheit",
-            "wind_speed_unit": "mph",
-            "timezone": "GMT",
-            "models": models,
-        }
-
         all_data = []
-        batch_size = 5  # Small batches to avoid 'Too many concurrent requests' (often triggered by large payload parsing)
+        batch_size = 5
 
-        for i in range(0, len(teams), batch_size):
-            batch_teams = teams[i : i + batch_size]
-            batch_lats = lats[i : i + batch_size]
-            batch_lons = lons[i : i + batch_size]
+        for i in range(0, len(locations), batch_size):
+            batch = locations[i : i + batch_size]
+            batch_ids = [b["id"] for b in batch]
+            batch_lats = [b["lat"] for b in batch]
+            batch_lons = [b["lon"] for b in batch]
+            batch_codes = [b["code"] for b in batch]
 
-            params["latitude"] = batch_lats
-            params["longitude"] = batch_lons
+            params = {
+                "latitude": batch_lats,
+                "longitude": batch_lons,
+                "start_date": s_date,
+                "end_date": e_date,
+                "hourly": [
+                    "temperature_2m",
+                    "wind_speed_10m",
+                    "wind_direction_10m",
+                    "precipitation",
+                    "relative_humidity_2m",
+                    "surface_pressure",
+                    "cloud_cover",
+                ],
+                "temperature_unit": "fahrenheit",
+                "wind_speed_unit": "mph",
+                "timezone": "GMT",
+                "models": models,
+            }
 
-            logger.info(f"📡 Downloading {year} weather for stadiums {batch_teams}...")
+            logger.info(f"📡 Downloading {year} weather for batch: {batch_codes}...")
             responses = self.om.weather_api(url, params=params)
 
             for j, res in enumerate(responses):
                 h = res.Hourly()
                 if not h:
                     continue
-                # Extraction logic with type-safety
                 vars = self._get_hourly_vars(h)
                 if not vars:
-                    logger.warning(f"Incomplete weather variables for {batch_teams[j]}")
                     continue
 
                 df = pd.DataFrame(
                     {
-                        "stadium_code": batch_teams[j],
+                        "ballpark_id": batch_ids[j],
+                        "stadium_code": batch_codes[j],
                         "datetime_utc": pd.date_range(
                             start=pd.to_datetime(h.Time(), unit="s", utc=True),
                             end=pd.to_datetime(h.TimeEnd(), unit="s", utc=True),
                             freq=pd.Timedelta(seconds=h.Interval()),
                             inclusive="left",
-                            tz="UTC",
                         ),
                         "temp": vars[0].ValuesAsNumpy(),
                         "wind_speed": vars[1].ValuesAsNumpy(),
@@ -196,10 +190,9 @@ class OpenMeteoIngester:
                 df.fillna(0.0, inplace=True)
                 all_data.append(df)
 
-            # Tiny sleep to breathe
             import time
 
-            time.sleep(1.0)
+            time.sleep(0.5)
 
         return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
 
@@ -217,9 +210,8 @@ class OpenMeteoIngester:
         return [v0, v1, v2, v3, v4, v5, v6]
 
     def ingest_range(self, start_date: datetime.date, end_date: datetime.date) -> None:
-        """Primary Workflow: Directly streams API vectors into the database."""
+        """Dynamic Workflow: Fetch targeted weather by ballpark geography."""
         with self.session_factory() as session:
-            # 1. Fetch missing games in range
             existing = select(OpenMeteoWeatherProgressionORM.game_id)
             stmt = (
                 select(GameResultORM, BallparkORM)
@@ -246,54 +238,55 @@ class OpenMeteoIngester:
             self._process_year_weather(year, start_date, end_date, games_by_year[year])
 
     def _process_year_weather(self, year, start_date, end_date, year_games):
-        """Processes weather for a specific year's batch of games."""
-        df_weather = self.fetch_season_weather(
+        """Processes weather for unique locations in a year batch."""
+        unique_locs = self._get_unique_locations(year_games)
+        df_weather = self.fetch_weather_batch(
             year,
+            locations=unique_locs,
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
         )
         if df_weather.empty:
             return
 
-        # Use ISO-timestamp keys for absolute join stability
         df_weather["ts_iso"] = df_weather["datetime_utc"].dt.strftime(
             "%Y-%m-%dT%H:00:00Z"
         )
-        weather_lookup = df_weather.set_index(["stadium_code", "ts_iso"]).to_dict(
+        weather_lookup = df_weather.set_index(["ballpark_id", "ts_iso"]).to_dict(
             "index"
         )
+        self._persist_year_weather(year, year_games, weather_lookup)
 
-        with self.session_factory() as bulk_session:
+    def _get_unique_locations(self, games) -> list[dict]:
+        """Helper to deduplicate ballpark locations for API batching."""
+        unique = {}
+        for _, bp in games:
+            if bp.id not in unique:
+                unique[bp.id] = {
+                    "id": bp.id,
+                    "lat": bp.latitude or 0.0,
+                    "lon": bp.longitude or 0.0,
+                    "code": bp.team_name or "UNK",
+                }
+        return list(unique.values())
+
+    def _persist_year_weather(self, year, games, lookup):
+        """Helper to bulk persist weather records."""
+        with self.session_factory() as session:
             inserted = 0
-            for game, ballpark in year_games:
-                orm = self._map_game_to_weather(year, game, ballpark, weather_lookup)
+            for g, bp in games:
+                orm = self._map_game_to_weather(year, g, bp, lookup)
                 if orm:
-                    bulk_session.merge(orm)
+                    session.merge(orm)
                     inserted += 1
-                    if inserted % 50 == 0:
-                        logger.info(
-                            f"⏳ Processed {inserted} / {len(year_games)} games for {year}..."
-                        )
                     if inserted % 200 == 0:
-                        bulk_session.commit()
-
-            bulk_session.commit()
+                        session.commit()
+            session.commit()
         logger.info(f"✅ Ingested {inserted} weather progressions for {year}")
 
     def _map_game_to_weather(self, year, game, ballpark, lookup):
-        """Maps a single game to its weather progression ORM."""
+        """Maps game to weather using the precise ballpark_id anchor."""
         if not game.game_datetime:
-            return None
-
-        code = next(
-            (
-                k
-                for k, synonyms in TEAM_NAME_MAP.items()
-                if ballpark.team_name in synonyms
-            ),
-            None,
-        )
-        if not code:
             return None
 
         t0 = game.game_datetime.astimezone(ZoneInfo("UTC")).replace(
@@ -302,7 +295,7 @@ class OpenMeteoIngester:
         rows = []
         for h in range(5):
             ts_iso = (t0 + datetime.timedelta(hours=h)).strftime("%Y-%m-%dT%H:00:00Z")
-            row = lookup.get((code, ts_iso))
+            row = lookup.get((ballpark.id, ts_iso))
             if row:
                 rows.append(row)
 

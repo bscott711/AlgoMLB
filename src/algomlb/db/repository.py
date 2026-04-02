@@ -122,6 +122,7 @@ class DatabaseRepository:
             existing.home_score = game.home_score
             existing.away_score = game.away_score
             existing.status = game.status
+            existing.game_type = game.game_type
             if ballpark_id:
                 existing.ballpark_id = ballpark_id
         else:
@@ -138,6 +139,7 @@ class DatabaseRepository:
                 home_score=game.home_score,
                 away_score=game.away_score,
                 status=game.status,
+                game_type=game.game_type,
                 ballpark_id=ballpark_id,
             )
             self.session.add(orm)

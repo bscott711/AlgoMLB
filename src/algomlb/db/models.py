@@ -69,7 +69,7 @@ class GameResultORM(Base):
         Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED
     )
     game_type: Mapped[Optional[GameType]] = mapped_column(
-        Enum(GameType), nullable=True, default=GameType.REGULAR_SEASON
+        String(20), nullable=True, default=GameType.REGULAR_SEASON
     )
     ballpark_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("ballparks.id"), nullable=True
