@@ -26,8 +26,8 @@ class MLBStatsAPIClient(BaseAPIClient):
         e_str = (end_date or start_date or datetime.date.today()).strftime("%Y-%m-%d")
 
         # sportId=1 is the identifier for MLB
-        # Default to Regular Season (R) and Postseason (P) to ignore exhibition games
-        g_types = game_types or ["R", "P"]
+        # Default to Regular Season (R) and all Postseason types (F, D, L, W)
+        g_types = game_types or ["R", "P", "F", "D", "L", "W"]
         path = "/schedule"
         params = {
             "sportId": 1,

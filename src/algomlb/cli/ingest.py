@@ -343,23 +343,10 @@ def weather(
     ctx: typer.Context,
     start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
-    proxies: str = typer.Option(
-        None, "--proxies", help="Comma-separated list of proxy URLs"
-    ),
-    auto_proxies: bool = typer.Option(
-        False, "--auto-proxies", help="Automatically fetch free proxies"
-    ),
-    workers: int = typer.Option(1, "--workers", help="Number of parallel workers"),
 ):
     """Fetch Open-Meteo weather progression and market deltas."""
-    from algomlb.ingestion.proxies import fetch_free_proxies
-
     # Setup Infrastructure
     session_factory = get_session_factory()
-
-    proxy_list = [p.strip() for p in proxies.split(",")] if proxies else []
-    if auto_proxies:
-        proxy_list.extend(fetch_free_proxies())
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
@@ -367,7 +354,7 @@ def weather(
         stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
-        openmeteo_ingester = OpenMeteoIngester(session_factory, proxies=proxy_list or None)
+        openmeteo_ingester = OpenMeteoIngester(session_factory)
         orchestrator = IngestionOrchestrator(
             repo,
             odds_client,
@@ -384,6 +371,6 @@ def weather(
             f"Starting weather ingestion for {start or 'trailing 7d'} to {end or 'trailing 7d'}..."
         )
         orchestrator.run_weather_ingestion(
-            start_date=s_date, end_date=e_date, workers=workers
+            start_date=s_date, end_date=e_date
         )
         logger.success("Successfully completed weather ingestion.")

@@ -1,5 +1,5 @@
 import datetime
-from typing import Any
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 import openmeteo_requests
@@ -36,14 +36,36 @@ MLB_STADIUM_COORDS: dict[str, tuple[float, float]] = {
 
 # Mapping to DB Team Names (for ballpark lookups)
 TEAM_NAME_MAP = {
-    "ARI": "Arizona Diamondbacks", "ATL": "Atlanta Braves", "BAL": "Baltimore Orioles", "BOS": "Boston Red Sox",
-    "CHC": "Chicago Cubs", "CWS": "Chicago White Sox", "CIN": "Cincinnati Reds", "CLE": "Cleveland Guardians",
-    "COL": "Colorado Rockies", "DET": "Detroit Tigers", "HOU": "Houston Astros", "KC": "Kansas City Royals",
-    "LAA": "Los Angeles Angels", "LAD": "Los Angeles Dodgers", "MIA": "Miami Marlins", "MIL": "Milwaukee Brewers",
-    "MIN": "Minnesota Twins", "NYM": "New York Mets", "NYY": "New York Yankees", "OAK": "Oakland Athletics",
-    "PHI": "Philadelphia Phillies", "PIT": "Pittsburgh Pirates", "SD": "San Diego Padres", "SF": "San Francisco Giants",
-    "SEA": "Seattle Mariners", "STL": "St. Louis Cardinals", "TB": "Tampa Bay Rays", "TEX": "Texas Rangers",
-    "TOR": "Toronto Blue Jays", "WSH": "Washington Nationals"
+    "ARI": ["Arizona Diamondbacks", "AZ", "ARI"],
+    "ATL": ["Atlanta Braves", "ATL"],
+    "BAL": ["Baltimore Orioles", "BAL"],
+    "BOS": ["Boston Red Sox", "BOS"],
+    "CHC": ["Chicago Cubs", "CHC"],
+    "CWS": ["Chicago White Sox", "CWS"],
+    "CIN": ["Cincinnati Reds", "CIN"],
+    "CLE": ["Cleveland Guardians", "CLE"],
+    "COL": ["Colorado Rockies", "COL"],
+    "DET": ["Detroit Tigers", "DET"],
+    "HOU": ["Houston Astros", "HOU"],
+    "KC": ["Kansas City Royals", "KC"],
+    "LAA": ["Los Angeles Angels", "LAA"],
+    "LAD": ["Los Angeles Dodgers", "LAD"],
+    "MIA": ["Miami Marlins", "MIA"],
+    "MIL": ["Milwaukee Brewers", "MIL"],
+    "MIN": ["Minnesota Twins", "MIN"],
+    "NYM": ["New York Mets", "NYM"],
+    "NYY": ["New York Yankees", "NYY"],
+    "OAK": ["Oakland Athletics", "OAK"],
+    "PHI": ["Philadelphia Phillies", "PHI"],
+    "PIT": ["Pittsburgh Pirates", "PIT"],
+    "SD": ["San Diego Padres", "SD"],
+    "SF": ["San Francisco Giants", "SF"],
+    "SEA": ["Seattle Mariners", "SEA"],
+    "STL": ["St. Louis Cardinals", "STL"],
+    "TB": ["Tampa Bay Rays", "TB"],
+    "TEX": ["Texas Rangers", "TEX"],
+    "TOR": ["Toronto Blue Jays", "TOR"],
+    "WSH": ["Washington Nationals", "WSH"]
 }
 
 
@@ -61,12 +83,20 @@ class OpenMeteoIngester:
         cache_session = requests_cache.CachedSession(
             ".openmeteo_cache", expire_after=-1, allowable_codes=(200,)
         )
-        retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+        retry_session = retry(cache_session, retries=10, backoff_factor=1.0)
         self.om = openmeteo_requests.Client(session=retry_session)
 
-    def fetch_season_weather(self, year: int) -> pd.DataFrame:
-        """Downloads full-season hourly weather for all MLB stadiums in a single batch."""
-        if year >= 2022:
+    def fetch_season_weather(
+        self, 
+        year: int, 
+        start_date: Optional[str] = None, 
+        end_date: Optional[str] = None
+    ) -> pd.DataFrame:
+        """Downloads weather for stadiums. Defaults to full season batch if range not provided."""
+        if year >= 2026: # For current season, use the high-reliability primary API
+            url = "https://api.open-meteo.com/v1/forecast"
+            models = "best_match"
+        elif year >= 2022:
             url = "https://historical-forecast-api.open-meteo.com/v1/forecast"
             models = "best_match"
         else:
@@ -74,36 +104,52 @@ class OpenMeteoIngester:
             models = "era5"
 
         teams = list(MLB_STADIUM_COORDS.keys()); lats, lons = zip(*MLB_STADIUM_COORDS.values())
-        start_date = f"{year}-03-20"
-        end_date = f"{year}-11-05" if year < datetime.datetime.now().year else (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+        
+        # Heuristic: Start 6h before potential first game on start_date, end 12h after potential last game on end_date
+        s_date = start_date or f"{year}-03-20"
+        e_date = end_date or (f"{year}-11-05" if year < datetime.date.today().year else datetime.date.today().strftime("%Y-%m-%d"))
 
         params = {
-            "latitude": lats, "longitude": lons, "start_date": start_date, "end_date": end_date,
+            "latitude": lats, "longitude": lons, "start_date": s_date, "end_date": e_date,
             "hourly": ["temperature_2m", "wind_speed_10m", "wind_direction_10m", "precipitation", "relative_humidity_2m", "surface_pressure", "cloud_cover"],
             "temperature_unit": "fahrenheit", "wind_speed_unit": "mph", "timezone": "GMT", "models": models,
         }
 
-        logger.info(f"📡 Downloading {year} season weather ({models}) for all 30 stadiums...")
-        responses = self.om.weather_api(url, params=params)
-        
         all_data = []
-        for i, res in enumerate(responses):
-            h = res.Hourly()
-            if not h: continue
-            df = pd.DataFrame({
-                "stadium_code": teams[i],
-                "datetime_utc": pd.date_range(
-                    start=pd.to_datetime(h.Time(), unit="s", utc=True), 
-                    end=pd.to_datetime(h.TimeEnd(), unit="s", utc=True), 
-                    freq=pd.Timedelta(seconds=h.Interval()), inclusive="left", tz="UTC"
-                ),
-                "temp": h.Variables(0).ValuesAsNumpy(), "wind_speed": h.Variables(1).ValuesAsNumpy(),
-                "wind_dir": h.Variables(2).ValuesAsNumpy(), "precip": h.Variables(3).ValuesAsNumpy(),
-                "humidity": h.Variables(4).ValuesAsNumpy(), "pressure": h.Variables(5).ValuesAsNumpy(),
-                "cloud_cover": h.Variables(6).ValuesAsNumpy(),
-            })
-            df.ffill(inplace=True); df.fillna(0.0, inplace=True)
-            all_data.append(df)
+        batch_size = 5 # Small batches to avoid 'Too many concurrent requests' (often triggered by large payload parsing)
+        
+        for i in range(0, len(teams), batch_size):
+            batch_teams = teams[i:i+batch_size]
+            batch_lats = lats[i:i+batch_size]
+            batch_lons = lons[i:i+batch_size]
+            
+            params["latitude"] = batch_lats
+            params["longitude"] = batch_lons
+            
+            logger.info(f"📡 Downloading {year} weather for stadiums {batch_teams}...")
+            responses = self.om.weather_api(url, params=params)
+            
+            for j, res in enumerate(responses):
+                h = res.Hourly()
+                if not h: continue
+                df = pd.DataFrame({
+                    "stadium_code": batch_teams[j],
+                    "datetime_utc": pd.date_range(
+                        start=pd.to_datetime(h.Time(), unit="s", utc=True), 
+                        end=pd.to_datetime(h.TimeEnd(), unit="s", utc=True), 
+                        freq=pd.Timedelta(seconds=h.Interval()), inclusive="left", tz="UTC"
+                    ),
+                    "temp": h.Variables(0).ValuesAsNumpy(), "wind_speed": h.Variables(1).ValuesAsNumpy(),
+                    "wind_dir": h.Variables(2).ValuesAsNumpy(), "precip": h.Variables(3).ValuesAsNumpy(),
+                    "humidity": h.Variables(4).ValuesAsNumpy(), "pressure": h.Variables(5).ValuesAsNumpy(),
+                    "cloud_cover": h.Variables(6).ValuesAsNumpy(),
+                })
+                df.ffill(inplace=True); df.fillna(0.0, inplace=True)
+                all_data.append(df)
+            
+            # Tiny sleep to breathe
+            import time
+            time.sleep(1.0)
         
         return pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
 
@@ -112,10 +158,14 @@ class OpenMeteoIngester:
         with self.session_factory() as session:
             # 1. Fetch missing games in range
             existing = select(OpenMeteoWeatherProgressionORM.game_id)
-            stmt = select(GameResultORM, BallparkORM).join(BallparkORM).where(
-                GameResultORM.game_date >= start_date,
-                GameResultORM.game_date <= end_date,
-                ~GameResultORM.game_id.in_(existing)
+            stmt = (
+                select(GameResultORM, BallparkORM)
+                .join(BallparkORM, GameResultORM.ballpark_id == BallparkORM.id)
+                .where(
+                    GameResultORM.game_date >= start_date,
+                    GameResultORM.game_date <= end_date,
+                    ~GameResultORM.game_id.in_(existing),
+                )
             )
             games = session.execute(stmt).all()
             if not games: 
@@ -129,7 +179,11 @@ class OpenMeteoIngester:
                 games_by_year[y].append((g, bp))
 
         for year in sorted(games_by_year.keys(), reverse=True):
-            df_weather = self.fetch_season_weather(year)
+            df_weather = self.fetch_season_weather(
+                year, 
+                start_date=start_date.strftime("%Y-%m-%d"), 
+                end_date=end_date.strftime("%Y-%m-%d")
+            )
             if df_weather.empty: continue
             
             # Use ISO-timestamp keys for absolute join stability
@@ -140,7 +194,7 @@ class OpenMeteoIngester:
                 inserted = 0
                 for game, ballpark in games_by_year[year]:
                     if not game.game_datetime: continue
-                    code = next((k for k, v in TEAM_NAME_MAP.items() if v == ballpark.team_name), None)
+                    code = next((k for k, synonyms in TEAM_NAME_MAP.items() if ballpark.team_name in synonyms), None)
                     if not code: continue
 
                     # Snap to hour and convert to ISO for lookup

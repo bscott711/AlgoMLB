@@ -71,7 +71,9 @@ class GameResultORM(Base):
     game_type: Mapped[Optional[GameType]] = mapped_column(
         Enum(GameType), nullable=True, default=GameType.REGULAR_SEASON
     )
-    ballpark_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    ballpark_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("ballparks.id"), nullable=True
+    )
 
     # Environmental Context
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
