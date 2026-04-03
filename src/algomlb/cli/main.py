@@ -1,5 +1,5 @@
 import typer
-from algomlb.cli import db, ingest, ml, run, ui
+from algomlb.cli import db, ingest, ml, process, run, ui
 
 app = typer.Typer(
     name="algomlb",
@@ -10,6 +10,7 @@ app = typer.Typer(
 app.add_typer(db.app, name="db")
 app.add_typer(ingest.app, name="ingest")
 app.add_typer(ml.app, name="ml")
+app.add_typer(process.app, name="process")
 app.add_typer(run.app, name="run")
 app.add_typer(ui.app, name="ui")
 
