@@ -1,5 +1,16 @@
-import typer
+from datetime import date, timedelta
 from typing import Optional
+
+import typer
+
+from algomlb.config.settings import get_settings
+from algomlb.db.models import StatcastRawORM
+from algomlb.db.repository import DatabaseRepository
+from algomlb.db.session import get_engine
+from algomlb.ml.rolling_processor import RollingProcessor
+from algomlb.ml.rolling_service import RollingService
+from sqlalchemy import select
+import pandas as pd
 
 app = typer.Typer(help="Run processing and feature-engineering jobs.")
 
@@ -30,7 +41,6 @@ def quant(
         process_quant_for_date,
         process_quant_for_game,
     )
-    from datetime import date, timedelta
 
     total = 0
 
@@ -60,6 +70,49 @@ def quant(
     typer.echo(f"Quant processing complete. Rows written: {total}")
 
 
+@app.command("rolling")
+def process_rolling(
+    start_date: Optional[str] = typer.Option(
+        None, "--start", "--start-date", help="Start date (YYYY-MM-DD)"
+    ),
+    end_date: Optional[str] = typer.Option(
+        None, "--end", "--end-date", help="End date (YYYY-MM-DD)"
+    ),
+    single_date: Optional[str] = typer.Option(
+        None, "--date", help="Single date to process (YYYY-MM-DD)"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Compute but do not save"),
+):
+    """
+    Generate rolling statistics (Gold Layer) from Silver logs.
+    Example: algomlb process rolling --start 2024-03-20 --end 2024-10-01
+    """
+    from algomlb.db.session import get_session_factory
+
+    settings = get_settings()
+    session = get_session_factory()()
+    db = DatabaseRepository(session)
+    processor = RollingProcessor(settings.ml)
+    service = RollingService(db, processor)
+
+    target_start: Optional[date] = None
+    target_end: Optional[date] = None
+
+    if single_date:
+        target_start = date.fromisoformat(single_date)
+        target_end = target_start
+    elif start_date:
+        target_start = date.fromisoformat(start_date)
+        target_end = date.fromisoformat(end_date) if end_date else target_start
+    else:
+        typer.echo("Error: Please provide --date or --start", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Processing rolling features from {target_start} to {target_end}...")
+    count = service.process_date_range(target_start, target_end, dry_run=dry_run)
+    typer.echo(f"Done. Processed {count} rolling records.")
+
+
 @app.command("silver")
 def silver(
     game_date: Optional[str] = typer.Option(
@@ -81,11 +134,6 @@ def silver(
         summarize_to_silver,
         fetch_prior_year_stats,
     )
-    from algomlb.db.session import get_engine
-    from algomlb.db.models import StatcastRawORM
-    from sqlalchemy import select
-    from datetime import date
-    import pandas as pd
 
     if incremental:
         process_silver_incremental(batch_size=batch_size)

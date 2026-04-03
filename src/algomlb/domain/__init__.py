@@ -5,6 +5,8 @@ from algomlb.domain.models import (
     GameType,
     Odds,
     TransactionStatus,
+    PlayerRole,
+    BaselineQuality,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     "GameType",
     "Odds",
     "TransactionStatus",
+    "PlayerRole",
+    "BaselineQuality",
 ]

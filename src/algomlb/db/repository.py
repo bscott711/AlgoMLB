@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 
 from sqlalchemy import func, select
@@ -11,6 +12,7 @@ from algomlb.db.models import (
     HistoricalOddsORM,
     LiveOddsORM,
     PitchEventORM,
+    PlayerRollingFeaturesORM,
     PlayerTransactionORM,
     RetrosheetEventORM,
     StatcastRawORM,
@@ -314,3 +316,54 @@ class DatabaseRepository:
             total_inserted += len(chunk)
         self.session.commit()
         return total_inserted
+
+    def get_season_start_date(self, year: int) -> date:
+        """
+        Dynamically find the first regular season game date for a given year.
+        Uses game_results table which must be pre-populated.
+        """
+        from algomlb.domain import GameType
+
+        stmt = (
+            select(func.min(GameResultORM.game_date))
+            .where(func.extract("year", GameResultORM.game_date) == year)
+            .where(GameResultORM.game_type == GameType.REGULAR_SEASON)
+        )
+        res = self.session.execute(stmt).scalar()
+        if not res:
+            # Fallback for years without games in DB yet
+            return date(year, 3, 20)
+        return res
+
+    def save_player_rolling_features_records(
+        self, records: List[PlayerRollingFeaturesORM]
+    ) -> int:
+        """Bulk upsert rolling features with chunking."""
+        if not records:
+            return 0
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        rows_as_dicts = [
+            {k: v for k, v in r.__dict__.items() if not k.startswith("_")}
+            for r in records
+        ]
+
+        chunk_size = 500
+        total_upserted = 0
+        for i in range(0, len(rows_as_dicts), chunk_size):
+            chunk = rows_as_dicts[i : i + chunk_size]
+            stmt = pg_insert(PlayerRollingFeaturesORM).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["player_id", "game_date", "role"],
+                set_={
+                    c: stmt.excluded[c]
+                    for c in rows_as_dicts[0]
+                    if c not in ["id", "player_id", "game_date", "role"]
+                },
+            )
+            self.session.execute(stmt)
+            total_upserted += len(chunk)
+
+        self.session.commit()
+        return total_upserted

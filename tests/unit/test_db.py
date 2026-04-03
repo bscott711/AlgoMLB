@@ -8,6 +8,8 @@ from algomlb.db import (
     DatabaseRepository,
     HistoricalDataORM,
     PitchEventORM,
+    PlayerRollingFeaturesORM,
+    GameResultORM,
     create_db_engine,
 )
 from algomlb.domain import (
@@ -16,6 +18,7 @@ from algomlb.domain import (
     GameStatus,
     Odds,
     TransactionStatus,
+    PlayerRole,
 )
 
 
@@ -548,3 +551,65 @@ def test_save_statcast_raw_empty(test_session: Session) -> None:
     """Test saving empty list return early."""
     repo = DatabaseRepository(test_session)
     assert repo.save_statcast_raw([]) == 0
+
+
+def test_get_season_start_date(test_session: Session) -> None:
+    """Test getting the earliest regular season game date."""
+    from algomlb.domain import GameType
+
+    repo = DatabaseRepository(test_session)
+    g1 = GameResultORM(
+        game_id="G1",
+        game_date=date(2024, 3, 28),
+        home_team="NYY",
+        away_team="HOU",
+        home_score=0,
+        away_score=0,
+        game_type=GameType.REGULAR_SEASON,
+    )
+    test_session.add(g1)
+    test_session.commit()
+
+    res = repo.get_season_start_date(2024)
+    assert res == date(2024, 3, 28)
+
+
+def test_get_season_start_date_fallback(test_session: Session) -> None:
+    """Test fallback date when no games are in DB."""
+    repo = DatabaseRepository(test_session)
+    res = repo.get_season_start_date(1999)
+    assert res == date(1999, 3, 20)
+
+
+def test_save_player_rolling_features_records(test_session: Session) -> None:
+    """Test bulk upserting rolling features."""
+    repo = DatabaseRepository(test_session)
+    from algomlb.domain import BaselineQuality
+
+    records = [
+        PlayerRollingFeaturesORM(
+            player_id=1,
+            game_date=date(2024, 4, 1),
+            season=2024,
+            role=PlayerRole.PITCHER,
+            window_games=5,
+            baseline_quality=BaselineQuality.FULL,
+            roll_avg_pitcher_xwoba=0.300,
+        )
+    ]
+    count = repo.save_player_rolling_features_records(records)
+    assert count == 1
+
+    # Update
+    records[0].roll_avg_pitcher_xwoba = 0.250
+    count2 = repo.save_player_rolling_features_records(records)
+    assert count2 == 1
+
+    retrieved = test_session.query(PlayerRollingFeaturesORM).one()
+    assert retrieved.roll_avg_pitcher_xwoba == 0.250
+
+
+def test_save_player_rolling_features_records_empty(test_session: Session) -> None:
+    """Test empty list returns 0."""
+    repo = DatabaseRepository(test_session)
+    assert repo.save_player_rolling_features_records([]) == 0

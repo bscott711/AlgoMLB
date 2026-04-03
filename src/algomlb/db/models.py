@@ -10,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
@@ -21,7 +22,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from algomlb.db.session import Base
-from algomlb.domain import GameStatus, TransactionStatus, GameType
+from algomlb.domain import (
+    GameStatus,
+    TransactionStatus,
+    GameType,
+    PlayerRole,
+    BaselineQuality,
+)
 
 
 class LiveOddsORM(Base):
@@ -478,15 +485,60 @@ class HistoricalDataORM(Base):
 
 
 class PlayerRollingFeaturesORM(Base):
-    """Rolling window features for ML models (e.g. L7 ER, L14 wOBA)"""
+    """
+    Gold Layer: Pre-materialized rolling features for ML training/inference.
+    Calculated from StatcastPlayerGameLog using role-specific windows.
+    """
 
     __tablename__ = "player_rolling_features"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    feature_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    feature_value: Mapped[float] = mapped_column(Float, nullable=False)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    season: Mapped[int] = mapped_column(SmallInteger, nullable=False, index=True)
+    role: Mapped[PlayerRole] = mapped_column(Enum(PlayerRole), nullable=False)
+
+    # Window Metadata
+    window_games: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    n_games_used: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    days_since_last_game: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    baseline_quality: Mapped[BaselineQuality] = mapped_column(
+        Enum(BaselineQuality), nullable=False, default=BaselineQuality.COLD_START
+    )
+    shrinkage_applied: Mapped[bool] = mapped_column(Boolean, default=False)
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # --- PITCHER Rolling Features ---
+    roll_pitches: Mapped[Optional[float]] = mapped_column(Float)
+    roll_strikes_pct: Mapped[Optional[float]] = mapped_column(Float)
+    roll_whiff_pct: Mapped[Optional[float]] = mapped_column(Float)
+    roll_k_pct: Mapped[Optional[float]] = mapped_column(Float)
+    roll_bb_pct: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_release_speed: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_pfx_x: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_pfx_z: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_pitcher_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+    roll_pitcher_xwoba_shrunk: Mapped[Optional[float]] = mapped_column(Float)
+
+    # --- BATTER Rolling Features ---
+    roll_pas: Mapped[Optional[float]] = mapped_column(Float)
+    roll_hits_per_pa: Mapped[Optional[float]] = mapped_column(Float)
+    roll_k_pct_batter: Mapped[Optional[float]] = mapped_column(Float)
+    roll_bb_pct_batter: Mapped[Optional[float]] = mapped_column(Float)
+    roll_barrel_pct: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_launch_speed: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_launch_angle: Mapped[Optional[float]] = mapped_column(Float)
+    roll_avg_batter_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+    roll_batter_xwoba_shrunk: Mapped[Optional[float]] = mapped_column(Float)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "player_id", "game_date", "role", name="uq_player_rolling_features"
+        ),
+        Index("ix_prf_date_role", "game_date", "role"),
+    )
 
 
 class OpenMeteoWeatherProgressionORM(Base):

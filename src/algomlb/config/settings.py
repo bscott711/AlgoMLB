@@ -86,6 +86,23 @@ class MLConfig(BaseSettings):
         default=250, ge=0, description="Shrinkage factor (k) for batter metrics"
     )
 
+    # --- Rolling Layer (Epic 2.4) ---
+    pitcher_rolling_games: int = Field(
+        default=5, ge=1, description="Number of pitcher games for rolling window"
+    )
+    batter_rolling_games: int = Field(
+        default=20, ge=1, description="Number of batter games for rolling window"
+    )
+    league_mean_pitcher_xwoba: float = Field(
+        default=0.320, description="Population mean for pitcher xwOBA shrinkage"
+    )
+    league_mean_batter_xwoba: float = Field(
+        default=0.320, description="Population mean for batter xwOBA shrinkage"
+    )
+    rolling_shrinkage_k: float = Field(
+        default=5.0, ge=0.0, description="Bayesian shrinkage constant (k)"
+    )
+
 
 class DBHealthConfig(BaseModel):
     """Configuration for database health and introspection."""

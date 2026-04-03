@@ -54,8 +54,11 @@ def test_silver_incremental(mock_ml_funcs):
 
 def test_silver_date(mock_ml_funcs):
     with (
-        patch("algomlb.db.session.get_engine"),
-        patch("pandas.read_sql", return_value=pd.DataFrame({"game_pk": [1]})),
+        patch("algomlb.cli.process.get_engine"),
+        patch(
+            "algomlb.cli.process.pd.read_sql",
+            return_value=pd.DataFrame({"game_pk": [1]}),
+        ),
     ):
         result = runner.invoke(app, ["silver", "--date", "2025-04-01"])
         assert result.exit_code == 0
@@ -65,8 +68,11 @@ def test_silver_date(mock_ml_funcs):
 def test_silver_year(mock_ml_funcs):
     mock_engine = MagicMock()
     with (
-        patch("algomlb.db.session.get_engine", return_value=mock_engine),
-        patch("pandas.read_sql", return_value=pd.DataFrame({"game_pk": [1]})),
+        patch("algomlb.cli.process.get_engine", return_value=mock_engine),
+        patch(
+            "algomlb.cli.process.pd.read_sql",
+            return_value=pd.DataFrame({"game_pk": [1]}),
+        ),
     ):
         mock_engine.connect.return_value.__enter__.return_value.execute.return_value.fetchall.return_value = [
             (datetime.date(2025, 4, 1),)
@@ -78,7 +84,7 @@ def test_silver_year(mock_ml_funcs):
 
 def test_silver_year_empty(mock_ml_funcs):
     mock_engine = MagicMock()
-    with patch("algomlb.db.session.get_engine", return_value=mock_engine):
+    with patch("algomlb.cli.process.get_engine", return_value=mock_engine):
         mock_engine.connect.return_value.__enter__.return_value.execute.return_value.fetchall.return_value = []
         result = runner.invoke(app, ["silver", "--year", "2025"])
         assert result.exit_code == 0
@@ -93,8 +99,8 @@ def test_silver_error(mock_ml_funcs):
 def test_silver_date_empty(mock_ml_funcs):
     """Test 'silver --date' when no raw data is available."""
     with (
-        patch("algomlb.db.session.get_engine"),
-        patch("pandas.read_sql", return_value=pd.DataFrame()),
+        patch("algomlb.cli.process.get_engine"),
+        patch("algomlb.cli.process.pd.read_sql", return_value=pd.DataFrame()),
     ):
         result = runner.invoke(app, ["silver", "--date", "2025-04-01"])
         assert result.exit_code == 0

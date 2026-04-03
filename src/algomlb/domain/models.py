@@ -25,6 +25,21 @@ class GameType(StrEnum):
     ALL_STAR = "A"
 
 
+class PlayerRole(StrEnum):
+    """Role of a player in a game."""
+
+    PITCHER = "PITCHER"
+    BATTER = "BATTER"
+
+
+class BaselineQuality(StrEnum):
+    """Quality of a rolling window baseline."""
+
+    COLD_START = "cold_start"
+    PARTIAL = "partial"
+    FULL = "full"
+
+
 class Game(BaseModel):
     """Represents a scheduled or completed baseball game."""
 

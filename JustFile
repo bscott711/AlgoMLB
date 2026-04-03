@@ -187,6 +187,26 @@ backfill-statcast year='2024':
 process-silver-year year="2025":
     uv run algomlb process silver --year {{year}}
 
+# Process Silver Layer (Game Logs)
+process-silver:
+    uv run algomlb process silver
+
+# Process Rolling Features (Gold Layer) for a date range
+roll start end:
+    uv run algomlb process rolling --start {{start}} --end {{end}}
+
+# Backfill example for 2024 season
+roll-backfill-2024:
+    uv run algomlb process rolling --start 2024-03-20 --end 2024-10-01
+
+# Process rolling features for today
+roll-today:
+    uv run algomlb process rolling --date $(date +%Y-%m-%d)
+
+# Dry-run rolling features for a date
+roll-dry date:
+    uv run algomlb process rolling --date {{date}} --dry-run
+
 # Process silver logs for today
 process-silver-today:
     uv run algomlb process silver --date $(date +%Y-%m-%d)
