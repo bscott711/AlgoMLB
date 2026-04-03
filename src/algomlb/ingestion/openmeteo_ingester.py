@@ -102,6 +102,19 @@ class OpenMeteoIngester:
         retry_session = retry(self.cache_session, retries=10, backoff_factor=1.0)
         self.om = openmeteo_requests.Client(session=retry_session)  # type: ignore
 
+    def fetch_season_weather(
+        self,
+        year: int,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Helper to fetch year-long weather for all MLB stadiums."""
+        locations = [
+            {"id": i, "lat": lat, "lon": lon, "code": code}
+            for i, (code, (lat, lon)) in enumerate(MLB_STADIUM_COORDS.items())
+        ]
+        return self.fetch_weather_batch(year, locations, start_date, end_date)
+
     def fetch_weather_batch(
         self,
         year: int,

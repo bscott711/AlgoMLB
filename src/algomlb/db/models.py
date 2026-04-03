@@ -9,6 +9,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Numeric,
     SmallInteger,
@@ -122,20 +123,39 @@ class PitchEventORM(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    at_bat_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     pitcher_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     batter_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    at_bat_number: Mapped[int] = mapped_column(Integer, nullable=True)
+    pitch_number: Mapped[int] = mapped_column(Integer, nullable=True)
+    inning: Mapped[int] = mapped_column(Integer, nullable=True)
+    zone: Mapped[int] = mapped_column(Integer, nullable=True)
+
+    # Pitch Metrics
+    pitch_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     release_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     release_spin_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    release_extension: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    effective_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pfx_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pfx_z: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     plate_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     plate_z: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Batted Ball Metrics
     launch_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     launch_angle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    pitch_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+    # Event Data
+    events: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+
+    # Participant Metadata
+    stand: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    p_throws: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
 
     bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
@@ -680,3 +700,121 @@ class StatcastRawORM(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     pybaseball_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+
+class StatcastQuantFeatures(Base):
+    """
+    ML-ready quantitative features derived from StatcastRaw.
+    """
+
+    __tablename__ = "statcast_quant_features"
+
+    game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    batter: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    pitcher: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    # Metrics
+    xba_raw: Mapped[Optional[float]] = mapped_column(Float)
+    xba_calibrated: Mapped[Optional[float]] = mapped_column(Float)
+    xwoba_raw: Mapped[Optional[float]] = mapped_column(Float)
+    xwoba_calibrated: Mapped[Optional[float]] = mapped_column(Float)
+    launch_quality: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    pfx_x_std: Mapped[Optional[float]] = mapped_column(Float)
+    pfx_z_std: Mapped[Optional[float]] = mapped_column(Float)
+    release_speed_std: Mapped[Optional[float]] = mapped_column(Float)
+    spray_angle_deg: Mapped[Optional[float]] = mapped_column(Float)
+    hit_x_ft: Mapped[Optional[float]] = mapped_column(Float)
+    hit_y_ft: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Metadata
+    calibrated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    baseline_window_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["game_pk", "at_bat_number", "pitch_number"],
+            [
+                "statcast_raw.game_pk",
+                "statcast_raw.at_bat_number",
+                "statcast_raw.pitch_number",
+            ],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "game_pk",
+            "at_bat_number",
+            "pitch_number",
+            name="uq_statcast_quant_features_pk",
+        ),
+    )
+
+
+class StatcastPlayerGameLog(Base):
+    """
+    Silver Medallion Layer: Game-level summary of player performance metrics.
+    Acts as the source for Bayesian shrinkage and rolling feature generation.
+    """
+
+    __tablename__ = "statcast_player_game_logs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(
+        String(10), nullable=False
+    )  # 'PITCHER' or 'BATTER'
+
+    # --- Pitcher Metrics ---
+    pitches: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    strikes: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    whiffs: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    k: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    bb: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    avg_release_speed: Mapped[Optional[float]] = mapped_column(Float)
+    avg_pfx_x: Mapped[Optional[float]] = mapped_column(Float)
+    avg_pfx_z: Mapped[Optional[float]] = mapped_column(Float)
+    avg_pitcher_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+
+    # --- Batter Metrics ---
+    pas: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    abs: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    hits: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    batter_k: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    batter_bb: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    barrels: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    avg_launch_speed: Mapped[Optional[float]] = mapped_column(Float)
+    avg_launch_angle: Mapped[Optional[float]] = mapped_column(Float)
+    avg_batter_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+
+    # --- Metadata ---
+    summarized_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk", "player_id", "role", name="uq_statcast_player_game_log"
+        ),
+    )
+
+
+class StatcastProcessRegistry(Base):
+    """
+    Tracks the high-water mark for incremental processing of Statcast data.
+    """
+
+    __tablename__ = "statcast_process_registry"
+
+    target_table: Mapped[str] = mapped_column(String(50), primary_key=True)
+    last_processed_ingested_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

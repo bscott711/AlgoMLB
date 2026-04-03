@@ -484,3 +484,67 @@ def test_save_player_transactions_empty(test_session: Session) -> None:
     """Test saving empty list return early."""
     repo = DatabaseRepository(test_session)
     assert repo.save_player_transactions([]) == 0
+
+
+def test_save_statcast_raw(test_session: Session) -> None:
+    """Test bulk upserting raw Statcast data."""
+    repo = DatabaseRepository(test_session)
+    rows = [
+        {
+            "game_pk": 1,
+            "at_bat_number": 1,
+            "pitch_number": 1,
+            "game_date": date(2024, 4, 1),
+            "home_team": "NYY",
+            "away_team": "BOS",
+            "batter": 101,
+            "pitcher": 201,
+            "release_speed": 95.0,
+        },
+        {
+            "game_pk": 1,
+            "at_bat_number": 1,
+            "pitch_number": 2,
+            "game_date": date(2024, 4, 1),
+            "home_team": "NYY",
+            "away_team": "BOS",
+            "batter": 101,
+            "pitcher": 201,
+            "release_speed": 96.0,
+        },
+    ]
+
+    count = repo.save_statcast_raw(rows)
+    assert count == 2
+
+    # Update test
+    rows_update = [
+        {
+            "game_pk": 1,
+            "at_bat_number": 1,
+            "pitch_number": 1,
+            "game_date": date(2024, 4, 1),
+            "home_team": "NYY",
+            "away_team": "BOS",
+            "batter": 101,
+            "pitcher": 201,
+            "release_speed": 99.0,  # Updated
+        }
+    ]
+    count2 = repo.save_statcast_raw(rows_update)
+    assert count2 == 1
+
+    from algomlb.db.models import StatcastRawORM
+
+    res = (
+        test_session.query(StatcastRawORM)
+        .filter_by(game_pk=1, at_bat_number=1, pitch_number=1)
+        .one()
+    )
+    assert res.release_speed == 99.0
+
+
+def test_save_statcast_raw_empty(test_session: Session) -> None:
+    """Test saving empty list return early."""
+    repo = DatabaseRepository(test_session)
+    assert repo.save_statcast_raw([]) == 0

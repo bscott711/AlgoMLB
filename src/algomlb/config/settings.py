@@ -73,6 +73,19 @@ class MLConfig(BaseSettings):
         default=3.0, gt=0.0, description="Maximum units to risk on a single bet"
     )
 
+    # --- Quant Layer (Epic 2.2) ---
+    quant_baseline_window: int = Field(
+        default=14, ge=1, description="Days to look back for player baseline averages"
+    )
+
+    # --- Silver Layer (Epic 2.3) ---
+    quant_pitcher_shrinkage_k: int = Field(
+        default=75, ge=0, description="Shrinkage factor (k) for pitcher metrics"
+    )
+    quant_batter_shrinkage_k: int = Field(
+        default=250, ge=0, description="Shrinkage factor (k) for batter metrics"
+    )
+
 
 class DBHealthConfig(BaseModel):
     """Configuration for database health and introspection."""

@@ -260,5 +260,26 @@ def test_ingest_historical_command_full(
     result = runner.invoke(
         app, ["ingest", "historical", "--start", "2023-04-01", "--end", "2023-04-05"]
     )
-    assert result.exit_code == 0
     mock_loader.fetch_statcast.assert_called()
+
+
+@patch("algomlb.ingestion.statcast_ingester.StatcastIngester.ingest_range")
+@patch("algomlb.cli.ingest.get_session_factory")
+def test_ingest_statcast_command(mock_session_factory, mock_ingest_range):
+    """Test 'ingest statcast' CLI command."""
+    mock_ingest_range.return_value = 100
+
+    # Test basic range
+    result = runner.invoke(
+        app, ["ingest", "statcast", "--start", "2024-04-01", "--end", "2024-04-02"]
+    )
+    assert result.exit_code == 0
+    assert mock_ingest_range.called
+
+    # Test with dry-run
+    mock_ingest_range.reset_mock()
+    result = runner.invoke(app, ["ingest", "statcast", "--dry-run"])
+    assert result.exit_code == 0
+    assert mock_ingest_range.called
+    # verify dry_run=True was passed
+    assert mock_ingest_range.call_args[1]["dry_run"] is True

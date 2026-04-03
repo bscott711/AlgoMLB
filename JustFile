@@ -179,3 +179,18 @@ ingest-statcast-today:
 backfill-statcast year='2024':
 	@echo "📅 Backfilling Statcast for {{year}} season..."
 	uv run algomlb ingest statcast --start {{year}}-03-20 --end {{year}}-11-05
+# ==========================================
+# 7. SILVER LAYER (Medallion Epic 2.3)
+# ==========================================
+
+# Process silver game logs for a full year
+process-silver-year year="2025":
+    uv run algomlb process silver --year {{year}}
+
+# Process silver logs for today
+process-silver-today:
+    uv run algomlb process silver --date $(date +%Y-%m-%d)
+
+# Perform incremental silver processing (High-Water Mark)
+process-silver-incremental:
+    uv run algomlb process silver --incremental

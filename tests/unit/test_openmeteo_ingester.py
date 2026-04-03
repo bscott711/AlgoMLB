@@ -61,6 +61,7 @@ def test_ingest_range_integration(mock_session, ingester):
     game.game_date = datetime.date(2024, 4, 1)
     game.game_datetime = datetime.datetime(2024, 4, 1, 19, 0, tzinfo=datetime.UTC)
     ballpark = MagicMock()
+    ballpark.id = 1
     ballpark.team_name = "ARI"
     ballpark.hp_bearing_deg = 0.0
 
@@ -69,6 +70,7 @@ def test_ingest_range_integration(mock_session, ingester):
     # Mock fetch_season_weather to return exactly what's needed for "AZ" at 19:00:00Z
     weather_df = pd.DataFrame(
         {
+            "ballpark_id": [1] * 5,
             "stadium_code": ["AZ"] * 5,
             "datetime_utc": [
                 pd.Timestamp("2024-04-01 19:00:00", tz="UTC") + pd.Timedelta(hours=i)
@@ -84,7 +86,7 @@ def test_ingest_range_integration(mock_session, ingester):
         }
     )
 
-    with patch.object(ingester, "fetch_season_weather", return_value=weather_df):
+    with patch.object(ingester, "fetch_weather_batch", return_value=weather_df):
         with patch(
             "algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {"AZ": ["ARI"]}
         ):
@@ -129,11 +131,9 @@ def test_ingest_range_empty_db(mock_session, ingester):
     assert not mock_session.commit.called
 
 
-def test_process_year_weather_empty_api(ingester):
+def test_ingest_range_empty_api(ingester):
     with patch.object(ingester, "fetch_season_weather", return_value=pd.DataFrame()):
-        ingester._process_year_weather(
-            2024, datetime.date(2024, 1, 1), datetime.date(2024, 1, 1), []
-        )
+        ingester.ingest_range(datetime.date(2024, 1, 1), datetime.date(2024, 1, 1))
 
 
 def test_map_game_to_weather_missing_datetime(ingester):
@@ -209,17 +209,19 @@ def test_fetch_season_weather_incomplete_data(mock_om_client, ingester):
     assert df.empty
 
 
-def test_process_year_weather_batch_logic(ingester, mock_session):
+def test_ingest_range_batch_logic(ingester, mock_session):
     # Test batch commit and progress logging
     games = [(MagicMock(), MagicMock()) for _ in range(201)]
     for i, (g, bp) in enumerate(games):
         g.game_id = f"g{i}"
+        g.game_date = datetime.date(2024, 4, 1)
         g.game_datetime = datetime.datetime(2024, 4, 1, 10, 0, tzinfo=datetime.UTC)
         bp.team_name = "ARI"
         bp.hp_bearing_deg = 0.0
 
     weather_df = pd.DataFrame(
         {
+            "ballpark_id": [1] * 5,
             "stadium_code": ["AZ"] * 5,
             "datetime_utc": [
                 pd.Timestamp("2024-04-01 10:00:00", tz="UTC") + pd.Timedelta(hours=i)
@@ -235,12 +237,25 @@ def test_process_year_weather_batch_logic(ingester, mock_session):
         }
     )
 
-    with patch.object(ingester, "fetch_season_weather", return_value=weather_df):
+    with patch.object(ingester, "fetch_weather_batch", return_value=weather_df):
         with patch(
             "algomlb.ingestion.openmeteo_ingester.TEAM_NAME_MAP", {"AZ": ["ARI"]}
         ):
-            ingester._process_year_weather(
-                2024, datetime.date(2024, 4, 1), datetime.date(2024, 4, 1), games
-            )
+            # Mock the execute call in ingest_range
+            mock_session.execute.return_value.all.return_value = games
+            for _, bp in games:
+                bp.id = 1  # Standardize ID to match weather_df
+            ingester.ingest_range(datetime.date(2024, 4, 1), datetime.date(2024, 4, 1))
             # 201 games => commits at 200 and end. total >= 2
             assert mock_session.commit.call_count >= 2
+
+
+def test_process_year_weather_empty_df(ingester):
+    """Test early return when fetch_weather_batch returns empty DF."""
+    with patch.object(ingester, "fetch_weather_batch", return_value=pd.DataFrame()):
+        # Should return early and NOT call _persist_year_weather
+        with patch.object(ingester, "_persist_year_weather") as mock_persist:
+            ingester._process_year_weather(
+                2024, datetime.date(2024, 4, 1), datetime.date(2024, 4, 1), []
+            )
+            mock_persist.assert_not_called()
