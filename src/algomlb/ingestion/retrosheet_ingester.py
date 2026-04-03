@@ -85,7 +85,11 @@ class RetrosheetIngester:
         def get_int(col: str) -> int:
             val = row.get(col)
             # Use cast(Any, val) to satisfy restrictive pd.isna stubs for object type
-            return int(float(cast(Any, val))) if val is not None and not pd.isna(cast(Any, val)) else 0
+            return (
+                int(float(cast(Any, val)))
+                if val is not None and not pd.isna(cast(Any, val))
+                else 0
+            )
 
         def get_str(col: str) -> str:
             val = row.get(col)
@@ -93,7 +97,11 @@ class RetrosheetIngester:
 
         def get_opt_int(col: str) -> Optional[int]:
             val = row.get(col)
-            return int(float(cast(Any, val))) if val is not None and not pd.isna(cast(Any, val)) else None
+            return (
+                int(float(cast(Any, val)))
+                if val is not None and not pd.isna(cast(Any, val))
+                else None
+            )
 
         def get_opt_str(col: str) -> Optional[str]:
             val = row.get(col)

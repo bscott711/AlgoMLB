@@ -2,6 +2,7 @@ import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -10,7 +11,9 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
+    SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -132,18 +135,8 @@ class PitchEventORM(Base):
     plate_z: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     launch_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     launch_angle: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-
-    # Added Statcast Features
-    pitch_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
-    stand: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
-    p_throws: Mapped[Optional[str]] = mapped_column(String(1), nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    events: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    release_extension: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    effective_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pitch_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    inning: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    zone: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
@@ -603,3 +596,87 @@ class PlayerTransactionORM(Base):
         Computed("resolution_date - effective_date", persisted=True),
         nullable=True,
     )
+
+
+class StatcastRawORM(Base):
+    """Raw Statcast pitch-level ingestion buffer (Source of Truth)."""
+
+    __tablename__ = "statcast_raw"
+
+    # Identity
+    game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    game_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+
+    # Game context
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    home_team: Mapped[str] = mapped_column(String(3), nullable=False)
+    away_team: Mapped[str] = mapped_column(String(3), nullable=False)
+    inning: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    inning_topbot: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+
+    # Players
+    batter: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    pitcher: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    player_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Batted ball
+    hc_x: Mapped[Optional[float]] = mapped_column(Numeric(7, 2), nullable=True)
+    hc_y: Mapped[Optional[float]] = mapped_column(Numeric(7, 2), nullable=True)
+    bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    events: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
+    # Launch metrics
+    launch_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
+    launch_angle: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
+    launch_speed_angle: Mapped[Optional[int]] = mapped_column(
+        SmallInteger, nullable=True
+    )
+    estimated_ba_using_speedangle: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
+    estimated_woba_using_speedangle: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
+
+    # Pitch mechanics
+    pitch_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    release_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
+    release_spin_rate: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 1), nullable=True
+    )
+    pfx_x: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+    pfx_z: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+    plate_x: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+    plate_z: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
+
+    # Metrics & Context
+    at_bat_number_1: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    bat_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    blue_color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    delta_home_win_exp: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
+    delta_run_exp: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
+    des: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    home_team_1: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    industrial_color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    pitch_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    pitcher_1: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    post_away_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    post_bat_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    post_fld_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    post_home_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    spin_rate_deprecated: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    swing_length: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    hit_distance_sc: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 1), nullable=True
+    )
+
+    # Metadata
+    ingested_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    pybaseball_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

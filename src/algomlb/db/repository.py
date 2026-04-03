@@ -13,6 +13,7 @@ from algomlb.db.models import (
     PitchEventORM,
     PlayerTransactionORM,
     RetrosheetEventORM,
+    StatcastRawORM,
     UmpireScorecardORM,
 )
 from algomlb.domain import BankrollTransaction, Game, Odds
@@ -287,3 +288,29 @@ class DatabaseRepository:
 
         self.session.commit()
         return total_upserted
+
+    def save_statcast_raw(self, rows: List[dict]) -> int:
+        """Bulk upsert raw Statcast data into statcast_raw via PostgreSQL."""
+        if not rows:
+            return 0
+
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        # Chunk to stay under SQL variable limits
+        chunk_size = 500
+        total_inserted = 0
+        for i in range(0, len(rows), chunk_size):
+            chunk = rows[i : i + chunk_size]
+            stmt = pg_insert(StatcastRawORM).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["game_pk", "at_bat_number", "pitch_number"],
+                set_={
+                    c: stmt.excluded[c]
+                    for c in chunk[0].keys()
+                    if c not in ["game_pk", "at_bat_number", "pitch_number"]
+                },
+            )
+            self.session.execute(stmt)
+            total_inserted += len(chunk)
+        self.session.commit()
+        return total_inserted

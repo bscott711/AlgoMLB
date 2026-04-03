@@ -14,10 +14,10 @@ def print_schema_health(db_inspector):
     tables = db_inspector.list_tables()
     empty = [t for t in tables if t.is_empty]
     null_cols = db_inspector.all_null_columns()
-    
-    print(f"\n{'='*60}")
+
+    print(f"\n{'=' * 60}")
     print("📡 DB Functional Health Summary")
     print(f"  Total Tables:    {len(tables)}")
     print(f"  Empty Tables:    {len(empty)}")
     print(f"  All-NULL Cols:   {len(null_cols)}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")

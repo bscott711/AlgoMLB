@@ -3,7 +3,6 @@ import datetime
 import respx
 import httpx
 import json
-from typing import Any
 from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

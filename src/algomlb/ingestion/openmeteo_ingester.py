@@ -105,7 +105,9 @@ class OpenMeteoIngester:
     def fetch_weather_batch(
         self,
         year: int,
-        locations: Sequence[Mapping[str, object]],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
+        locations: Sequence[
+            Mapping[str, object]
+        ],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> pd.DataFrame:

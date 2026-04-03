@@ -160,3 +160,22 @@ sync message:
 	git add .
 	git commit -m "{{message}}"
 	git push
+
+# ==========================================
+# 6. STATCAST INGESTION (Epic 1)
+# ==========================================
+
+# Fetch and ingest Statcast for a date range (dry-run by default)
+demo-statcast:
+	@echo "📡 Running Statcast dry-run fetch..."
+	uv run algomlb ingest statcast --start 2025-04-01 --end 2025-04-07 --dry-run
+
+# Ingest Statcast for today (live write)
+ingest-statcast-today:
+	@echo "🚀 Ingesting today's Statcast events..."
+	uv run algomlb ingest statcast --start $(date +%Y-%m-%d)
+
+# Backfill a full season (will be slow — run in tmux or nohup)
+backfill-statcast year='2024':
+	@echo "📅 Backfilling Statcast for {{year}} season..."
+	uv run algomlb ingest statcast --start {{year}}-03-20 --end {{year}}-11-05

@@ -372,3 +372,39 @@ def weather(
         )
         orchestrator.run_weather_ingestion(start_date=s_date, end_date=e_date)
         logger.success("Successfully completed weather ingestion.")
+
+
+@app.command()
+def statcast(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+    team: str = typer.Option(
+        None, "--team", help="Optional team abbreviation (e.g. NYY)"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Fetch and print but do not persist"
+    ),
+):
+    """Fetch raw Statcast event-level data and persist to raw buffer."""
+    from algomlb.ingestion.statcast_ingester import StatcastIngester
+
+    s_date = (
+        datetime.datetime.strptime(start, "%Y-%m-%d").date()
+        if start
+        else datetime.date.today()
+    )
+    e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else s_date
+
+    logger.info(f"Starting Statcast ingestion for {s_date} to {e_date}...")
+
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        repo = DatabaseRepository(session)
+        ingester = StatcastIngester(repo=repo)
+        rows = ingester.ingest_range(
+            start_date=s_date, end_date=e_date, team=team, dry_run=dry_run
+        )
+
+    if not dry_run:
+        logger.success(f"Statcast: {rows} rows ingested.")

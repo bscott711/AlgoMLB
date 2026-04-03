@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import cast
 from sqlalchemy import Engine, text
 
 
@@ -31,7 +31,7 @@ class FKEdge:
 
 
 class SchemaInspector:
-    """ Service to query live database schema metadata with TTL caching. """
+    """Service to query live database schema metadata with TTL caching."""
 
     def __init__(self, engine: Engine, ttl_minutes: int = 5):
         self.engine = engine
@@ -56,18 +56,16 @@ class SchemaInspector:
             WHERE schemaname = 'public'
             ORDER BY relname;
         """)
-        
+
         with self.engine.connect() as conn:
             result = conn.execute(query)
             tables = []
             for row in result:
                 table_name = cast(str, row[0])
                 count = int(row[1])
-                tables.append(TableMeta(
-                    name=table_name,
-                    row_count=count,
-                    is_empty=(count <= 0)
-                ))
+                tables.append(
+                    TableMeta(name=table_name, row_count=count, is_empty=(count <= 0))
+                )
             self._table_cache = (datetime.now(), tables)
             return tables
 
@@ -93,18 +91,20 @@ class SchemaInspector:
         columns = []
         with self.engine.connect() as conn:
             base_info = conn.execute(meta_query, {"table_name": table}).fetchall()
-            
+
             if not base_info:
                 return []
 
             # 2. Get null percentages for each column
-            null_cols_sql = ", ".join([
-                f"COUNT(*) FILTER (WHERE {row.column_name} IS NULL)::float / NULLIF(COUNT(*), 0) AS {row.column_name}_null_pct"
-                for row in base_info
-            ])
-            
-            stats_query = text(f"SELECT {null_cols_sql} FROM \"{table}\"")
-            
+            null_cols_sql = ", ".join(
+                [
+                    f"COUNT(*) FILTER (WHERE {row.column_name} IS NULL)::float / NULLIF(COUNT(*), 0) AS {row.column_name}_null_pct"
+                    for row in base_info
+                ]
+            )
+
+            stats_query = text(f'SELECT {null_cols_sql} FROM "{table}"')
+
             try:
                 stats_row = conn.execute(stats_query).fetchone()
             except Exception:
@@ -114,15 +114,17 @@ class SchemaInspector:
                 null_pct = 0.0
                 if stats_row and stats_row[i] is not None:
                     null_pct = float(stats_row[i])
-                
-                columns.append(ColumnMeta(
-                    table=table,
-                    name=row.column_name,
-                    dtype=row.data_type,
-                    nullable=(row.is_nullable == "YES"),
-                    null_pct=null_pct,
-                    is_all_null=(null_pct >= 1.0)
-                ))
+
+                columns.append(
+                    ColumnMeta(
+                        table=table,
+                        name=row.column_name,
+                        dtype=row.data_type,
+                        nullable=(row.is_nullable == "YES"),
+                        null_pct=null_pct,
+                        is_all_null=(null_pct >= 1.0),
+                    )
+                )
 
         self._column_cache[table] = (datetime.now(), columns)
         return columns

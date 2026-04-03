@@ -1,6 +1,6 @@
 import time
 import datetime
-from typing import Mapping, Optional, TypeAlias, cast
+from typing import Mapping, Optional, cast
 
 import httpx
 from sqlalchemy.orm import Session
@@ -72,13 +72,17 @@ class UmpireScorecardIngester:
     # Row mapping
     # ------------------------------------------------------------------
 
-    def _api_row_to_orm(self, row: Mapping[str, object]) -> Optional[UmpireScorecardORM]:
+    def _api_row_to_orm(
+        self, row: Mapping[str, object]
+    ) -> Optional[UmpireScorecardORM]:
         """Convert a single API JSON row to an ORM object."""
         game_pk = row.get("game_pk")
         if not game_pk:
             return None
 
-        game_date = datetime.datetime.strptime(cast(str, row["date"]), "%Y-%m-%d").date()
+        game_date = datetime.datetime.strptime(
+            cast(str, row["date"]), "%Y-%m-%d"
+        ).date()
         if game_date.year < self.since_year:
             return None
 
@@ -124,7 +128,8 @@ class UmpireScorecardIngester:
             total_run_impact=self._safe_float_or_none(row.get("total_run_impact")),
             expected_runs=self._safe_float(row.get("total_run_impact", 0)),
             actual_runs=self._safe_float(
-                (cast(float, row.get("home_score")) or 0.0) + (cast(float, row.get("away_score")) or 0.0)
+                (cast(float, row.get("home_score")) or 0.0)
+                + (cast(float, row.get("away_score")) or 0.0)
             ),
             # Challenges
             n_overturned=self._safe_int(row.get("n_overturned")),

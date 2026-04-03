@@ -154,9 +154,7 @@ with col_a:
         )
         st.plotly_chart(fig_seasons, use_container_width=True)
     else:
-        st.info(
-            "No season data found. Run `algomlb ingest schedule`."
-        )
+        st.info("No season data found. Run `algomlb ingest schedule`.")
 
 with col_b:
     st.write("#### Umpire Data Coverage")
@@ -184,9 +182,7 @@ with col_b:
                 "Umpire data not yet linked. Game IDs might be missing for 2019-2022."
             )
     except Exception:
-        st.error(
-            "Umpire scorecard table schema mismatch or missing."
-        )
+        st.error("Umpire scorecard table schema mismatch or missing.")
 
 st.markdown("---")
 

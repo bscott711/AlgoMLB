@@ -1,6 +1,5 @@
 import re
 from datetime import date, timedelta
-from datetime import date, timedelta
 from typing import Iterator, Mapping, Optional, cast
 
 import httpx
@@ -77,7 +76,9 @@ class PlayerTransactionsIngester:
     def __init__(self, repo: DatabaseRepository):
         self.repo = repo
 
-    def fetch_transactions(self, start_date: date, end_date: date) -> list[Mapping[str, object]]:
+    def fetch_transactions(
+        self, start_date: date, end_date: date
+    ) -> list[Mapping[str, object]]:
         """Fetch transactions from StatsAPI."""
         try:
             response = httpx.get(
@@ -95,7 +96,9 @@ class PlayerTransactionsIngester:
             logger.error(f"Error fetching transactions: {e}")
             return []
 
-    def fetch_legacy_transactions(self, start_date: date, end_date: date) -> list[Mapping[str, object]]:
+    def fetch_legacy_transactions(
+        self, start_date: date, end_date: date
+    ) -> list[Mapping[str, object]]:
         """
         Fetch legacy transactions from BAM endpoint.
         Note: Implementation placeholder for details of BAM endpoint.
@@ -128,7 +131,9 @@ class PlayerTransactionsIngester:
         except ValueError:
             return None
 
-    def _map_stats_api_to_orm(self, tx: Mapping[str, object]) -> Optional[PlayerTransactionORM]:
+    def _map_stats_api_to_orm(
+        self, tx: Mapping[str, object]
+    ) -> Optional[PlayerTransactionORM]:
         """Map a single StatsAPI transaction dictionary to an ORM object."""
         person = cast(Mapping[str, object], tx.get("person", {}))
         player_id = person.get("id")
