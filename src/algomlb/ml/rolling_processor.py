@@ -67,10 +67,7 @@ class RollingProcessor:
         history: sorted player_game_logs.
         """
         # 1. Filter within season and before target date
-        eligible = history[
-            (history["game_date"] >= season_start)
-            & (history["game_date"] < target_date)
-        ].copy()
+        eligible = self._get_eligible_history(history, season_start, target_date)
 
         window = (
             self.config.pitcher_rolling_games
@@ -83,23 +80,10 @@ class RollingProcessor:
         n_used = len(windowed)
 
         # Baseline Quality
-        quality = BaselineQuality.COLD_START
-        if role == PlayerRole.PITCHER:
-            if n_used >= 5:  # As per refined plan
-                quality = BaselineQuality.FULL
-            elif n_used >= 1:
-                quality = BaselineQuality.PARTIAL
-        else:
-            if n_used >= 20:  # As per refined plan
-                quality = BaselineQuality.FULL
-            elif n_used >= 1:
-                quality = BaselineQuality.PARTIAL
+        quality = self._determine_quality(role, n_used)
 
         # Staleness
-        days_since = None
-        if not eligible.empty:
-            last_date = eligible["game_date"].max()
-            days_since = (target_date - last_date).days
+        days_since = self._calculate_staleness(eligible, target_date)
 
         record = PlayerRollingRecord(
             player_id=player_id,
@@ -171,3 +155,32 @@ class RollingProcessor:
             self.config.league_mean_batter_xwoba,
             self.config.rolling_shrinkage_k,
         )
+
+    def _get_eligible_history(
+        self, history: pd.DataFrame, season_start: date, target_date: date
+    ) -> pd.DataFrame:
+        """Filter history for points-in-time calculation."""
+        if history.empty or "game_date" not in history.columns:
+            return pd.DataFrame(columns=["game_date"])
+        return history[
+            (history["game_date"] >= season_start)
+            & (history["game_date"] < target_date)
+        ].copy()
+
+    def _determine_quality(self, role: PlayerRole, n_used: int) -> BaselineQuality:
+        """Determine baseline quality based on role-specific window sizes."""
+        if n_used == 0:
+            return BaselineQuality.COLD_START
+
+        if role == PlayerRole.PITCHER:
+            return BaselineQuality.FULL if n_used >= 5 else BaselineQuality.PARTIAL
+        return BaselineQuality.FULL if n_used >= 20 else BaselineQuality.PARTIAL
+
+    def _calculate_staleness(
+        self, eligible: pd.DataFrame, target_date: date
+    ) -> Optional[int]:
+        """Calculate days since last appearance."""
+        if eligible.empty:
+            return None
+        last_date = eligible["game_date"].max()
+        return (target_date - last_date).days
