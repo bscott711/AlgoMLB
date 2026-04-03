@@ -111,49 +111,71 @@ class RollingProcessor:
         total_pitches = df["pitches"].sum()
         if total_pitches > 0:
             record.roll_pitches = float(total_pitches)
-            record.roll_strikes_pct = df["strikes"].sum() / total_pitches
-            record.roll_whiff_pct = df["whiffs"].sum() / total_pitches
-            record.roll_k_pct = df["k"].sum() / total_pitches
-            record.roll_bb_pct = df["bb"].sum() / total_pitches
+            record.roll_strikes_pct = float(df["strikes"].sum() / total_pitches)
+            record.roll_whiff_pct = float(df["whiffs"].sum() / total_pitches)
+            record.roll_k_pct = float(df["k"].sum() / total_pitches)
+            record.roll_bb_pct = float(df["bb"].sum() / total_pitches)
 
-        record.roll_avg_release_speed = df["avg_release_speed"].mean()
-        record.roll_avg_pfx_x = df["avg_pfx_x"].mean()
-        record.roll_avg_pfx_z = df["avg_pfx_z"].mean()
+        record.roll_avg_release_speed = (
+            float(df["avg_release_speed"].mean())
+            if not df["avg_release_speed"].isnull().all()
+            else None
+        )
+        record.roll_avg_pfx_x = (
+            float(df["avg_pfx_x"].mean()) if not df["avg_pfx_x"].isnull().all() else None
+        )
+        record.roll_avg_pfx_z = (
+            float(df["avg_pfx_z"].mean()) if not df["avg_pfx_z"].isnull().all() else None
+        )
 
         observed_xwoba = df["avg_pitcher_xwoba"].mean()
-        record.roll_avg_pitcher_xwoba = observed_xwoba
+        record.roll_avg_pitcher_xwoba = (
+            float(observed_xwoba) if not pd.isna(observed_xwoba) else None
+        )
 
         # Shrinkage
-        record.roll_pitcher_xwoba_shrunk = self.apply_shrinkage(
-            observed_xwoba,
-            len(
-                df
-            ),  # n_games is the shrinkage unit here as per user prompt "weight = n_obs / (n_obs + k_mean)"
-            self.config.league_mean_pitcher_xwoba,
-            self.config.rolling_shrinkage_k,
+        record.roll_pitcher_xwoba_shrunk = float(
+            self.apply_shrinkage(
+                float(observed_xwoba) if not pd.isna(observed_xwoba) else 0.0,
+                len(df),
+                self.config.league_mean_pitcher_xwoba,
+                self.config.rolling_shrinkage_k,
+            )
         )
 
     def _compute_batter(self, record: PlayerRollingRecord, df: pd.DataFrame):
         total_pas = df["pas"].sum()
         if total_pas > 0:
             record.roll_pas = float(total_pas)
-            record.roll_hits_per_pa = df["hits"].sum() / total_pas
-            record.roll_k_pct_batter = df["batter_k"].sum() / total_pas
-            record.roll_bb_pct_batter = df["batter_bb"].sum() / total_pas
-            record.roll_barrel_pct = df["barrels"].sum() / total_pas
+            record.roll_hits_per_pa = float(df["hits"].sum() / total_pas)
+            record.roll_k_pct_batter = float(df["batter_k"].sum() / total_pas)
+            record.roll_bb_pct_batter = float(df["batter_bb"].sum() / total_pas)
+            record.roll_barrel_pct = float(df["barrels"].sum() / total_pas)
 
-        record.roll_avg_launch_speed = df["avg_launch_speed"].mean()
-        record.roll_avg_launch_angle = df["avg_launch_angle"].mean()
+        record.roll_avg_launch_speed = (
+            float(df["avg_launch_speed"].mean())
+            if not df["avg_launch_speed"].isnull().all()
+            else None
+        )
+        record.roll_avg_launch_angle = (
+            float(df["avg_launch_angle"].mean())
+            if not df["avg_launch_angle"].isnull().all()
+            else None
+        )
 
         observed_xwoba = df["avg_batter_xwoba"].mean()
-        record.roll_avg_batter_xwoba = observed_xwoba
+        record.roll_avg_batter_xwoba = (
+            float(observed_xwoba) if not pd.isna(observed_xwoba) else None
+        )
 
         # Shrinkage
-        record.roll_batter_xwoba_shrunk = self.apply_shrinkage(
-            observed_xwoba,
-            len(df),
-            self.config.league_mean_batter_xwoba,
-            self.config.rolling_shrinkage_k,
+        record.roll_batter_xwoba_shrunk = float(
+            self.apply_shrinkage(
+                float(observed_xwoba) if not pd.isna(observed_xwoba) else 0.0,
+                len(df),
+                self.config.league_mean_batter_xwoba,
+                self.config.rolling_shrinkage_k,
+            )
         )
 
     def _get_eligible_history(

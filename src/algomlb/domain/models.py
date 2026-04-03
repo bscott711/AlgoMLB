@@ -35,9 +35,9 @@ class PlayerRole(StrEnum):
 class BaselineQuality(StrEnum):
     """Quality of a rolling window baseline."""
 
-    COLD_START = "cold_start"
-    PARTIAL = "partial"
-    FULL = "full"
+    COLD_START = "COLD_START"
+    PARTIAL = "PARTIAL"
+    FULL = "FULL"
 
 
 class Game(BaseModel):
