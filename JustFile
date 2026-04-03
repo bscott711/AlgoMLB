@@ -17,7 +17,7 @@ lint:
 	@echo "🧹 Linting code..."
 	uv run ruff check --fix .
 	@echo "📝 Linting markdown..."
-	uv run pymarkdown --config .pymarkdownrc scan -e "prompts/**" -e "**/.agent/**" -e "src/agents/**" -e ".antigravity/**" -e "**/.venv/**" -e "**/.git/**" -e "**/.pytest_cache/**" -e "**/__pycache__/**" -e "**/.ruff_cache/**" -r .
+	uv run pymarkdown --config .pymarkdownrc scan -e "prompts/**" -e "planning_docs/**" -e "**/.agent/**" -e "src/agents/**" -e ".antigravity/**" -e "**/.venv/**" -e "**/.git/**" -e "**/.pytest_cache/**" -e "**/__pycache__/**" -e "**/.ruff_cache/**" -r .
 
 # Strict type checking (Pyright)
 check-types:

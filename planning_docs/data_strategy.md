@@ -1,4 +1,4 @@
-This is a deep, multi-layered problem — here is a prioritized, production-grade blueprint organized by signal tier. The architecture assumes PostgreSQL as your persistent store and Python as your ETL/modeling layer.
+# This is a deep, multi-layered problem — here is a prioritized, production-grade blueprint organized by signal tier. The architecture assumes PostgreSQL as your persistent store and Python as your ETL/modeling layer
 
 ***
 
@@ -9,7 +9,7 @@ This is a deep, multi-layered problem — here is a prioritized, production-grad
 The sabermetric consensus on ERA estimator predictiveness (year-over-year) is well-established. Based on Baseball Prospectus's reliability vs. predictiveness matrix, the hierarchy is:[1]
 
 | Metric | Reliability | Predictiveness | Notes |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **DRA (Deserved Run Average)** | .53 | .26 | Highest predictive score; Statcast-adjusted |
 | **cFIP** | .51 | .25 | Context-independent FIP |
 | **SIERA** | .46 | .18 | Batted ball shape + strikeout interaction |
@@ -34,7 +34,7 @@ These are your highest-signal raw features for pitcher modeling. Pull via `pybas
 
 ### Stuff+, Location+, Pitching+
 
-Stuff+ evaluates physical pitch characteristics (velocity, movement, spin) independent of outcomes. It is **highly reliable (0.41)** for same-team pitchers but its predictive power collapses for team-switchers (0.14). This is a critical caveat for your model — **do not treat Stuff+ as team-portable for off-season acquisitions**. Location+ and Pitching+ are more stable across team changes (.24 and .23 respectively).[4][1]
+Stuff+ evaluates physical pitch characteristics (velocity, movement, spin) independent of outcomes. It is **highly reliable (0.41)** for same-team pitchers but its predictive power collapses for team-switchers (0.14). This is a critical caveat for your model — **do not treat Stuff+ as team-portable for off-season acquisitions**. Location+ and Pitching+ are more stable across team changes (.24 and .23 respectively).[4]
 
 **Engineering approach**: Don't use Stuff+ as a black-box feature. Instead, reconstruct its components (velocity percentile, IVB, horizontal break, extension) as individual features and let the model learn the interaction weights.
 
@@ -60,10 +60,10 @@ The bullpen exhaustion score should be a composite fatigue index fed as a game-l
 
 ### Stabilization Windows (Signal vs. Noise Thresholds)
 
-The FanGraphs sample-size framework  gives you empirically-derived stabilization points. Use these as **minimum PA thresholds for feature inclusion**, not hard cutoffs — signal accumulates incrementally:[5][6]
+The FanGraphs sample-size framework  gives you empirically-derived stabilization points. Use these as **minimum PA thresholds for feature inclusion**, not hard cutoffs — signal accumulates incrementally:[5-6]
 
 | Metric | Stabilization PA | Use for Rolling Window |
-|---|---|---|
+| --- | --- | --- |
 | **K%** | ~60 PA | 150 PA rolling (fast-stabilizing) |
 | **BB%** | ~120 PA | 200 PA rolling |
 | **ISO (Power)** | ~160 PA | 250 PA rolling |
@@ -111,7 +111,7 @@ Aggregate these to lineup-level features using batting order weighting (position
 
 Static 3-year park factors (FanGraphs, Baseball Prospectus) are your baseline. But static PF misses game-day conditions. Build a **dynamic park factor adjustment**:[8]
 
-```
+```text
 Dynamic_PF = Static_PF_3yr × Temperature_Multiplier × Wind_Multiplier × Humidity_Modifier
 ```
 
@@ -122,7 +122,7 @@ Temperature effect on HR/run scoring is well-documented: approximately **+0.5% H
 Use the **Open-Meteo API** (free, hourly, historical) or **Tomorrow.io** for real-time stadium weather. Map weather to stadium geometry manually — wind direction matters directionally per park:
 
 | Feature | How to Engineer |
-|---|---|
+| --- | --- |
 | **Wind speed (mph)** | Continuous; ≥15 mph out = HR-positive; use `out_to_in` binary flag |
 | **Wind direction vs. RF/LF** | Encode as dot product of wind vector and park's fly ball direction |
 | **Temperature (°F)** | Continuous; center on 72°F for the multiplier |
@@ -146,7 +146,7 @@ Research shows teams playing on 0 days rest after >1,500-mile travel lose ~0.15 
 
 ### Umpire Tendencies — Critical 2026 Update
 
-**Umpire tendency modeling is being deprecated as a signal for 2026.** MLB is implementing the Automated Ball-Strike (ABS) challenge system league-wide in 2026, which effectively kills historical umpire zone-tilt features. However, while ABS is transitioning, you can still model:[10][11]
+**Umpire tendency modeling is being deprecated as a signal for 2026.** MLB is implementing the Automated Ball-Strike (ABS) challenge system league-wide in 2026, which effectively kills historical umpire zone-tilt features. However, while ABS is transitioning, you can still model:[10-11]
 
 - **Call accuracy rate** (historical, from Baseball Savant umpire scorecards)
 - **Zone size tendency** (larger vs. smaller zone — affects K rates, BB rates)
@@ -161,20 +161,26 @@ Engineer these as a **trailing umpire profile** (`calls_above_avg_L50_games`, `e
 To train a model that generates Closing Line Value (CLV), the target variable cannot just be the binary game outcome (Win/Loss). The model must be trained to recognize when the true probability diverges from the market's implied probability.
 
 ### Historical Odds (Backtesting Foundation)
+
 You cannot backtest a betting strategy without accurate historical odds.
+
 - **The Goal**: Acquire historical Pinnacle (PINN) closing lines for the past 3–5 MLB seasons. Pinnacle is the sharpest book in the world; beating their closing line is the mathematical definition of a winning model.
 - **Sources**: The-Odds-API (Historical endpoint), OddsPortal (via targeted scrapers), or Kaggle MLB odds datasets.
 - **Target Schema**: Store `open_odds`, `close_odds`, and `movement_delta`.
 
 ### Live Odds (Execution Engine)
+
 For daily operations, we need continuous polling of the current market.
+
 - **Primary Source**: The-Odds-API (`/v4/sports/baseball_mlb/odds/`).
 - **Sharp vs. Soft Books**: The pipeline must separate books by type.
-    - **Sharp Books**: Pinnacle, Circa. Use these to calculate the "true" efficient market price (vig-free).
-    - **Soft Books**: DraftKings, FanDuel, BetMGM. These are the targets. If the model + Sharp Books agree on a probability, execute the bet against the lagging Soft Books.
+  - **Sharp Books**: Pinnacle, Circa. Use these to calculate the "true" efficient market price (vig-free).
+  - **Soft Books**: DraftKings, FanDuel, BetMGM. These are the targets. If the model + Sharp Books agree on a probability, execute the bet against the lagging Soft Books.
 
 ### Market-Implied Features
+
 Feed the market's opinion back into the ML model as contextual features:
+
 - **Steam Moves**: Flag games where the sharp line moves > 10 cents in under an hour.
 - **Implied Run Totals**: Derive the team's implied runs from the Over/Under and the Moneyline. This serves as a strong baseline feature for the model to "correct" rather than building a run prediction entirely from scratch.
 
@@ -185,7 +191,7 @@ Feed the market's opinion back into the ML model as contextual features:
 ### Source Ranking by Reliability, Depth & ETL-Friendliness
 
 | Rank | Source | Best For | Access Method | Cost |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **1** | **Baseball Savant (Statcast)** | Pitch-level Statcast, EV/LA/spin, xStats | `pybaseball.statcast()` / direct CSV bulk download | Free |
 | **2** | **The Odds API** | Historical closing lines, real-time sharp/soft odds polling | REST API (`/v4/sports/baseball_mlb/odds/`) | Paid (Tiered) |
 | **3** | **MLB Stats API (undocumented)** | Live game state, lineups, roster, boxscores | `statsapi` Python wrapper / raw `requests` | Free |
@@ -211,6 +217,12 @@ import statsapi                              # lineups, probable starters, roste
 # Tier 3 — Run weekly or on-demand
 from pybaseball import park_factors          # baseline park factor table
 from pybaseball import playerid_lookup       # cross-source player ID mapping
+
+# ARCHITECTURAL NOTE: Ingestion Engineering (2026 Update)
+# For massive backfills (e.g. Statcast 2019-2026), we have standardized on:
+# 1. 7-day incremental chunking to prevent memory OOM and long-running transaction timeouts.
+# 2. PostgreSQL UPSERT (ON CONFLICT DO UPDATE) to ensure idempotency and allow for
+#    retroactive column population (e.g. adding new metrics to existing records).
 ```
 
 **Critical ETL note**: Statcast data has a ~3-day lag on Baseball Savant's API for clean processed data. For same-day pitch characteristics, hit the MLB Stats API's `game` endpoint (GUMBO feed) directly using `gamePk` identifiers, which are real-time.
@@ -218,6 +230,7 @@ from pybaseball import playerid_lookup       # cross-source player ID mapping
 ### PostgreSQL Schema Design Hints
 
 Structure your database around four primary fact tables:
+
 - `pitch_events` — one row per pitch; foreign key to `game_id`, `pitcher_id`, `batter_id`
 - `odds_history` — time-series table tracking line movements. Must include sportsbook, timestamp, market (ML/RL/Total), and price.
 - `game_results` — one row per game; stores all environmental features + final outcomes + closing lines.
@@ -252,7 +265,7 @@ In MLB betting models, class imbalance manifests in two distinct ways: **outcome
 
 ### Why Calibration Trumps Everything
 
-SMOTE and random oversampling are **destructive for betting models** specifically because they destroy probability calibration. A model predicting 62% win probability that actually resolves at 62% historically is worth everything; a model with better AUC but distorted probability outputs gives you wrong EV calculations and will bleed money even if directional accuracy is high. Research confirms SMOTE produces "strongly overestimated" minority-class probabilities with calibration slopes well below 1.0.[1][2][3]
+SMOTE and random oversampling are **destructive for betting models** specifically because they destroy probability calibration. A model predicting 62% win probability that actually resolves at 62% historically is worth everything; a model with better AUC but distorted probability outputs gives you wrong EV calculations and will bleed money even if directional accuracy is high. Research confirms SMOTE produces "strongly overestimated" minority-class probabilities with calibration slopes well below 1.0.[1,2,3]
 
 **The rule for sports betting models:** Never use SMOTE. Fix imbalance through the model's loss function and post-hoc calibration, not through synthetic data.
 
@@ -283,38 +296,38 @@ model = XGBClassifier(
 model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 ```
 
-`max_delta_step=1` is critical when `scale_pos_weight` is large — it bounds the maximum step update in the Newton boosting step, preventing the model from overcorrecting so aggressively it diverges. The XGBoost docs explicitly recommend it for highly imbalanced scenarios.[5][6]
+`max_delta_step=1` is critical when `scale_pos_weight` is large — it bounds the maximum step update in the Newton boosting step, preventing the model from overcorrecting so aggressively it diverges. The XGBoost docs explicitly recommend it for highly imbalanced scenarios.[5-6]
 
 ***
 
 Sources
-[1] An Updated Evaluation of Hitting and Pitching (Including Stuff ... https://www.baseballprospectus.com/news/article/82426/prospectus-feature-an-updated-evaluation-of-hitting-and-pitching-including-stuff-metrics/
-[2] Fun fact: The best predictor of future ERA is not FIP, xFIP, SIERA or ... https://www.reddit.com/r/baseball/comments/zngku4/fun_fact_the_best_predictor_of_future_era_is_not/
-[3] pybaseball/README.md at master - GitHub https://github.com/jldbc/pybaseball/blob/master/README.md
-[4] Stuff+, Location+, and Pitching+ Primer | Sabermetrics Library https://library.fangraphs.com/pitching/stuff-location-and-pitching-primer/
-[5] Sample Size | Sabermetrics Library https://library.fangraphs.com/principles/sample-size/
-[6] The Meaning of Small Sample Data | FanGraphs Baseball https://blogs.fangraphs.com/the-meaning-of-small-sample-data/
-[7] Stabilization standard for wOBA, wRC+? : r/Sabermetrics - Reddit https://www.reddit.com/r/Sabermetrics/comments/1ndmsfb/stabilization_standard_for_woba_wrc/
-[8] An Updated System of Park Factors (and Volatility) https://www.baseballprospectus.com/news/article/64534/an-updated-system-of-park-factors-and-volatility/
-[9] Sharing my Monte Carlo MLB prop model architecture + 2024 ... https://www.reddit.com/r/algobetting/comments/1s2550e/sharing_my_monte_carlo_mlb_prop_model/
-[10] MLB ABS System Explained: How the New Strike Zone Impacts ... https://vsin.com/the-vsin-daily/mlb-abs-system-explained-how-the-new-strike-zone-impacts-betting-in-2026/
-[11] MLB ABS System Explained: How the New Strike Zone Impacts ... https://kdus1060.com/mlb-abs-system-explained-how-the-new-strike-zone-impacts-betting-in-2026/
-[12] MLB-StatsAPI/statsapi/endpoints.py at master - GitHub https://github.com/toddrob99/MLB-StatsAPI/blob/master/statsapi/endpoints.py
-[13] MLB Statistics Summary - Sportradar API https://developer.sportradar.com/baseball/reference/mlb-statistics-summary
-[14] Get MLB Hitting Stats with the stats API in Python! - YouTube https://www.youtube.com/watch?v=SVhZBIxH1iw
-[15] Major League Baseball Statcast, Visuals & Advanced Metrics https://baseballsavant.mlb.com/league?season=2024
-[16] The Advanced Analytical Stack That Actually Predicts Pitcher ... https://www.instagram.com/p/DVzVRbRDWrZ/
-[17] MLB Props ML Model https://www.reddit.com/r/algobetting/comments/1dxv6e3/mlb_props_ml_model/
-[18] The Creation of Predictive Stuff Metrics: Unveiling the pSTFERA Suite https://www.prospectslive.com/the-creation-of-predictive-stuff-metrics-introducing-the-pstfera-suite/
-[19] Pybaseball: a Python library for working with baseball data ... - Reddit https://www.reddit.com/r/Python/comments/79l3o7/pybaseball_a_python_library_for_working_with/
-[20] How Much Does Weather & the Ballpark Itself Impact MLB Betting? https://help.outlier.bet/en/articles/12313109-how-much-does-weather-the-ballpark-itself-impact-mlb-betting
-[21] Forrest31/Baseball-Betting-Model: Predictive machine ... https://github.com/Forrest31/Baseball-Betting-Model
-[22] ERA Estimators, Pt. II: Present - RotoGraphs Fantasy Baseball https://fantasy.fangraphs.com/era-estimators-pt-ii-present/
-[23] An Introduction to PyBaseball: Using Python to Analyze Baseball Data https://www.tdabaseball.com/post/an-introduction-to-pybaseball-using-python-to-analyze-baseball-data
-[24] MLB API documentation : r/mlbdata - Reddit https://www.reddit.com/r/mlbdata/comments/1s4ibq2/mlb_api_documentation/
-[25] MLB Stats API - Two Circles Help Center https://help.koresoftware.com/hc/en-us/articles/6026343263511-MLB-Stats-API
-[26] MLB Data API Developer Portal - SportsDataIO https://sportsdata.io/developers/api-documentation/mlb
-[27] MLB Stats API - Acquire List of Free Agents, Acquire Minor League ... https://www.youtube.com/watch?v=w1M0uMVg6sM
-[28] Endpoints · toddrob99/MLB-StatsAPI Wiki - GitHub https://github.com/toddrob99/MLB-StatsAPI/wiki/Endpoints/a084ce1309dc525cbf90390f1fe10a744c351a02
-[29] wOBA, wRC, and wRC+ - Baseball Basics - YouTube https://www.youtube.com/watch?v=99uphIh2WfA
-[30] Umpire Analytics – Society for American Baseball Research https://sabr.org/journal/article/umpire-analytics/
+[1]: <https://www.baseballprospectus.com/news/article/82426/prospectus-feature-an-updated-evaluation-of-hitting-and-pitching-including-stuff-metrics/>
+[2]: <https://www.reddit.com/r/baseball/comments/zngku4/fun_fact_the_best_predictor_of_future_era_is_not/>
+[3]: <https://github.com/jldbc/pybaseball/blob/master/README.md>
+[4]: <https://library.fangraphs.com/pitching/stuff-location-and-pitching-primer/>
+[5]: <https://library.fangraphs.com/principles/sample-size/>
+[6]: <https://blogs.fangraphs.com/the-meaning-of-small-sample-data/>
+[7]: <https://www.reddit.com/r/Sabermetrics/comments/1ndmsfb/stabilization_standard_for_woba_wrc/>
+[8]: <https://www.baseballprospectus.com/news/article/64534/an-updated-system-of-park-factors-and-volatility/>
+[9]: <https://www.reddit.com/r/algobetting/comments/1s2550e/sharing_my_monte_carlo_mlb_prop_model/>
+[10]: <https://vsin.com/the-vsin-daily/mlb-abs-system-explained-how-the-new-strike-zone-impacts-betting-in-2026/>
+[11]: <https://kdus1060.com/mlb-abs-system-explained-how-the-new-strike-zone-impacts-betting-in-2026/>
+[12]: <https://github.com/toddrob99/MLB-StatsAPI/blob/master/statsapi/endpoints.py>
+[13]: <https://developer.sportradar.com/baseball/reference/mlb-statistics-summary>
+[14]: <https://www.youtube.com/watch?v=SVhZBIxH1iw>
+[15]: <https://baseballsavant.mlb.com/league?season=2024>
+[16]: <https://www.instagram.com/p/DVzVRbRDWrZ/>
+[17]: <https://www.reddit.com/r/algobetting/comments/1dxv6e3/mlb_props_ml_model/>
+[18]: <https://www.prospectslive.com/the-creation-of-predictive-stuff-metrics-introducing-the-pstfera-suite/>
+[19]: <https://www.reddit.com/r/Python/comments/79l3o7/pybaseball_a_python_library_for_working_with/>
+[20]: <https://help.outlier.bet/en/articles/12313109-how-much-does-weather-the-ballpark-itself-impact-mlb-betting>
+[21]: <https://github.com/Forrest31/Baseball-Betting-Model>
+[22]: <https://fantasy.fangraphs.com/era-estimators-pt-ii-present/>
+[23]: <https://www.tdabaseball.com/post/an-introduction-to-pybaseball-using-python-to-analyze-baseball-data>
+[24]: <https://www.reddit.com/r/mlbdata/comments/1s4ibq2/mlb_api_documentation/>
+[25]: <https://help.koresoftware.com/hc/en-us/articles/6026343263511-MLB-Stats-API>
+[26]: <https://sportsdata.io/developers/api-documentation/mlb>
+[27]: <https://www.youtube.com/watch?v=w1M0uMVg6sM>
+[28]: <https://github.com/toddrob99/MLB-StatsAPI/wiki/Endpoints/a084ce1309dc525cbf90390f1fe10a744c351a02>
+[29]: <https://www.youtube.com/watch?v=99uphIh2WfA>
+[30]: <https://sabr.org/journal/article/umpire-analytics/>

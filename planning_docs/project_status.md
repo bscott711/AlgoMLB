@@ -1,4 +1,4 @@
-# Project Status Report: AlgoMLB (March 2026)
+# Project Status Report: AlgoMLB (April 2026)
 
 ## 🏗️ Architectural Foundations
 
@@ -13,8 +13,10 @@ The project has moved from a series of "tracer bullet" implementations into a ro
 The persistence layer is now fully operational with PostgreSQL and Alembic.
 
 - **Umpire Analytics**: Successfully integrated granular decision accuracy and bias data via `umpscorecards.us` API scraping.
-- **Ballpark Context**: Hybrid ingestion complete. High-precision geographic coordinates and structural dimensions are now mapped for all 30 MLB stadiums.
-- **Historical Data**: 6-year Statcast pitch-level backfill is complete (~4.9M records).
+- **Ballpark Context**: Hybrid ingestion complete. High-precision geographic coordinates and structural dimensions (including home plate bearing) are now mapped for all 30 MLB stadiums.
+- **Historical Data**: 8-year Statcast pitch-level backfill (2019-2026) is complete and operational.
+- **Player Health**: Historical transaction and IL tracking pipeline complete with regex-based injury parsing.
+- **Environmental Context**: High-resolution hourly weather progression (T0-T4) and "Market Surprise" forecast deltas are fully integrated.
 - **Betting Odds**: The-Odds-API historical backfill logic and live polling are active.
 - **Retrosheet**: Official play-by-play events are integrated for defensive modeling.
 
@@ -22,10 +24,11 @@ The persistence layer is now fully operational with PostgreSQL and Alembic.
 
 The Streamlit-based control panel is live and functional.
 
-- **Live Analytics**: Real-time monitoring of game status and odds (In Progress).
+- **Live Analytics**: Real-time monitoring of game status and odds.
 - **Player Performance**: Detailed views for pitcher and batter metrics.
 - **Umpire Matrix**: Analysis of umpire reliability and run impact.
-- **Ballpark Context**: Visualization of stadium dimensions and elevation effects.
+- **Health Tracker**: Interactive timeline of IL stints and roster availability.
+- **Weather Insights**: Visualization of stadium-specific wind vectors and "Market Surprise" flags.
 - **Resilience**: All views updated with null-safe formatting (NaN/None handling).
 
 ## 🧠 Upcoming Work: The Quant Layer (Phase 3)
@@ -37,4 +40,4 @@ With the data ingestion foundation secured, focus shifts to pure ML engineering:
 3. **ML Engineering Tab**: Transitioning the dashboard placeholder into a real-time model monitoring suite.
 
 ---
-Last updated: *2026-03-31T06:26:00Z*
+Last updated: *2026-04-03T04:18:00Z*

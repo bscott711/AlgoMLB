@@ -17,7 +17,7 @@ Each epic strictly adheres to the **`just verify` framework**, meaning the compl
 
 ## 🟢 TIER 1 — Build First (High Alpha, High Feasibility)
 
-### Epic 1: Venue Wind Dynamics (Home Plate Bearing)
+### Epic 1: Venue Wind Dynamics (Home Plate Bearing) [COMPLETED]
 
 **Goal:** Implement the physical bearing of each stadium to decompose crude wind data into predictive `headwind` and `crosswind` vectors.
 
@@ -26,7 +26,7 @@ Each epic strictly adheres to the **`just verify` framework**, meaning the compl
 3. **Core Logic:** Write pure Python physics functions `wind_components(wind_speed, wind_dir, hp_bearing)` in the domain/ML layer.
 4. **Verification:** Write unit tests for trigonometry logic verifying headwind/crosswind conversions. Run `just verify`.
 
-### Epic 2: Historical Player Transactions & IL Tracking
+### Epic 2: Historical Player Transactions & IL Tracking [COMPLETED]
 
 **Goal:** Build a completely isolated pipeline for tracking historical player IL stints and roster health.
 
@@ -34,7 +34,7 @@ Each epic strictly adheres to the **`just verify` framework**, meaning the compl
 2. **Ingestion Layer:** Implement a monthly chunking pipeline for `StatsAPI /api/v1/transactions`, including regex-based extraction of `injury_body_part` and `injury_descriptor`.
 3. **Verification:** Extensive unit tests to confirm robust pattern extraction of body parts from text descriptions. Run `just verify`.
 
-### Epic 3: Open-Meteo Weather Progression & Forecast Surprise
+### Epic 3: Open-Meteo Weather Progression & Forecast Surprise [COMPLETED]
 
 **Goal:** Map the environmental arc from 1st to 9th inning (T0-T4) and extract market-surprise signals from opening odds, using Open-Meteo as the single source of truth for the trajectory.
 
