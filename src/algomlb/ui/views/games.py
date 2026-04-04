@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, date
 from algomlb.db.session import get_engine
 from algomlb.ui.styles import apply_premium_styles
-from algomlb.ui.components.spray_charts import plot_spray_chart
+from algomlb.ui.components.spray_charts import plot_spray_chart, get_ballpark_selection_ui
 
 # --- Configuration & Styling ---
 st.set_page_config(page_title="Game Analytics Hub", layout="wide")
@@ -88,54 +88,12 @@ with st.sidebar:
     color_mode = st.radio("Color By", ["Outcome", "Exit Velo"], horizontal=True)
     color_col = "events" if color_mode == "Outcome" else "launch_speed"
 
-    # --- 4. Native Stadium Logic (RESTORED) ---
-    @st.cache_data(ttl=3600)
-    def get_stadium_dims(ballpark_id: int, _engine):
-        query_bp = f"""
-            SELECT ballpark, left_field, left_center, center_field, right_center, right_field, 
-                   lf_wall_height, lc_wall_height, cf_wall_height, rc_wall_height, rf_wall_height 
-            FROM ballparks WHERE id = {ballpark_id}
-        """
-        bp_df = pd.read_sql(query_bp, _engine)
-        if bp_df.empty:
-            return None
-        row = bp_df.iloc[0]
-        return {
-            "lf": row["left_field"],
-            "lc": row["left_center"],
-            "cf": row["center_field"],
-            "rc": row["right_center"],
-            "rf": row["right_field"],
-            "h_lf": row["lf_wall_height"],
-            "h_lc": row["lc_wall_height"],
-            "h_cf": row["cf_wall_height"],
-            "h_rc": row["rc_wall_height"],
-            "h_rf": row["rf_wall_height"],
-            "name": row["ballpark"],
-        }
-
-    # Fetch native stadium by default
-    native_dims = get_stadium_dims(int(game_row["ballpark_id"]), engine)
-
-    st.subheader("🧪 Stadium Simulator")
-    simulate_stadium = st.checkbox("Swap Ballpark Fences", value=False)
-
-    if simulate_stadium:
-
-        @st.cache_data(ttl=3600)
-        def get_all_ballparks(_engine):
-            return pd.read_sql("SELECT ballpark, id FROM ballparks", _engine)
-
-        all_bp_df = get_all_ballparks(engine)
-        target_ballpark = st.selectbox(
-            "Target Ballpark", all_bp_df["ballpark"].sort_values().unique()
-        )
-        selected_bp_id = all_bp_df[all_bp_df["ballpark"] == target_ballpark].iloc[0][
-            "id"
-        ]
-        ballpark_dims = get_stadium_dims(int(selected_bp_id), engine)
-    else:
-        ballpark_dims = native_dims
+    # 4. Ballpark Selection (Centralized SOLID HELPER)
+    ballpark_dims = get_ballpark_selection_ui(
+        engine, 
+        native_id=int(game_row["ballpark_id"]), 
+        key_prefix="matchup"
+    )
 
 
 # --- Main Game Analysis ---
@@ -162,7 +120,7 @@ if not df_events.empty:
         f"🎽 Matchup Analysis: {TEAM_MAP.get(away_team, away_team)} @ {TEAM_MAP.get(home_team, home_team)}"
     )
     st.info(
-        f"Final Score: {game_row['away_team']} {game_row['away_score']} - {game_row['home_score']} {game_row['home_team']} | Venue: {native_dims['name'] if native_dims else 'Unknown'}"
+        f"Final Score: {game_row['away_team']} {game_row['away_score']} - {game_row['home_score']} {game_row['home_team']} | Venue: {ballpark_dims['name'] if ballpark_dims else 'Unknown'}"
     )
 
     col_away, col_home = st.columns(2)

@@ -3,7 +3,7 @@ import pandas as pd
 from algomlb.db.session import get_engine
 from algomlb.config.settings import get_settings
 from algomlb.ui.styles import apply_premium_styles
-from algomlb.ui.components.spray_charts import plot_spray_chart
+from algomlb.ui.components.spray_charts import plot_spray_chart, get_ballpark_selection_ui
 from algomlb.ui.components.strike_zone import plot_strike_zone
 from algomlb.ui.components.rolling_trends import (
     load_rolling_features,
@@ -94,39 +94,28 @@ with st.sidebar:
 
     # 3. Hit Simulator (The "What-If" Engine)
     st.divider()
-    st.subheader("🧪 Hit Simulator")
-    simulate_stadium = st.checkbox("Swap Ballpark Fences", value=False)
-    target_ballpark = "Dodger Stadium"
-    if simulate_stadium:
-        # Cache ballpark dims
+    
+    # NEW: Fetch home ballpark if player is selected in session state
+    home_bp_id = None
+    if "last_selected_player_id" in st.session_state:
         @st.cache_data(ttl=3600)
-        def get_ballparks(_engine):
-            query_bp = """
-                SELECT ballpark, left_field, left_center, center_field, right_center, right_field,
-                       lf_wall_height, lc_wall_height, cf_wall_height, rc_wall_height, rf_wall_height
-                FROM ballparks
-            """
-            return pd.read_sql(query_bp, _engine)
+        def get_home_field_id(_player_id, _engine):
+            # 1. Recent team code
+            query = f"SELECT home_team FROM statcast_raw WHERE batter = {_player_id} OR pitcher = {_player_id} ORDER BY game_date DESC LIMIT 1"
+            df = pd.read_sql(query, _engine)
+            if df.empty: return None
+            t_code = df.iloc[0]["home_team"]
+            t_full = TEAM_MAP.get(t_code, t_code)
+            # 2. Map to ballpark id (escape single quotes safely)
+            safe_team_name = t_full.replace("'", "''")
+            q_bp = f"SELECT id FROM ballparks WHERE team_name = '{safe_team_name}' LIMIT 1"
+            df_bp = pd.read_sql(q_bp, _engine)
+            return int(df_bp.iloc[0]["id"]) if not df_bp.empty else None
+            
+        home_bp_id = get_home_field_id(st.session_state.last_selected_player_id, engine)
 
-        ballparks_df = get_ballparks(engine)
-        target_ballpark = st.selectbox(
-            "Target Ballpark", ballparks_df["ballpark"].sort_values().unique()
-        )
-        bp_row = ballparks_df[ballparks_df["ballpark"] == target_ballpark].iloc[0]
-        ballpark_dims = {
-            "lf": bp_row["left_field"],
-            "lc": bp_row["left_center"],
-            "cf": bp_row["center_field"],
-            "rc": bp_row["right_center"],
-            "rf": bp_row["right_field"],
-            "h_lf": bp_row["lf_wall_height"],
-            "h_lc": bp_row["lc_wall_height"],
-            "h_cf": bp_row["cf_wall_height"],
-            "h_rc": bp_row["rc_wall_height"],
-            "h_rf": bp_row["rf_wall_height"],
-        }
-    else:
-        ballpark_dims = None
+    # 3. Ballpark Simulation (Centralized SOLID HELPER)
+    ballpark_dims = get_ballpark_selection_ui(engine, native_id=home_bp_id, key_prefix="player_stats")
 
 
 # --- Master Player Metadata Map ---
@@ -218,6 +207,10 @@ if not roster_ids_df.empty:
         selected_idx = int(selected_rows[0])
         selected_player_id = int(display_df.iloc[selected_idx]["id"])
         selected_player_name = display_df.iloc[selected_idx]["Player Name"]
+        # PERSIST for ballpark default logic
+        if st.session_state.get("last_selected_player_id") != selected_player_id:
+            st.session_state.last_selected_player_id = selected_player_id
+            st.rerun()
     else:
         st.warning("Please select a player row in the table above.")
         st.stop()
@@ -306,8 +299,8 @@ with tab_spray:
 
         color_col = "launch_speed" if color_mode == "Exit Velo" else "events"
 
-        if simulate_stadium:
-            st.caption(f"Simulating outcomes for: **{target_ballpark}**")
+        if ballpark_dims and ballpark_dims.get("name"):
+            st.caption(f"Visualizing Context: **{ballpark_dims['name']}**")
 
         # Spray Chart Component
         spray_df = (

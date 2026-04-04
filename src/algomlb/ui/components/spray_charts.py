@@ -128,10 +128,11 @@ def get_baseball_field_shapes(
     # To avoid crossing through the mound, we order the points: Home -> Left Foul -> Arc -> Right Foul -> Home.
     skin_pts = get_mound_arc_pts(145, -62.3, 62.3)
     
-    # Left Foul Side (~-45 deg from home)
-    p_left_foul = p_f[-1] 
-    # Right Foul Side (~45 deg from home)
-    p_right_foul = p_f[0]
+    # Left Foul Side (Negative X) / Right Foul Side (Positive X)
+    # Using sort to ensure correct orientation regardless of point calculation order
+    p_f_sorted = sorted([p_f[0], p_f[-1]], key=lambda p: p[0])
+    p_left_foul = p_f_sorted[0]
+    p_right_foul = p_f_sorted[-1]
 
     skin_path = f"M 0,0" # Home
     skin_path += f" L {p_left_foul[0]},{p_left_foul[1]}" # Left Foul
@@ -470,3 +471,79 @@ def plot_spray_chart(
         margin=dict(l=0, r=0, t=40, b=0),
     )
     return fig
+
+def get_stadium_dims(engine, ballpark_id: int | None = None, ballpark_name: str | None = None) -> dict | None:
+    """
+    Unified helper to fetch ballpark dimensions from the database.
+    Supports fetching by 'id' or 'ballpark' (name). Escapes quotes for safety.
+    """
+    import pandas as pd
+    
+    where_clause = ""
+    if ballpark_id is not None:
+        where_clause = f"WHERE id = {int(ballpark_id)}"
+    elif ballpark_name is not None:
+        safe_name = str(ballpark_name).replace("'", "''")
+        where_clause = f"WHERE ballpark = '{safe_name}'"
+    else:
+        return None
+
+    query = f"SELECT * FROM ballparks {where_clause} LIMIT 1"
+    df = pd.read_sql(query, engine)
+    
+    if df.empty:
+        return None
+        
+    row = df.iloc[0]
+    return {
+        "lf": float(row.get("left_field", 330)),
+        "lc": float(row.get("left_center", 375)),
+        "cf": float(row.get("center_field", 400)),
+        "rc": float(row.get("right_center", 375)),
+        "rf": float(row.get("right_field", 330)),
+        "h_lf": float(row.get("lf_wall_height", 8.0)),
+        "h_lc": float(row.get("lc_wall_height", 8.0)),
+        "h_cf": float(row.get("cf_wall_height", 8.0)),
+        "h_rc": float(row.get("rc_wall_height", 8.0)),
+        "h_rf": float(row.get("rf_wall_height", 8.0)),
+        "name": row.get("ballpark"),
+    }
+
+def get_ballpark_selection_ui(engine, native_id: int | None = None, key_prefix: str = ""):
+    """
+    SOLID HELPER: Centrally manages the Streamlit UI and logic for ballpark selection.
+    Encapsulates the 'Stadium Simulator' experience and ensures consistent geometry.
+    """
+    import streamlit as st
+    import pandas as pd
+
+    # 1. Establish native/default baseline
+    native_dims = None
+    if native_id:
+        native_dims = get_stadium_dims(engine, ballpark_id=native_id)
+
+    # 2. Render Sidebar UI
+    st.subheader("🧪 Stadium Simulator")
+    simulate = st.checkbox("Swap Ballpark Fences", value=False, key=f"{key_prefix}_sim_chk")
+
+    if simulate:
+        # Fetch list of ballparks for selection
+        @st.cache_data(ttl=3600)
+        def _get_all_ballparks(_engine):
+            return pd.read_sql("SELECT ballpark, id FROM ballparks", _engine)
+
+        all_bp_df = _get_all_ballparks(engine)
+        target_ballpark = st.selectbox(
+            "Target Ballpark", 
+            all_bp_df["ballpark"].sort_values().unique(),
+            key=f"{key_prefix}_target_bp"
+        )
+        selected_bp_id = all_bp_df[all_bp_df["ballpark"] == target_ballpark].iloc[0]["id"]
+        return get_stadium_dims(engine, ballpark_id=int(selected_bp_id))
+    else:
+        # Fallback to native or standard standard
+        return native_dims or {
+            "lf": 330, "lc": 375, "cf": 400, "rc": 375, "rf": 330,
+            "h_lf": 8.0, "h_lc": 8.0, "h_cf": 8.0, "h_rc": 8.0, "h_rf": 8.0,
+            "name": "Standard Field"
+        }
