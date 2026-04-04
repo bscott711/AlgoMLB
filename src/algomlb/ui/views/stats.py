@@ -57,6 +57,15 @@ st.markdown("---")
 with st.sidebar:
     st.header("🔍 Lab Controllers")
 
+    # 0. Lab Mode
+    lab_mode = st.radio(
+        "Analysis Mode",
+        ["Batter Analysis", "Pitcher Analysis"],
+        index=0,
+        horizontal=True,
+    )
+    st.divider()
+
     # 1. Team Selection
     @st.cache_data(ttl=3600)
     def get_teams(_engine):
@@ -176,6 +185,12 @@ st.subheader(f"👥 {TEAM_MAP.get(selected_team, selected_team)} Roster ({season
 roster_ids_df = get_players_by_team(selected_team, season, engine)
 
 if not roster_ids_df.empty:
+    # Filter by Lab Mode
+    if lab_mode == "Pitcher Analysis":
+        roster_ids_df = roster_ids_df[roster_ids_df["pitches_thrown"] > 0]
+    else:
+        roster_ids_df = roster_ids_df[roster_ids_df["batted_balls"] > 0]
+
     # Map IDs to Names from our Master Map
     roster_ids_df["id"] = roster_ids_df["player_id"]
     roster_ids_df["Player Name"] = (
@@ -185,7 +200,7 @@ if not roster_ids_df.empty:
     )
 
     # Reorder columns for display
-    display_df = roster_ids_df[["Player Name", "id", "batted_balls", "pitches_thrown"]]
+    display_df = roster_ids_df[["Player Name", "batted_balls", "pitches_thrown", "id"]]
 
     st.info("Select a player from the table below to load the Performance Lab.")
     selection = st.dataframe(
@@ -295,9 +310,21 @@ with tab_spray:
             st.caption(f"Simulating outcomes for: **{target_ballpark}**")
 
         # Spray Chart Component
+        spray_df = (
+            df_events[df_events["pitcher"] == selected_player_id]
+            if lab_mode == "Pitcher Analysis"
+            else df_events[df_events["batter"] == selected_player_id]
+        )
+
+        spray_title = (
+            f"Hits Allowed by {selected_player_name} ({season})"
+            if lab_mode == "Pitcher Analysis"
+            else f"{selected_player_name} - {season} Hits"
+        )
+
         fig_spray = plot_spray_chart(
-            df_events[df_events["batter"] == selected_player_id],
-            title=f"{selected_player_name} - {season} Hits",
+            spray_df,
+            title=spray_title,
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )

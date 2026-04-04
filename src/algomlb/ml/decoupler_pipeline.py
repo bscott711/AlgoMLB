@@ -1,29 +1,24 @@
 """
-src/algomlb/scripts/decoupler_cli.py
+src/algomlb/ml/decoupler_pipeline.py
 
-CLI for the Batted Ball Flight Decoupler.
+Reusable pipeline for the Batted Ball Flight Decoupler.
 Handles data loading, training, calibration, and backfilling.
 """
 
 from __future__ import annotations
 
-import argparse
-
 import pandas as pd
 from sqlalchemy import text
 from tqdm import tqdm
 
+from algomlb.core.logger import logger
 from algomlb.db.session import get_session_factory
-from algomlb.db.models import (
-    StatcastBattedBallORM,
-)
+from algomlb.db.models import StatcastBattedBallORM
 from algomlb.ml.batted_ball_decoupler import BattedBallFlightDecoupler
 
 
-def load_dataset(engines, start_year: int, end_year: int) -> pd.DataFrame:
+def load_decoupler_dataset(engines, start_year: int, end_year: int) -> pd.DataFrame:
     """Load Statcast + Weather + Ballpark data for the given range."""
-    # We join Statcast with Weather on game_pk = game_id (cast to string)
-    # and Ballpark on game.ballpark_id = ballpark.id
     query = f"""
     SELECT 
         s.game_pk, s.game_date, s.batter, s.pitcher, p.stand,
@@ -60,29 +55,24 @@ def load_dataset(engines, start_year: int, end_year: int) -> pd.DataFrame:
     return df
 
 
-def run_pipeline():
-    parser = argparse.ArgumentParser(description="AlgoMLB Batted Ball Decoupler CLI")
-    parser.add_argument("action", choices=["train", "calibrate", "backfill", "full"])
-    parser.add_argument("--version", default="v1")
-    args = parser.parse_args()
-
+def run_decoupler_pipeline(action: str, version: str = "v1"):
+    """Core logic for the decoupler pipeline."""
     session_factory = get_session_factory()
-    decoupler = BattedBallFlightDecoupler(version=args.version)
+    decoupler = BattedBallFlightDecoupler(version=version)
 
-    if args.action in ["train", "full"]:
-        print("🚀 Loading Training Data (2019-2023)...")
-        train_df = load_dataset(session_factory, 2019, 2023)
-        print(f"✅ Loaded {len(train_df)} records. Training baseline...")
+    if action in ["train", "full"]:
+        logger.info("🚀 Loading Training Data (2019-2023)...")
+        train_df = load_decoupler_dataset(session_factory, 2019, 2023)
+        logger.success(f"✅ Loaded {len(train_df)} records. Training baseline...")
         decoupler.train_baseline(train_df)
-        print("⭐ Baseline model trained.")
+        logger.info("⭐ Baseline model trained.")
 
-    if args.action in ["calibrate", "full"]:
-        if args.action == "calibrate":
+    if action in ["calibrate", "full"]:
+        if action == "calibrate":
             decoupler.load()
-        print("🧪 Loading Calibration Data (2024)...")
-        val_df = load_dataset(session_factory, 2024, 2024)
+        logger.info("🧪 Loading Calibration Data (2024)...")
+        val_df = load_decoupler_dataset(session_factory, 2024, 2024)
 
-        # Get ballpark coords for physics
         with session_factory() as session:
             coords = pd.read_sql(
                 text(
@@ -91,15 +81,15 @@ def run_pipeline():
                 session.bind,
             )
 
-        print("⚙️ Calibrating coefficients (β, γ, δ)...")
+        logger.info("⚙️ Calibrating coefficients (β, γ, δ)...")
         decoupler.calibrate(val_df, coords)
-        print(f"📊 Coefficients: {decoupler.coeffs}")
+        logger.success(f"📊 Coefficients: {decoupler.coeffs}")
         decoupler.save()
 
-    if args.action in ["backfill", "full"]:
+    if action in ["backfill", "full"]:
         decoupler.load()
-        print("🌊 Loading Full Dataset for Decoupling (2019-2026)...")
-        df = load_dataset(session_factory, 2019, 2026)
+        logger.info("🌊 Loading Full Dataset for Decoupling (2019-2026)...")
+        df = load_decoupler_dataset(session_factory, 2019, 2026)
 
         with session_factory() as session:
             coords = pd.read_sql(
@@ -109,22 +99,18 @@ def run_pipeline():
                 session.bind,
             )
 
-        print("🧬 Decoupling environmental effects...")
+        logger.info("🧬 Decoupling environmental effects...")
         df = decoupler.preprocess(df, coords)
         results = decoupler.decouple(df)
 
-        print("💾 Saving results to statcast_batted_balls...")
-        # Chunked upsert to avoid memory issues
+        logger.info("💾 Saving results to statcast_batted_balls...")
         chunk_size = 5000
         with session_factory() as session:
-            # Clear existing for the range if needed, or just insert
-            # For backfill simplicity, we'll clear first
             session.execute(text("TRUNCATE TABLE statcast_batted_balls"))
             session.commit()
 
             for i in tqdm(range(0, len(results), chunk_size)):
                 chunk = results.iloc[i : i + chunk_size]
-                # Map to ORM
                 records = []
                 for _, row in chunk.iterrows():
                     records.append(
@@ -165,8 +151,4 @@ def run_pipeline():
                 session.add_all(records)
                 session.commit()
 
-    print("🏁 Decoupler pipeline complete.")
-
-
-if __name__ == "__main__":
-    run_pipeline()
+    logger.success("🏁 Decoupler pipeline complete.")

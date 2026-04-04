@@ -11,6 +11,7 @@ from algomlb.core.logger import logger
 from algomlb.db.repository import DatabaseRepository
 from algomlb.db.session import get_session_factory
 from algomlb.ml import FeaturePipeline, MLBModel
+from algomlb.ml.decoupler_pipeline import run_decoupler_pipeline
 from algomlb.ingestion.historical import HistoricalDataLoader
 
 app = typer.Typer(help="Train and optimize ML models.", no_args_is_help=True)
@@ -146,6 +147,22 @@ def optimize(
 ) -> None:
     """Run Optuna optimization studies."""
     typer.echo(f"TODO: Implement ML optimize for {market}")
+
+
+@app.command()
+def decouple(
+    ctx: typer.Context,
+    action: str = typer.Argument(
+        ..., help="Action to perform: train, calibrate, backfill, or full"
+    ),
+    version: str = typer.Option("v1", "--version", help="Model version to use"),
+) -> None:
+    """Run the Batted Ball Flight Decoupler pipeline (Train, Calibrate, Backfill)."""
+    try:
+        run_decoupler_pipeline(action, version)
+    except Exception as e:
+        logger.error(f"Decoupler pipeline failed: {e}")
+        raise typer.Exit(code=1)
 
 
 # Dummy use for deptry to ignore optuna
