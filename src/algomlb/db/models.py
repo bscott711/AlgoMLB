@@ -228,6 +228,12 @@ class BallparkORM(Base):
     daytime: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     hp_bearing_deg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+    # GPS Coordinates for orientation & self-maintenance
+    hp_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hp_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pm_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pm_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
 
 class UmpireScorecardORM(Base):
     """Umpire accuracy and bias data from umpscorecards.us API."""
@@ -879,4 +885,58 @@ class StatcastProcessRegistry(Base):
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class StatcastBattedBallORM(Base):
+    """
+    Analytics table for Batted Ball Flight Decoupling.
+    Stores environmental residuals and raw contact quality.
+    """
+
+    __tablename__ = "statcast_batted_balls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    batter_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    pitcher_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    venue_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    stand: Mapped[str] = mapped_column(String(1), nullable=False)
+
+    # Raw Statcast Batted Ball Data
+    launch_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    launch_angle: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    hc_x: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    hc_y: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    spray_angle: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+    hit_distance_sc: Mapped[Optional[float]] = mapped_column(Numeric(6, 1))
+    bb_type: Mapped[Optional[str]] = mapped_column(String(20))
+    events: Mapped[Optional[str]] = mapped_column(String(40))
+    is_rhb: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Environmental Inputs (Game Time)
+    temperature_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    pressure_hpa: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    relative_humidity: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_speed_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
+    wind_direction_deg: Mapped[Optional[float]] = mapped_column(Numeric(6, 1))
+    precipitation_mm_hr: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+
+    # Derived Physics Features
+    cf_bearing_deg: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+    air_density_ratio: Mapped[Optional[float]] = mapped_column(Numeric(6, 4))
+    tailwind_component: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
+
+    # Decoupler Analytics (Populated by ML pipeline)
+    baseline_distance: Mapped[Optional[float]] = mapped_column(Numeric(6, 1))
+    total_delta: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    delta_density: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    delta_wind: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    delta_precip: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    environmental_factor: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+    spin_contact_factor: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
     )

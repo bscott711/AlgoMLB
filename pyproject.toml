@@ -39,6 +39,7 @@ dependencies = [
     "retry-requests>=2.0.0",
     "requests>=2.32.3",
     "pytz>=2026.1.post1",
+    "tqdm>=4.67.3",
 ]
 
 [project.scripts]

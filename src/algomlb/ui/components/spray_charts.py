@@ -3,6 +3,8 @@ import pandas as pd
 from typing import Optional, List, Dict
 from algomlb.ui.styles import get_plotly_template
 
+pd.set_option("future.no_silent_downcasting", True)
+
 
 def get_baseball_field_shapes(
     lf: float | int | None = 330,
