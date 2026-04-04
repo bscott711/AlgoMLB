@@ -206,8 +206,18 @@ class BallparkORM(Base):
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     left_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    left_center: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     center_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    right_center: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     right_field: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Section Heights
+    lf_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lc_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    cf_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    rc_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    rf_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
     min_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     max_wall_height: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     hr_park_effects: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

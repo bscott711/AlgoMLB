@@ -1,7 +1,13 @@
 import streamlit as st
+from algomlb.ui.styles import apply_premium_styles
 
 # Setup navigation and page structure (Streamlit 1.29+)
-st.set_page_config(page_title="AlgoMLB Dashboard", layout="wide")
+st.set_page_config(page_title="AlgoMLB Command Center", page_icon="📡", layout="wide")
+apply_premium_styles()
+
+# Hero Header
+st.title("📡 AlgoMLB Command Center")
+st.markdown("---")
 
 pages = {
     "Live Analytics": [

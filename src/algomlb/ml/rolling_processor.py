@@ -122,10 +122,14 @@ class RollingProcessor:
             else None
         )
         record.roll_avg_pfx_x = (
-            float(df["avg_pfx_x"].mean()) if not df["avg_pfx_x"].isnull().all() else None
+            float(df["avg_pfx_x"].mean())
+            if not df["avg_pfx_x"].isnull().all()
+            else None
         )
         record.roll_avg_pfx_z = (
-            float(df["avg_pfx_z"].mean()) if not df["avg_pfx_z"].isnull().all() else None
+            float(df["avg_pfx_z"].mean())
+            if not df["avg_pfx_z"].isnull().all()
+            else None
         )
 
         observed_xwoba = df["avg_pitcher_xwoba"].mean()
