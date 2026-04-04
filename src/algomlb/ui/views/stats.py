@@ -200,18 +200,28 @@ if not roster_ids_df.empty:
         selection_mode="single-row",
     )
 
-    # Get selected ID from selection state
+    # --- Sticky Selection Logic ---
     selection_data = selection.get("selection", {})
     selected_rows = selection_data.get("rows", [])
+    
+    selected_player_id = None
+    selected_player_name = None
+
     if selection and selected_rows:
+        # A. Priority 1: Direct User Click
         selected_idx = int(selected_rows[0])
         selected_player_id = int(display_df.iloc[selected_idx]["id"])
         selected_player_name = display_df.iloc[selected_idx]["Player Name"]
-        # PERSIST for ballpark default logic
-        if st.session_state.get("last_selected_player_id") != selected_player_id:
-            st.session_state.last_selected_player_id = selected_player_id
-            st.rerun()
-    else:
+        st.session_state.last_selected_player_id = selected_player_id
+    elif "last_selected_player_id" in st.session_state:
+        # B. Priority 2: Sticky Session State (Auto-re-select in new season/team roster)
+        prev_id = st.session_state.last_selected_player_id
+        if prev_id in display_df["id"].values:
+            selected_player_id = prev_id
+            selected_player_name = display_df[display_df["id"] == prev_id]["Player Name"].iloc[0]
+            
+    # Exit if no player identified
+    if not selected_player_id:
         st.warning("Please select a player row in the table above.")
         st.stop()
 else:
