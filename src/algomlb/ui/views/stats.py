@@ -66,7 +66,7 @@ with st.sidebar:
     )
     st.divider()
 
-    # 1. Team Selection
+    # 1. Team Selection & Active Career Tracking Logic
     @st.cache_data(ttl=3600)
     def get_teams(_engine):
         query = "SELECT DISTINCT home_team FROM statcast_raw ORDER BY 1"
@@ -74,13 +74,49 @@ with st.sidebar:
 
     team_codes = get_teams(engine)
     team_display = {code: TEAM_MAP.get(code, code) for code in team_codes}
+    
+    # Initialize default team in session state
+    if "selected_team_widget" not in st.session_state:
+        st.session_state.selected_team_widget = "Los Angeles Dodgers"
+    
+    # Career Tracking: Jump to player's team ONLY if the year was just changed
+    if "last_selected_player_id" in st.session_state:
+        p_id = st.session_state.last_selected_player_id
+        req_year = st.session_state.get("season_slider", 2026) 
+        
+        # Determine if we should trigger an auto-jump (Season changed)
+        if st.session_state.get("last_season_for_jump") != req_year:
+            @st.cache_data(ttl=3600)
+            def get_team_for_player_and_year(_pid, _year, _engine):
+                # Aggregated lookup: Find the team the player appeared for most frequently in this year.
+                query = f"""
+                    SELECT team_code FROM (
+                        SELECT home_team as team_code FROM statcast_raw WHERE batter={_pid} AND LOWER(inning_topbot)='bot' AND CAST(EXTRACT(YEAR FROM game_date) AS INTEGER) = {_year}
+                        UNION ALL
+                        SELECT away_team as team_code FROM statcast_raw WHERE batter={_pid} AND LOWER(inning_topbot)='top' AND CAST(EXTRACT(YEAR FROM game_date) AS INTEGER) = {_year}
+                        UNION ALL
+                        SELECT home_team as team_code FROM statcast_raw WHERE pitcher={_pid} AND LOWER(inning_topbot)='top' AND CAST(EXTRACT(YEAR FROM game_date) AS INTEGER) = {_year}
+                        UNION ALL
+                        SELECT away_team as team_code FROM statcast_raw WHERE pitcher={_pid} AND LOWER(inning_topbot)='bot' AND CAST(EXTRACT(YEAR FROM game_date) AS INTEGER) = {_year}
+                    ) t
+                    GROUP BY team_code ORDER BY COUNT(*) DESC LIMIT 1
+                """
+                df = pd.read_sql(query, _engine)
+                return df.iloc[0]["team_code"] if not df.empty else None
+                
+            p_team_code = get_team_for_player_and_year(p_id, req_year, engine)
+            if p_team_code:
+                p_display = team_display.get(p_team_code, p_team_code)
+                if st.session_state.get("selected_team_widget") != p_display:
+                    st.session_state.selected_team_widget = p_display
+            
+            # Mark this year as 'jumped' to avoid overriding manual team choices later
+            st.session_state.last_season_for_jump = req_year
 
     selected_team_display = st.selectbox(
         "Select Team",
         options=list(team_display.values()),
-        index=list(team_display.values()).index(
-            team_display.get("LAD", list(team_display.values())[0])
-        ),
+        key="selected_team_widget"
     )
     # Reverse map back to code
     selected_team = [
@@ -90,7 +126,7 @@ with st.sidebar:
     ][0]
 
     # 2. Season/Date Filter
-    season = st.slider("Season", 2019, 2026, 2026)  # Expanded to 2026
+    season = st.slider("Season", 2019, 2026, 2026, key="season_slider")  # Expanded to 2026
 
     # 3. Hit Simulator (The "What-If" Engine)
     st.divider()

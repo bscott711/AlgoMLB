@@ -147,7 +147,7 @@ def get_baseball_field_shapes(
             path=skin_path,
             fillcolor=C_DIRT,
             line=dict(width=0),
-            layer="above"
+            layer="below"
         )
     )
 
@@ -171,7 +171,7 @@ def get_baseball_field_shapes(
             path=hub_path,
             fillcolor=C_LIGHT_GREEN,
             line=dict(color="rgba(255,255,255,0.22)", width=1),
-            layer="above",
+            layer="below",
         )
     )
 
@@ -184,7 +184,7 @@ def get_baseball_field_shapes(
             y1=MOUND_Y + 9,
             fillcolor=C_DIRT,
             line=dict(width=0),
-            layer="above",
+            layer="below",
         )
     )
 
@@ -198,6 +198,7 @@ def get_baseball_field_shapes(
                 y1=by + 1.25,
                 fillcolor=C_WHITE,
                 line=dict(width=0),
+                layer="below",
             )
         )
 
@@ -210,6 +211,7 @@ def get_baseball_field_shapes(
             y1=MOUND_Y + 0.5,
             fillcolor=C_WHITE,
             line=dict(width=0),
+            layer="below",
         )
     )
     shapes.append(
@@ -218,13 +220,15 @@ def get_baseball_field_shapes(
             path="M -0.8,0 L 0.8,0 L 1.0,-1.0 L 0,-1.5 L -1.0,-1.0 Z",
             fillcolor=C_WHITE,
             line=dict(width=0),
+            layer="below",
         )
     )
 
     for px, py in [p_f[0], p_f[-1]]:
         shapes.append(
             dict(
-                type="line", x0=0, y0=0, x1=px, y1=py, line=dict(color=C_WHITE, width=2)
+                type="line", x0=0, y0=0, x1=px, y1=py, line=dict(color=C_WHITE, width=2),
+                layer="below",
             )
         )
 
@@ -255,6 +259,7 @@ def get_baseball_field_shapes(
                     width=max(2.5, h / 3.0),
                     dash="dash" if h < 9 else "solid",
                 ),
+                layer="below",
             )
         )
 
