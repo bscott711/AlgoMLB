@@ -6,6 +6,7 @@ from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.transactions_ingester import PlayerTransactionsIngester
 from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 from algomlb.ingestion.statcast_ingester import StatcastIngester
+from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 
 __all__ = [
     "BaseAPIClient",
@@ -16,4 +17,5 @@ __all__ = [
     "PlayerTransactionsIngester",
     "OpenMeteoIngester",
     "StatcastIngester",
+    "UmpireScorecardIngester",
 ]

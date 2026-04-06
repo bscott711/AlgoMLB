@@ -745,33 +745,23 @@ class StatcastRawORM(Base):
     plate_x: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
     plate_z: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
 
-    # Metrics & Context
-    at_bat_number_1: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     bat_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
-    blue_color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     delta_home_win_exp: Mapped[Optional[float]] = mapped_column(
         Numeric(5, 3), nullable=True
     )
     delta_run_exp: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
     des: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    home_team_1: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
-    industrial_color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     pitch_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    pitcher_1: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     post_away_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     post_bat_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     post_fld_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     post_home_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
-    spin_rate_deprecated: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     swing_length: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
     hit_distance_sc: Mapped[Optional[float]] = mapped_column(
         Numeric(5, 1), nullable=True
     )
     release_pos_x: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     release_pos_z: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    spin_dir: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    break_angle_deprecated: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    break_length_deprecated: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     zone: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     stand: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     p_throws: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -784,10 +774,6 @@ class StatcastRawORM(Base):
     on_2b: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     on_1b: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     outs_when_up: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    tfs_deprecated: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    tfs_zulu_deprecated: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    umpire: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    sv_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     vx0: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     vy0: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     vz0: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
@@ -849,7 +835,6 @@ class StatcastRawORM(Base):
     ingested_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    pybaseball_version: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
 
 class StatcastQuantFeatures(Base):

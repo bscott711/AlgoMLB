@@ -8,6 +8,8 @@ from algomlb.ingestion.odds_api import OddsAPIClient
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.transactions_ingester import PlayerTransactionsIngester
 from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
+from algomlb.ingestion.statcast_ingester import StatcastIngester
+from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 
 
 class IngestionOrchestrator:
@@ -21,6 +23,8 @@ class IngestionOrchestrator:
         historical_loader: HistoricalDataLoader,
         transactions_ingester: PlayerTransactionsIngester,
         openmeteo_ingester: OpenMeteoIngester,
+        statcast_ingester: StatcastIngester,
+        umpire_ingester: UmpireScorecardIngester,
     ):
         self.repo = repo
         self.odds_client = odds_client
@@ -28,6 +32,8 @@ class IngestionOrchestrator:
         self.historical_loader = historical_loader
         self.transactions_ingester = transactions_ingester
         self.openmeteo_ingester = openmeteo_ingester
+        self.statcast_ingester = statcast_ingester
+        self.umpire_ingester = umpire_ingester
 
     def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
         """Fetch and persist historical pitching and batting stats."""
@@ -99,3 +105,20 @@ class IngestionOrchestrator:
             end_date = today
 
         self.openmeteo_ingester.ingest_range(start_date, end_date)
+
+    def run_statcast_ingestion(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> int:
+        """Fetch and persist raw Statcast pitch data."""
+        if start_date is None:
+            start_date = date.today() - datetime.timedelta(days=1)
+        if end_date is None:
+            end_date = start_date
+
+        return self.statcast_ingester.ingest_range(start_date, end_date)
+
+    def run_umpire_ingestion(self, seasons: list[int] | None = None) -> int:
+        """Fetch and persist umpire scorecards."""
+        return self.umpire_ingester.ingest_from_api(seasons=seasons)
