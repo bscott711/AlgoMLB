@@ -48,7 +48,7 @@ if not df_ballparks.empty:
             na_rep="N/A",
         )
         .background_gradient(subset=["elevation", "hr_park_effects"], cmap="Spectral"),
-        use_container_width=True,
+        width='stretch',
     )
 
 st.markdown("---")
@@ -69,7 +69,7 @@ with c_left:
         template="plotly_dark",
         title="High Elevation Impact on HR Propensity",
     )
-    st.plotly_chart(fig_hr, use_container_width=True)
+    st.plotly_chart(fig_hr, width='stretch')
 
 with c_right:
     st.markdown("#### Field Dimensions Comparison")
@@ -89,7 +89,7 @@ with c_right:
         template="plotly_dark",
         title="League-wide Outfield Dimensions Distribution",
     )
-    st.plotly_chart(fig_dist, use_container_width=True)
+    st.plotly_chart(fig_dist, width='stretch')
 
 st.markdown("---")
 
@@ -123,7 +123,7 @@ with engine.connect() as conn:
                 title="Elevation vs. Release Velocity & Spin",
                 labels={"avg_velo": "Avg Velo (mph)", "avg_spin": "Avg Spin (rpm)"},
             )
-            st.plotly_chart(fig_env, use_container_width=True)
+            st.plotly_chart(fig_env, width='stretch')
         else:
             st.info(
                 "💡 Link `game_results.ballpark_id` to `ballparks.id` to see elevation impact."

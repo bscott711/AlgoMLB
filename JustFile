@@ -112,6 +112,11 @@ dashboard:
 # Alias for dashboard
 serve-dashboard: dashboard
 
+# Start or attach to a tmux session named 'dashboard'
+dashboard-session:
+	@tmux has-session -t dashboard 2>/dev/null || tmux new-session -d -s dashboard 'just dashboard'
+	@tmux attach-session -t dashboard
+
 # Launch the Streamlit dashboard in the background
 serve-bg:
 	@echo "🚀 Launching Baseball Bot Dashboard in the background (Port 8502)..."

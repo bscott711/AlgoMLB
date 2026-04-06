@@ -230,7 +230,7 @@ if not roster_ids_df.empty:
     st.info("Select a player from the table below to load the Performance Lab.")
     selection = st.dataframe(
         display_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
@@ -325,7 +325,7 @@ with tab_overview:
                 "events",
             ]
         ].head(100),
-        use_container_width=True,
+        width='stretch',
     )
 
 with tab_spray:
@@ -367,12 +367,12 @@ with tab_spray:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_spray, use_container_width=True)
+        st.plotly_chart(fig_spray, width='stretch')
 
     with col_right:
         st.subheader("🎯 Strike Zone Lab")
         fig_zone = plot_strike_zone(df_events, title="Pitch Locations & Quality")
-        st.plotly_chart(fig_zone, use_container_width=True)
+        st.plotly_chart(fig_zone, width='stretch')
 
 with tab_trends:
     st.subheader("📈 Rolling Feature Workbench")
@@ -397,7 +397,7 @@ with tab_trends:
             title=f"Rolling xwOBA Trend (Shrinkage Baseline: {league_mean})",
         )
         if fig_trend:
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, width='stretch')
     else:
         st.info(
             "No rolling Gold layer features found for this player. Ensure the backfill has processed this player_id."

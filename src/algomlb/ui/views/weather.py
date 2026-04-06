@@ -104,7 +104,7 @@ if not df_missing.empty:
     st.warning(
         f"Found {len(df_missing)} completed games missing weather data for {selected_year}."
     )
-    st.dataframe(df_missing, use_container_width=True)
+    st.dataframe(df_missing, width='stretch')
 
     # Generate ingestion command for the user
     min_date = df_missing["game_date"].min()
@@ -134,7 +134,7 @@ with col1:
             title="Temp Distribution",
             color_discrete_sequence=["orange"],
         )
-        st.plotly_chart(fig_temp, use_container_width=True)
+        st.plotly_chart(fig_temp, width='stretch')
 
 with col2:
     st.write("#### Wind Speed at First Pitch (T0)")
@@ -148,7 +148,7 @@ with col2:
             title="Wind Speed Distribution",
             color_discrete_sequence=["cyan"],
         )
-        st.plotly_chart(fig_wind, use_container_width=True)
+        st.plotly_chart(fig_wind, width='stretch')
 
 # --- 5. TOP WINDIER/HOTTER STADIUMS ---
 st.subheader("🏟️ Stadium Climate Profiles")
@@ -169,7 +169,7 @@ df_stadiums = pd.read_sql(query_stadiums, engine)
 if not df_stadiums.empty:
     st.dataframe(
         df_stadiums.style.highlight_max(axis=0, subset=["avg_temp", "avg_wind"]),
-        use_container_width=True,
+        width='stretch',
     )
 
 st.success("Weather Data Feed: Active | Idempotent Sync: Enabled")

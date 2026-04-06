@@ -137,7 +137,7 @@ if not df_events.empty:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_away, use_container_width=True)
+        st.plotly_chart(fig_away, width='stretch')
 
     with col_home:
         st.subheader(f"🏹 {TEAM_MAP.get(home_team, home_team)} Hits")
@@ -149,7 +149,7 @@ if not df_events.empty:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_home, use_container_width=True)
+        st.plotly_chart(fig_home, width='stretch')
 
     st.markdown("### 📊 Game Event Log")
     st.dataframe(
@@ -163,7 +163,7 @@ if not df_events.empty:
                 "events",
             ]
         ].sort_values("at_bat_number"),
-        use_container_width=True,
+        width='stretch',
     )
 
 else:

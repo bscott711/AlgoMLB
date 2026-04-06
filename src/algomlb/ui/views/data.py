@@ -152,7 +152,7 @@ with col_a:
                 "Cancelled": "#D3D3D3",
             },
         )
-        st.plotly_chart(fig_seasons, use_container_width=True)
+        st.plotly_chart(fig_seasons, width='stretch')
     else:
         st.info("No season data found. Run `algomlb ingest schedule`.")
 
@@ -176,7 +176,7 @@ with col_b:
                 markers=True,
                 template="plotly_dark",
             )
-            st.plotly_chart(fig_umps, use_container_width=True)
+            st.plotly_chart(fig_umps, width='stretch')
         else:
             st.warning(
                 "Umpire data not yet linked. Game IDs might be missing for 2019-2022."
@@ -203,7 +203,7 @@ if not df_tx.empty:
         template="plotly_dark",
         color_discrete_sequence=["#FF4B4B"],
     )
-    st.plotly_chart(fig_tx, use_container_width=True)
+    st.plotly_chart(fig_tx, width='stretch')
 else:
     st.info("No transaction data found. Run `algomlb ingest transactions`.")
 
@@ -221,7 +221,7 @@ with c1:
     df_density = pd.read_sql(query_density, engine)
     if not df_density.empty:
         fig_density = px.area(df_density, x="date", y="count", template="plotly_dark")
-        st.plotly_chart(fig_density, use_container_width=True)
+        st.plotly_chart(fig_density, width='stretch')
 
 with c2:
     st.write("#### Missing Values (Pitch Analytics)")

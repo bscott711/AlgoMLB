@@ -39,7 +39,7 @@ with c1:
             color_continuous_scale="Reds",
         )
         fig_parts.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig_parts, use_container_width=True)
+        st.plotly_chart(fig_parts, width='stretch')
 
 with c2:
     st.write("#### Typical Injury Types")
@@ -58,7 +58,7 @@ with c2:
             template="plotly_dark",
             hole=0.4,
         )
-        st.plotly_chart(fig_kind, use_container_width=True)
+        st.plotly_chart(fig_kind, width='stretch')
 
 st.markdown("---")
 
@@ -85,7 +85,7 @@ if not df_monthly.empty:
         markers=True,
         template="plotly_dark",
     )
-    st.plotly_chart(fig_monthly, use_container_width=True)
+    st.plotly_chart(fig_monthly, width='stretch')
 
 st.markdown("---")
 
@@ -143,7 +143,7 @@ if player_input:
         st.write(f"History for '{player_input}'")
         # Ensure days_on_il is int
         df_player["days_on_il"] = df_player["days_on_il"].fillna(0).astype(int)
-        st.dataframe(df_player, use_container_width=True)
+        st.dataframe(df_player, width='stretch')
 
         # Summary metrics
         total_il_days = df_player["days_on_il"].sum()
