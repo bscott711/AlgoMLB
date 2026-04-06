@@ -100,6 +100,26 @@ class GameResultORM(Base):
     away_travel_distance_km: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
 
+class GameLineupORM(Base):
+    """Starting lineup for each game. One row per starter (9 per team side)."""
+
+    __tablename__ = "game_lineups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    team_side: Mapped[str] = mapped_column(String(4), nullable=False)  # 'home' or 'away'
+    batting_order: Mapped[int] = mapped_column(SmallInteger, nullable=False)  # 1-9
+    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    player_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    position: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("game_pk", "team_side", "batting_order", name="uq_game_lineup_slot"),
+        Index("ix_lineup_game_date", "game_date"),
+    )
+
+
 class BankrollLedgerORM(Base):
     """Persistent state for the paper bankroll."""
 

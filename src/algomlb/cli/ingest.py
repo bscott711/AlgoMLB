@@ -11,6 +11,9 @@ from algomlb.ingestion import (
     OddsAPIClient,
     OpenMeteoIngester,
     PlayerTransactionsIngester,
+    StatcastIngester,
+    UmpireScorecardIngester,
+    GumboIngester,
 )
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.ballpark_ingester import BallparkIngester
@@ -43,6 +46,9 @@ def odds(ctx: typer.Context):
             historical_loader,
             transactions_ingester,
             openmeteo_ingester,
+            StatcastIngester(repo=repo),
+            UmpireScorecardIngester(session),
+            GumboIngester(session),
         )
 
         logger.info("Starting live odds ingestion...")
@@ -86,6 +92,9 @@ def schedule(
             historical_loader,
             transactions_ingester,
             openmeteo_ingester,
+            StatcastIngester(repo=repo),
+            UmpireScorecardIngester(session),
+            GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -291,6 +300,34 @@ def retrosheet(
 
 
 @app.command()
+def lineups(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+    game_pk: int = typer.Option(None, "--game-pk", help="Single game PK to ingest"),
+    throttle: int = typer.Option(200, "--throttle", help="Milliseconds between API calls"),
+):
+    """Ingest starting lineups (9 batters per side) from MLB Stats API boxscores."""
+    from algomlb.ingestion.lineup_ingester import LineupIngester
+
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        ingester = LineupIngester(session)
+
+        if game_pk:
+            game_date = datetime.date.today()  # Fallback; real date resolved from DB if needed
+            count = ingester.ingest_game(game_pk, game_date)
+            logger.success(f"Ingested {count} lineup slots for game {game_pk}")
+        elif start and end:
+            s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date()
+            count = ingester.backfill_range(s_date, e_date, throttle_ms=throttle)
+            logger.success(f"Lineup backfill complete: {count} total slots")
+        else:
+            logger.error("Must provide either --game-pk or both --start and --end.")
+
+
+@app.command()
 def transactions(
     ctx: typer.Context,
     start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
@@ -315,6 +352,9 @@ def transactions(
             historical_loader,
             transactions_ingester,
             openmeteo_ingester,
+            StatcastIngester(repo=repo),
+            UmpireScorecardIngester(session),
+            GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -362,6 +402,9 @@ def weather(
             historical_loader,
             transactions_ingester,
             openmeteo_ingester,
+            StatcastIngester(repo=repo),
+            UmpireScorecardIngester(session),
+            GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None

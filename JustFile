@@ -233,3 +233,30 @@ process-silver-today:
 # Perform incremental silver processing (High-Water Mark)
 process-silver-incremental:
     uv run algomlb process silver --incremental
+
+# ==========================================
+# 8. THE MASTER SYNC (Sync Everything)
+# ==========================================
+
+# Synchronize ALL data (Lineups, Statcast, Weather, Silver, Gold) for a given year
+# Usage: just sync-season 2024
+sync-season year:
+	@echo "🏟️ Synchronizing Full Season Pipeline for {{year}} (inc. Postseason)..."
+	@echo "--- 1/5: Ingesting Starting Lineups ---"
+	uv run algomlb ingest lineups --start {{year}}-03-01 --end {{year}}-11-15 --throttle 100
+	@echo "--- 2/5: Ingesting Statcast Raw Events ---"
+	uv run algomlb ingest statcast --start {{year}}-03-01 --end {{year}}-11-15
+	@echo "--- 3/5: Ingesting OpenMeteo Weather Data ---"
+	uv run algomlb ingest weather --start {{year}}-03-01 --end {{year}}-11-15
+	@echo "--- 4/5: Materializing Silver Game Logs ---"
+	uv run algomlb process silver --year {{year}}
+	@echo "--- 5/5: Materializing Gold Rolling Features ---"
+	uv run algomlb process rolling --start {{year}}-03-01 --end {{year}}-11-15
+	@echo "✅ Season {{year}} Sync Complete!"
+
+# Synchronize full historical range (2019-2025)
+sync-full-history:
+	@for year in 2026 2025 2024 2023 2022 2021 2020 2019; do \
+		just sync-season $year; \
+	done
+	@echo "🏆 Full History Sync Complete!"

@@ -135,12 +135,31 @@ class OpenMeteoIngester:
             url = "https://archive-api.open-meteo.com/v1/archive"
             models = "era5"
 
-        s_date = start_date or f"{year}-03-20"
-        e_date = end_date or (
+        s_date_str = start_date or f"{year}-03-20"
+        e_date_str = end_date or (
             f"{year}-11-05"
             if year < datetime.date.today().year
             else datetime.date.today().strftime("%Y-%m-%d")
         )
+
+        # Safety Clamping for current/future dates (Open-Meteo forecast limit is ~15 days)
+        today = datetime.date.today()
+        s_date_obj = datetime.datetime.strptime(s_date_str, "%Y-%m-%d").date()
+        e_date_obj = datetime.datetime.strptime(e_date_str, "%Y-%m-%d").date()
+
+        if year == today.year:
+            # Forecast API only allows up to 15 days in the future
+            max_forecast = today + datetime.timedelta(days=15)
+            if e_date_obj > max_forecast:
+                logger.info(f"📍 Clamping end_date to {max_forecast} (Open-Meteo forecast limit)")
+                e_date_obj = max_forecast
+            
+            # Ensure start_date isn't in the future
+            if s_date_obj > max_forecast:
+                 s_date_obj = today
+
+        s_date = s_date_obj.strftime("%Y-%m-%d")
+        e_date = e_date_obj.strftime("%Y-%m-%d")
 
         all_data = []
         batch_size = 5

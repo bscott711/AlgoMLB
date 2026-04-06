@@ -20,30 +20,55 @@ def load_rolling_features(player_id: int, role: str, _engine) -> pd.DataFrame:
 
 def plot_rolling_trend(
     df: pd.DataFrame,
-    metric: str,
+    metrics: list[str] | str,
     league_mean: Optional[float] = None,
     title: Optional[str] = None,
+    volatility_metric: Optional[str] = None,
 ):
     """
-    Generates a trend line chart for a rolling metric with a league-mean reference.
+    Generates a trend chart with support for multiple lines (EMAs) and volatility bands.
     """
     if df.empty:
         return None
 
+    if isinstance(metrics, str):
+        metrics = [metrics]
+
     # Semantic Labels
     label_map = {
-        "roll_avg_pitcher_xwoba": "Roll xwOBA (Pitcher)",
-        "roll_avg_batter_xwoba": "Roll xwOBA (Batter)",
+        "roll_avg_pitcher_xwoba": "Standard Rolling xwOBA",
+        "roll_avg_batter_xwoba": "Standard Rolling xwOBA",
+        "ema_pitcher_xwoba_3g": "Momentum (3-Game EMA)",
+        "ema_pitcher_xwoba_7g": "Trend (7-Game EMA)",
+        "ema_batter_xwoba_3g": "Momentum (3-Game EMA)",
+        "ema_batter_xwoba_7g": "Trend (7-Game EMA)",
         "roll_k_pct": "K% (Rolling)",
         "roll_bb_pct": "BB% (Rolling)",
         "roll_whiff_pct": "Whiff% (Rolling)",
         "roll_barrel_pct": "Barrel% (Rolling)",
     }
-    y_label = label_map.get(metric, metric.replace("_", " ").title())
 
     fig = go.Figure()
 
-    # Add League Mean Reference Line (Shrinkage Baseline)
+    # 1. Add Volatility Band (Shaded STD region)
+    # This must be added first so it sits behind the lines
+    if volatility_metric and volatility_metric in df.columns and len(metrics) == 1:
+        main_metric = metrics[0]
+        upper = df[main_metric] + df[volatility_metric]
+        lower = df[main_metric] - df[volatility_metric]
+        
+        fig.add_trace(go.Scatter(
+            x=pd.concat([df["game_date"], df["game_date"][::-1]]),
+            y=pd.concat([upper, lower[::-1]]),
+            fill='toself',
+            fillcolor='rgba(61, 90, 254, 0.1)',
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo="skip",
+            showlegend=True,
+            name="Volatility Band (±1 STD)"
+        ))
+
+    # 2. Add League Mean Reference Line
     if league_mean is not None:
         fig.add_hline(
             y=league_mean,
@@ -53,36 +78,47 @@ def plot_rolling_trend(
             annotation_position="bottom right",
         )
 
-    # Add Player Rolling Trend
-    fig.add_trace(
-        go.Scatter(
-            x=df["game_date"],
-            y=df[metric],
-            mode="lines+markers",
-            line=dict(width=3, color="#3D5AFE"),
-            marker=dict(size=6, color="#00E5FF"),
-            name="Rolling Average",
-            text=df.apply(
-                lambda row: (
-                    f"Date: {row['game_date']}<br>{y_label}: {row[metric]:.3f}<br>Games: {row['n_games_used']}"
+    # 3. Add Metric Lines
+    colors = ["#3D5AFE", "#00E5FF", "#76FF03", "#FF1744"]
+    for i, metric in enumerate(metrics):
+        if metric not in df.columns:
+            continue
+            
+        y_label = label_map.get(metric, metric.replace("_", " ").title())
+        is_main = "ema" not in metric
+        
+        fig.add_trace(
+            go.Scatter(
+                x=df["game_date"],
+                y=df[metric],
+                mode="lines" if not is_main else "lines+markers",
+                line=dict(
+                    width=4 if is_main else 2, 
+                    color=colors[i % len(colors)],
+                    dash="solid" if is_main else "dot"
                 ),
-                axis=1,
-            ),
-            hoverinfo="text",
+                name=y_label,
+                text=df.apply(
+                    lambda row: (
+                        f"Date: {row['game_date']}<br>{y_label}: {row[metric]:.3f}"
+                    ),
+                    axis=1,
+                ),
+                hoverinfo="text",
+            )
         )
-    )
 
-    # Shaded confidence/window area (optional if we had SE, but showing 'Partial' vs 'Full' baseline instead)
-    # Highlight points where baseline_quality is NOT 'FULL'
+    # Highlight points where baseline_quality is NOT 'FULL' (only for main metric)
     cold_starts = df[df["baseline_quality"] != "FULL"]
     if not cold_starts.empty:
+        main_val = df.loc[cold_starts.index, metrics[0]]
         fig.add_trace(
             go.Scatter(
                 x=cold_starts["game_date"],
-                y=cold_starts[metric],
+                y=main_val,
                 mode="markers",
                 marker=dict(size=10, symbol="x", color="rgba(255, 23, 68, 0.6)"),
-                name="Cold Start / Partial",
+                name="Cold Start Period",
                 hoverinfo="skip",
             )
         )
@@ -90,11 +126,11 @@ def plot_rolling_trend(
     # Layout
     fig.update_layout(
         template=get_plotly_template(),
-        title=title or f"{y_label} Trend",
+        title=title or f"Performance Trends",
         xaxis=dict(title="Game Date", showgrid=False),
-        yaxis=dict(title=y_label, showgrid=True, zeroline=False),
+        yaxis=dict(title="Metric Value", showgrid=True, zeroline=False),
         width=800,
-        height=450,
+        height=500,
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         plot_bgcolor="rgba(0,0,0,0)",

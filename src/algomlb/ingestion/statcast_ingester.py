@@ -5,6 +5,8 @@ import logging
 from typing import Final, Optional
 
 import pandas as pd
+from pybaseball import cache, statcast
+
 from algomlb.db.repository import DatabaseRepository
 
 logger = logging.getLogger(__name__)

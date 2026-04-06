@@ -287,6 +287,18 @@ tab_overview, tab_spray, tab_trends = st.tabs(
     ["📊 Performance Overview", "🏹 Spray & Zone Lab", "📈 Rolling Trends"]
 )
 
+# --- Pre-load Gold Layer Features for Dashboard ---
+role = "PITCHER" if lab_mode == "Pitcher Analysis" else "BATTER"
+df_rolling_all = load_rolling_features(selected_player_id, role, engine)
+
+# Filter Gold features to the selected season for Overview metrics
+if not df_rolling_all.empty:
+    df_rolling = df_rolling_all[df_rolling_all["season"] == season].copy()
+    latest_gold = df_rolling.iloc[-1] if not df_rolling.empty else None
+else:
+    df_rolling = pd.DataFrame()
+    latest_gold = None
+
 with tab_overview:
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
 
@@ -297,22 +309,45 @@ with tab_overview:
     if is_pitcher:
         avg_velo = df_events["release_speed"].mean()
         whiff_rate = (
-            len(
-                df_events[
-                    df_events["description"].str.contains("swinging_strike", na=False)
-                ]
-            )
-            / len(df_events)
-            if len(df_events) > 0
-            else 0
+            len(df_events[df_events["description"].str.contains("swinging_strike", na=False)])
+            / len(df_events) if len(df_events) > 0 else 0
         )
         col_m1.metric("Avg Velocity", f"{avg_velo:.1f} mph" if avg_velo else "N/A")
         col_m2.metric("Whiff %", f"{whiff_rate:.1%}")
+        
+        if latest_gold is not None:
+            # Fatigue Index (7d)
+            fatigue = latest_gold.get("fatigue_index_7d")
+            col_m3.metric("Fatigue Index (7d)", f"{fatigue:.1f}" if pd.notna(fatigue) else "Rested", delta=None)
+            
+            # Stuff Stability (Spin Delta)
+            spin_delta = latest_gold.get("delta_spin_rate_3g")
+            roll_spin = latest_gold.get('roll_avg_spin_rate')
+            col_m4.metric("Spin Stability", f"{roll_spin:.0f} rpm" if pd.notna(roll_spin) else "0 rpm", delta=f"{spin_delta:.0f} rpm" if pd.notna(spin_delta) else None)
     else:
         max_ev = df_events["launch_speed"].max()
         avg_la = df_events["launch_angle"].mean()
         col_m1.metric("Max Exit Velo", f"{max_ev:.1f} mph" if max_ev else "N/A")
         col_m2.metric("Avg Launch Angle", f"{avg_la:.1f}°" if avg_la else "N/A")
+        
+        if latest_gold is not None:
+            # Momentum (EMA 3g vs 7g)
+            ema3 = latest_gold.get("ema_batter_xwoba_3g")
+            ema7 = latest_gold.get("ema_batter_xwoba_7g")
+            if pd.notna(ema3) and pd.notna(ema7):
+                mom_delta = ema3 - ema7
+                col_m3.metric("xwOBA Momentum", f"{ema3:.3f}", delta=f"{mom_delta:+.3f}")
+            else:
+                col_m3.metric("xwOBA Momentum", "N/A", help="No history yet (First Game)")
+            
+            # Bat Speed Stability
+            bat_speed = latest_gold.get("roll_avg_bat_speed")
+            bs_ema3 = latest_gold.get("ema_bat_speed_3g")
+            if pd.notna(bs_ema3):
+                bs_delta = bs_ema3 - (bat_speed if pd.notna(bat_speed) else bs_ema3)
+                col_m4.metric("Bat Speed", f"{bs_ema3:.1f} mph", delta=f"{bs_delta:+.1f} mph")
+            else:
+                col_m4.metric("Bat Speed", "N/A", help="No Bat Speed data found")
 
     st.dataframe(
         df_events[
@@ -381,9 +416,11 @@ with tab_trends:
     df_rolling = load_rolling_features(selected_player_id, role, engine)
 
     if not df_rolling.empty:
-        metric_to_plot = (
-            "roll_avg_pitcher_xwoba" if is_pitcher else "roll_avg_batter_xwoba"
-        )
+        main_metric = "roll_avg_pitcher_xwoba" if is_pitcher else "roll_avg_batter_xwoba"
+        ema3_metric = "ema_pitcher_xwoba_3g" if is_pitcher else "ema_batter_xwoba_3g"
+        ema7_metric = "ema_pitcher_xwoba_7g" if is_pitcher else "ema_batter_xwoba_7g"
+        std_metric = "std_pitcher_xwoba_15g" if is_pitcher else "std_batter_xwoba_15g"
+        
         league_mean = (
             getattr(settings.ml, "league_mean_pitcher_xwoba", 0.320)
             if is_pitcher
@@ -392,12 +429,13 @@ with tab_trends:
 
         fig_trend = plot_rolling_trend(
             df_rolling,
-            metric=metric_to_plot,
+            metrics=[main_metric, ema3_metric, ema7_metric],
             league_mean=league_mean,
-            title=f"Rolling xwOBA Trend (Shrinkage Baseline: {league_mean})",
+            volatility_metric=std_metric,
+            title=f"Advanced xwOBA Momentum & Volatility (Shrinkage Baseline: {league_mean})",
         )
         if fig_trend:
-            st.plotly_chart(fig_trend, width='stretch')
+            st.plotly_chart(fig_trend, use_container_width=True)
     else:
         st.info(
             "No rolling Gold layer features found for this player. Ensure the backfill has processed this player_id."

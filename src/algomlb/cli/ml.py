@@ -60,71 +60,156 @@ def fetch_history(
 
 
 @app.command()
-def train(ctx: typer.Context) -> None:
-    """Train the baseline model using cached feature matrices."""
-    # Setup Infrastructure
+def train(
+    ctx: typer.Context,
+    start_year: int = typer.Option(2019, help="Start year for training data"),
+    end_year: int = typer.Option(2024, help="End year for training data"),
+    test_year: int = typer.Option(2025, help="Year to use for validation/testing"),
+) -> None:
+    """Train the Uranium model using Gold Layer features and report on a specific test year."""
     session_factory = get_session_factory()
-
-    with session_factory() as session:
-        repo = DatabaseRepository(session)
-        loader = HistoricalDataLoader(repo)
-        logger.info("Initializing baseline model training...")
-    try:
-        # Use 2023 to hit the local Parquet cache
-        pitching_df = loader.fetch_pitching_stats(2023, 2023)
-        batting_df = loader.fetch_team_batting(2023, 2023)
-    except Exception as e:
-        logger.error(f"Failed to load cached stats: {e}")
+    
+    logger.info(f"Initializing Uranium model training ({start_year}-{end_year}, excluding 2020)...")
+    logger.info(f"Validation Year: {test_year}")
+    
+    engine = session_factory.kw["bind"]
+    
+    # 1. Fetch real games (Train + Test years)
+    years_to_fetch = list(range(start_year, end_year + 1)) + [test_year]
+    # Remove 2020 as requested
+    years_to_fetch = [y for y in years_to_fetch if y != 2020]
+    
+    years_str = ",".join(map(str, sorted(list(set(years_to_fetch)))))
+    
+    games_query = f"""
+        SELECT game_id, game_pk, game_date, home_team, away_team, 
+               home_pitcher_id, away_pitcher_id, home_score, away_score
+        FROM game_results
+        WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
+        AND home_pitcher_id IS NOT NULL 
+        AND away_pitcher_id IS NOT NULL
+        AND status = 'COMPLETED'
+    """
+    logger.info("Fetching game results...")
+    games_df = pd.read_sql(games_query, engine)
+    
+    if games_df.empty:
+        logger.error("No completed games found for the specified years.")
         raise typer.Exit(code=1)
 
-    # Determine available teams and pitchers
-    # Use fallback if columns missing
-    has_team = "team" in pitching_df.columns and "team" in batting_df.columns
-    has_player = "player_id" in pitching_df.columns
+    # 2. Fetch Gold Layer Pitcher Features
+    gold_pitcher_query = f"""
+        SELECT *
+        FROM player_rolling_features
+        WHERE role = 'PITCHER'
+        AND season IN ({years_str})
+    """
+    logger.info("Fetching Gold Layer pitcher features...")
+    pitcher_gold_df = pd.read_sql(gold_pitcher_query, engine)
+    
+    if pitcher_gold_df.empty:
+        logger.error("No Gold Layer pitcher features found.")
+        raise typer.Exit(code=1)
 
-    teams = list(pitching_df["team"].unique()) if has_team else ["NYY", "BOS"]
-    # Ensure at least 2 teams for random sampling
-    if len(teams) < 2:
-        teams = ["NYY", "BOS"]
+    # 3. Fetch lineup data
+    lineup_query = f"""
+        SELECT game_pk, game_date, team_side, batting_order, player_id
+        FROM game_lineups
+        WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
+    """
+    logger.info("Fetching starting lineups...")
+    lineups_df = pd.read_sql(lineup_query, engine)
+    
+    # 4. Fetch Gold Layer Batter Features
+    batter_gold_query = f"""
+        SELECT *
+        FROM player_rolling_features
+        WHERE role = 'BATTER'
+        AND season IN ({years_str})
+    """
+    logger.info("Fetching Gold Layer batter features...")
+    batter_gold_df = pd.read_sql(batter_gold_query, engine)
 
-    player_ids = list(pitching_df["player_id"].unique()) if has_player else []
-    # Ensure at least some pitcher IDs exist for dummy games
-    if not player_ids:
-        player_ids = [1, 2]
+    lineup_count = len(lineups_df) if not lineups_df.empty else 0
+    batter_count = len(batter_gold_df) if not batter_gold_df.empty else 0
+    logger.info(f"Data loaded: {len(games_df)} games, {len(pitcher_gold_df)} pitcher records, {lineup_count} lineup slots, {batter_count} batter records")
 
-    games_data = []
-    for _ in range(100):
-        h_team, a_team = random.sample(teams, 2)
-        games_data.append(
-            {
-                "team_h": h_team,
-                "team_a": a_team,
-                "home_pitcher_id": random.choice(player_ids),
-                "away_pitcher_id": random.choice(player_ids),
-                "home_score": random.randint(0, 10),
-                "away_score": random.randint(0, 10),
-                "game_id": f"g_{random.randint(1000, 9999)}",
-                "date": "2024-04-01",
-            }
-        )
-    games_df = pd.DataFrame(games_data)
-
-    # Prepare historical baseline
-    if has_team:
-        stats_df = pitching_df.merge(batting_df, on="team")
-    else:
-        stats_df = pd.concat([pitching_df, batting_df], axis=1)
-
+    # 5. Build Uranium Matrix
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_training_matrix(games_df, stats_df)
+    
+    # Pass lineups and batter Gold if available
+    if not lineups_df.empty and not batter_gold_df.empty:
+        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df, lineups_df, batter_gold_df)
+    else:
+        logger.warning("Lineup or batter data unavailable. Training with pitcher-only features.")
+        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df)
+    
+    if X.empty:
+        logger.error("Uranium feature matrix is empty after pipeline.")
+        raise typer.Exit(code=1)
 
-    model = MLBModel(n_estimators=50, max_depth=3)
-    model.train(X, y)
+    # 6. Split Train/Test by Year
+    # games_df has our game records. pipeline.build_uranium_matrix should return indices aligned with games_df's outcome rows.
+    # To be safe, we re-derive the years from the index if possible, but X should have aligned index.
+    
+    # We'll use the game_date from the games_df to split
+    # Note: df in build_uranium_matrix might have fewer rows due to dropna(subset=["home_score","away_score"])
+    # But X index should match the filtered df. 
+    # We'll attach the year to the feature matrix temporarily to split.
+    
+    # Re-fetch the game dates for the rows in X
+    df_indices = X.index
+    # The build_uranium_matrix internal 'df' is constructed from games_df. 
+    # We need to ensure we can split by game_date.
+    
+    # Let's check the index of X. If we didn't reset it, it matches the merged df.
+    # The merged df started with games_df.
+    
+    X["temp_year"] = pd.to_datetime(games_df.loc[df_indices, "game_date"]).dt.year
+    
+    X_train = X[X["temp_year"] != test_year].drop(columns=["temp_year"])
+    y_train = y[X["temp_year"] != test_year]
+    
+    X_test = X[X["temp_year"] == test_year].drop(columns=["temp_year"])
+    y_test = y[X["temp_year"] == test_year]
+    
+    if X_train.empty:
+        logger.error("Training set is empty!")
+        raise typer.Exit(code=1)
+    if X_test.empty:
+        logger.warning(f"Test set (Year {test_year}) is empty! Results will only reflect training performance.")
+        X_test, y_test = X_train, y_train # Fallback for reporting
+    
+    # 7. Train Model
+    logger.info(f"Training XGBoost Uranium Model on {X_train.shape[0]} games, {X_train.shape[1]} features...")
+    model = MLBModel(n_estimators=300, max_depth=5, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8)
+    model.train(X_train, y_train)
 
-    model_path = Path(".data/models/baseline.joblib")
+    # 8. Evaluation
+    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    y_prob = model.clf.predict_proba(X_test)[:, 1]
+    y_pred = model.clf.predict(X_test)
+    
+    acc = accuracy_score(y_test, y_pred)
+    ll = log_loss(y_test, y_prob)
+    auc = roc_auc_score(y_test, y_prob)
+    
+    logger.success(f"Uranium Evaluation ({test_year}):")
+    logger.info(f"  Accuracy: {acc:.4f}")
+    logger.info(f"  Log Loss: {ll:.4f}")
+    logger.info(f"  ROC AUC:  {auc:.4f}")
+
+    # 9. Save Artifact
+    model_path = Path(".data/models/uranium_win_model.joblib")
     model.save(model_path)
 
-    logger.success(f"Baseline model trained and saved to {model_path}")
+    logger.success(f"Uranium model trained and saved to {model_path}")
+
+    # Log feature importances
+    if hasattr(model.clf, "feature_importances_"):
+        importances = pd.Series(model.clf.feature_importances_, index=X_train.columns)
+        top_20 = importances.sort_values(ascending=False).head(20)
+        logger.info(f"Top 20 Features:\n{top_20.to_string()}")
 
     agent_mode = ctx.obj.get("agent_mode", False)
     if agent_mode:
