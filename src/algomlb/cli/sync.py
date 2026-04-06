@@ -13,6 +13,7 @@ from algomlb.ingestion import (
     StatcastIngester,
     UmpireScorecardIngester,
     HistoricalDataLoader,
+    GumboIngester,
 )
 
 app = typer.Typer(help="Synchronize all data layers (Ingest + Process).")
@@ -62,25 +63,30 @@ def daily(
             openmeteo_ingester=OpenMeteoIngester(session_factory),
             statcast_ingester=StatcastIngester(repo=repo),
             umpire_ingester=UmpireScorecardIngester(session),
+            gumbo_ingester=GumboIngester(session),
         )
 
         # A. Ingest Schedules (results for trailing window)
         logger.info(f"📅 Syncing Schedules: {start_trailing} to {today}")
         orchestrator.run_schedule_ingestion(start_date=start_trailing, end_date=today)
 
-        # B. Ingest Statcast (yesterday)
+        # C. Ingest Statcast (yesterday)
         logger.info(f"⚾ Syncing Statcast: {yesterday}")
         orchestrator.run_statcast_ingestion(start_date=yesterday, end_date=yesterday)
 
-        # C. Ingest Weather (trailing window)
+        # D. Ingest GUMBO (trailing window)
+        logger.info(f"🍲 Syncing GUMBO Pitch Clocks: {start_trailing} to {today}")
+        orchestrator.run_gumbo_ingestion(start_date=start_trailing, end_date=today)
+
+        # E. Ingest Weather (trailing window)
         logger.info(f"⛅ Syncing Weather: {start_trailing} to {today}")
         orchestrator.run_weather_ingestion(start_date=start_trailing, end_date=today)
 
-        # D. Ingest Transactions (trailing 7 days)
+        # F. Ingest Transactions (trailing 7 days)
         logger.info("💸 Syncing Transactions (Trailing 7d)")
         orchestrator.run_transaction_ingestion()
 
-        # E. Ingest Umpires (Scrape)
+        # G. Ingest Umpires (Scrape)
         logger.info("⚖️ Syncing Umpires (Scrape)")
         orchestrator.run_umpire_ingestion()
         

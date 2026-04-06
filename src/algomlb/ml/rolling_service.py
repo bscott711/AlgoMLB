@@ -115,29 +115,36 @@ class RollingService:
     ):
         """Map feature fields from dataclass to ORM (handling None/Nullable)."""
         attrs = [
-            "roll_pitches",
-            "roll_strikes_pct",
-            "roll_whiff_pct",
-            "roll_k_pct",
-            "roll_bb_pct",
-            "roll_avg_release_speed",
-            "roll_avg_pfx_x",
-            "roll_avg_pfx_z",
-            "roll_avg_pitcher_xwoba",
-            "roll_pitcher_xwoba_shrunk",
-            "roll_pas",
-            "roll_hits_per_pa",
-            "roll_k_pct_batter",
-            "roll_bb_pct_batter",
-            "roll_barrel_pct",
-            "roll_avg_launch_speed",
-            "roll_avg_launch_angle",
-            "roll_avg_batter_xwoba",
-            "roll_batter_xwoba_shrunk",
+            # Base Features
+            "roll_pitches", "roll_strikes_pct", "roll_whiff_pct", "roll_k_pct", "roll_bb_pct",
+            "roll_avg_release_speed", "roll_avg_pfx_x", "roll_avg_pfx_z",
+            "roll_avg_pitcher_xwoba", "roll_pitcher_xwoba_shrunk",
+            "roll_pas", "roll_hits_per_pa", "roll_k_pct_batter", "roll_bb_pct_batter",
+            "roll_barrel_pct", "roll_avg_launch_speed", "roll_avg_launch_angle",
+            "roll_avg_batter_xwoba", "roll_batter_xwoba_shrunk",
+            
+            # Momentum & Trends (EMA)
+            "ema_pitcher_xwoba_3g", "ema_pitcher_xwoba_7g", "ema_edge_pct_3g", "ema_velo_degradation_3g",
+            "ema_batter_xwoba_3g", "ema_batter_xwoba_7g", "ema_bat_speed_3g", "ema_attack_angle_3g",
+            "ema_chase_pct_3g", "ema_iz_whiff_pct_3g",
+
+            # Volatility
+            "std_pitcher_xwoba_15g", "std_edge_pct_15g", "std_release_pos_z_15g",
+            "std_batter_xwoba_15g", "std_launch_angle_15g",
+
+            # Fatigue & Stuff stability
+            "fatigue_index_7d", "fatigue_index_14d",
+            "delta_spin_rate_3g", "delta_extension_3g", "delta_fb_velo_3g",
+
+            # Seasonal Splits
+            "seasonal_xwoba_vs_rh", "seasonal_xwoba_vs_lh"
         ]
         for attr in attrs:
-            val = getattr(data, attr)
-            if val is not None and pd.isna(val):
-                setattr(orm, attr, None)
-            else:
-                setattr(orm, attr, val)
+            try:
+                val = getattr(data, attr)
+                if val is not None and pd.isna(val):
+                    setattr(orm, attr, None)
+                else:
+                    setattr(orm, attr, val)
+            except AttributeError:
+                continue

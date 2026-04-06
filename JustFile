@@ -192,6 +192,13 @@ backfill-statcast year='2024':
 process-silver-year year="2025":
     uv run algomlb process silver --year {{year}}
 
+# Process silver game logs for all historical years (2019-2024)
+process-silver-full-history:
+    @for year in 2019 2020 2021 2022 2023 2024; do \
+        echo "📅 Processing Silver for $year..."; \
+        uv run algomlb process silver --year $year; \
+    done
+
 # Process Silver Layer (Game Logs)
 process-silver:
     uv run algomlb process silver
@@ -199,6 +206,13 @@ process-silver:
 # Process Rolling Features (Gold Layer) for a date range
 roll start end:
     uv run algomlb process rolling --start {{start}} --end {{end}}
+
+# Process Gold rolling features for the entire history (2019-2024)
+roll-full-history:
+    @for year in 2019 2020 2021 2022 2023 2024; do \
+        echo "🏆 Processing Gold Rolling Features for $year..."; \
+        uv run algomlb process rolling --start $year-03-20 --end $year-11-05; \
+    done
 
 # Backfill example for 2024 season
 roll-backfill-2024:

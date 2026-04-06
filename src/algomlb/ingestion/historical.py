@@ -3,8 +3,6 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
-import pybaseball  # type: ignore
-from pybaseball import cache  # type: ignore
 from loguru import logger
 
 from algomlb.db.repository import DatabaseRepository
@@ -21,9 +19,6 @@ class HistoricalDataLoader:
         self.repo = repo
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        # Enable pybaseball caching to handle large queries and recover from failures automatically
-        cache.enable()
 
     def _clean_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         """Standardize column names to lowercase with underscores."""
@@ -86,6 +81,9 @@ class HistoricalDataLoader:
         if cache_path.exists():
             df = pd.read_parquet(cache_path)
         else:
+            import pybaseball
+            from pybaseball import cache
+            cache.enable()
             df = pybaseball.pitching_stats(start_year, end_year)
             df = self._clean_columns(df)
             df.to_parquet(cache_path)
@@ -107,6 +105,9 @@ class HistoricalDataLoader:
         if cache_path.exists():
             df = pd.read_parquet(cache_path)
         else:
+            import pybaseball
+            from pybaseball import cache
+            cache.enable()
             df = pybaseball.team_batting(start_year, end_year)
             df = self._clean_columns(df)
             df.to_parquet(cache_path)
@@ -183,7 +184,9 @@ class HistoricalDataLoader:
         total_days = (end - start).days
         if total_days <= 7:
             # Short range: fetch normally
-            df = pybaseball.statcast(start_date, end_date)
+            from pybaseball import statcast, cache
+            cache.enable()
+            df = statcast(start_date, end_date)
             return self._clean_columns(df)
 
         logger.info(
@@ -202,7 +205,9 @@ class HistoricalDataLoader:
             try:
                 # pybaseball.statcast usually handles internal day-splitting, but external chunks
                 # provide better logging progress and cache robustness in case of disconnects.
-                chunk = pybaseball.statcast(s_str, e_str)
+                from pybaseball import statcast, cache
+                cache.enable()
+                chunk = statcast(s_str, e_str)
                 if chunk is not None and not chunk.empty:
                     all_dfs.append(chunk)
                 else:

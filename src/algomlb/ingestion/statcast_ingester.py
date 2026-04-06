@@ -5,8 +5,6 @@ import logging
 from typing import Final, Optional
 
 import pandas as pd
-from pybaseball import statcast, cache
-
 from algomlb.db.repository import DatabaseRepository
 
 logger = logging.getLogger(__name__)
@@ -206,6 +204,10 @@ class StatcastIngester:
         team: Optional[str] = None,
         dry_run: bool = False,
     ) -> int:
+        """Fetch and persist Statcast events for a date range."""
+        from pybaseball import cache
+        cache.enable()
+        
         """
         Fetch and upsert Statcast events for a date range in 7-day chunks.
         Commits each chunk individually for robustness.

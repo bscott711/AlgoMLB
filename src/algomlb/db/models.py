@@ -543,6 +543,24 @@ class PlayerRollingFeaturesORM(Base):
     roll_avg_pitcher_xwoba: Mapped[Optional[float]] = mapped_column(Float)
     roll_pitcher_xwoba_shrunk: Mapped[Optional[float]] = mapped_column(Float)
 
+    # Momentum & Trends (EMA)
+    ema_pitcher_xwoba_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_pitcher_xwoba_7g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_edge_pct_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_velo_degradation_3g: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Volatility (Consistency)
+    std_pitcher_xwoba_15g: Mapped[Optional[float]] = mapped_column(Float)
+    std_edge_pct_15g: Mapped[Optional[float]] = mapped_column(Float)
+    std_release_pos_z_15g: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Fatigue & Stuff Stability
+    fatigue_index_7d: Mapped[Optional[float]] = mapped_column(Float)
+    fatigue_index_14d: Mapped[Optional[float]] = mapped_column(Float)
+    delta_spin_rate_3g: Mapped[Optional[float]] = mapped_column(Float)
+    delta_extension_3g: Mapped[Optional[float]] = mapped_column(Float)
+    delta_fb_velo_3g: Mapped[Optional[float]] = mapped_column(Float)
+
     # --- BATTER Rolling Features ---
     roll_pas: Mapped[Optional[float]] = mapped_column(Float)
     roll_hits_per_pa: Mapped[Optional[float]] = mapped_column(Float)
@@ -553,6 +571,22 @@ class PlayerRollingFeaturesORM(Base):
     roll_avg_launch_angle: Mapped[Optional[float]] = mapped_column(Float)
     roll_avg_batter_xwoba: Mapped[Optional[float]] = mapped_column(Float)
     roll_batter_xwoba_shrunk: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Momentum & Trends (EMA)
+    ema_batter_xwoba_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_batter_xwoba_7g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_bat_speed_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_attack_angle_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_chase_pct_3g: Mapped[Optional[float]] = mapped_column(Float)
+    ema_iz_whiff_pct_3g: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Volatility (Consistency)
+    std_batter_xwoba_15g: Mapped[Optional[float]] = mapped_column(Float)
+    std_launch_angle_15g: Mapped[Optional[float]] = mapped_column(Float)
+
+    # --- SHARED/MATCHUP Features ---
+    seasonal_xwoba_vs_rh: Mapped[Optional[float]] = mapped_column(Float)
+    seasonal_xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
 
     __table_args__ = (
         UniqueConstraint(
@@ -688,6 +722,23 @@ class PlayerTransactionORM(Base):
         Integer,
         Computed("resolution_date - effective_date", persisted=True),
         nullable=True,
+    )
+
+
+class GumboPitchORM(Base):
+    """Canonical wall-clock timestamps for every pitch/event via MLB GUMBO feed."""
+
+    __tablename__ = "gumbo_pitches"
+
+    game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    play_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+    start_time: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    end_time: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 
@@ -915,6 +966,14 @@ class StatcastPlayerGameLog(Base):
     avg_pfx_x: Mapped[Optional[float]] = mapped_column(Float)
     avg_pfx_z: Mapped[Optional[float]] = mapped_column(Float)
     avg_pitcher_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+    avg_release_extension: Mapped[Optional[float]] = mapped_column(Float)
+    avg_spin_rate: Mapped[Optional[float]] = mapped_column(Float)
+    avg_spin_axis: Mapped[Optional[float]] = mapped_column(Float)
+    std_arm_angle: Mapped[Optional[float]] = mapped_column(Float)
+    std_release_pos_z: Mapped[Optional[float]] = mapped_column(Float)
+    edge_pct: Mapped[Optional[float]] = mapped_column(Float)
+    fastball_velo_degradation: Mapped[Optional[float]] = mapped_column(Float)
+    hard_hits_allowed: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     # --- Batter Metrics ---
     pas: Mapped[Optional[int]] = mapped_column(SmallInteger)
@@ -926,6 +985,23 @@ class StatcastPlayerGameLog(Base):
     avg_launch_speed: Mapped[Optional[float]] = mapped_column(Float)
     avg_launch_angle: Mapped[Optional[float]] = mapped_column(Float)
     avg_batter_xwoba: Mapped[Optional[float]] = mapped_column(Float)
+    avg_bat_speed: Mapped[Optional[float]] = mapped_column(Float)
+    avg_swing_length: Mapped[Optional[float]] = mapped_column(Float)
+    avg_attack_angle: Mapped[Optional[float]] = mapped_column(Float)
+    std_launch_angle: Mapped[Optional[float]] = mapped_column(Float)
+    in_zone_whiff_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    chase_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    sweet_spots: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    hard_hits: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    pull_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    center_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    oppo_count: Mapped[Optional[int]] = mapped_column(SmallInteger)
+
+    # --- Platoon Splits ---
+    xwoba_vs_rh: Mapped[Optional[float]] = mapped_column(Float)
+    pa_vs_rh: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
+    pa_vs_lh: Mapped[Optional[int]] = mapped_column(SmallInteger)
 
     # --- Metadata ---
     summarized_at: Mapped[datetime.datetime] = mapped_column(

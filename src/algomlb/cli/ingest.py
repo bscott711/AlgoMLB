@@ -408,3 +408,56 @@ def statcast(
 
     if not dry_run:
         logger.success(f"Statcast: {rows} rows ingested.")
+
+
+@app.command("gumbo")
+def gumbo_feed(
+    ctx: typer.Context,
+    start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
+    game_pk: int = typer.Option(None, "--game-pk", help="Specific Game PK to ingest")
+):
+    """Fetch live GUMBO feed to establish canonical wall-clock timestamps for pitches."""
+    from algomlb.ingestion.gumbo_ingester import GumboIngester
+    
+    session_factory = get_session_factory()
+    with session_factory() as session:
+        ingester = GumboIngester(session)
+        
+        if game_pk:
+            logger.info(f"Ingesting GUMBO for game {game_pk}...")
+            count = ingester.ingest_game(game_pk)
+            logger.success(f"GUMBO: {count} pitch timestamps ingested.")
+            return
+
+        # Date range
+        s_date = (
+            datetime.datetime.strptime(start, "%Y-%m-%d").date()
+            if start
+            else datetime.date.today() - datetime.timedelta(days=1)
+        )
+        e_date = datetime.datetime.strptime(end, "%Y-%m-%d").date() if end else s_date
+
+        logger.info(f"Starting GUMBO ingestion for {s_date} to {e_date}...")
+
+        # We need the orchestrator to fetch game_pks
+        repo = DatabaseRepository(session)
+        from algomlb.ingestion.orchestrator import IngestionOrchestrator
+        from algomlb.ingestion import (
+            MLBStatsAPIClient, OddsAPIClient, HistoricalDataLoader,
+            PlayerTransactionsIngester, OpenMeteoIngester, StatcastIngester, UmpireScorecardIngester
+        )
+        
+        o = IngestionOrchestrator(
+            repo,
+            OddsAPIClient(),
+            MLBStatsAPIClient(),
+            HistoricalDataLoader(repo),
+            PlayerTransactionsIngester(repo),
+            OpenMeteoIngester(session_factory),
+            StatcastIngester(repo),
+            UmpireScorecardIngester(session),
+            ingester
+        )
+        count = o.run_gumbo_ingestion(start_date=s_date, end_date=e_date)
+        logger.success(f"GUMBO: {count} pitch timestamps ingested.")

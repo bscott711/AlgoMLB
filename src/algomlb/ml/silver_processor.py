@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import (
     select,
@@ -55,6 +56,57 @@ def summarize_to_silver(
     )
     df["is_barrel"] = df["launch_speed_angle"] == 6
 
+    # --- Physics Fortification (Ensure numeric types for historical safety) ---
+    physics_cols = ["plate_x", "plate_z", "sz_top", "sz_bot", "launch_speed", "launch_angle", "release_speed", "hc_x"]
+    for col in physics_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # --- New Feature Derivations ---
+    df["is_hard_hit"] = df["launch_speed"] >= 95.0
+    df["is_sweet_spot"] = df["launch_angle"].between(8.0, 32.0)
+    df["is_pitch_stuffed"] = (df["release_speed"] >= 97.0) | (df["release_spin_rate"] >= 2800)
+    df["fb_speed"] = np.where(df["pitch_type"].isin(["FF", "SI", "FC"]), df["release_speed"], np.nan)
+
+    # --- Platoon Helper Columns ---
+    # Pitcher perspective (opponent = 'stand')
+    df["p_xwoba_rh"] = np.where(df["stand"] == "R", df["estimated_woba_using_speedangle"], np.nan)
+    df["p_xwoba_lh"] = np.where(df["stand"] == "L", df["estimated_woba_using_speedangle"], np.nan)
+    df["p_pa_rh"] = np.where(df["stand"] == "R", df["at_bat_number"], np.nan)
+    df["p_pa_lh"] = np.where(df["stand"] == "L", df["at_bat_number"], np.nan)
+
+    # Batter perspective (opponent = 'p_throws')
+    df["b_xwoba_rh"] = np.where(df["p_throws"] == "R", df["estimated_woba_using_speedangle"], np.nan)
+    df["b_xwoba_lh"] = np.where(df["p_throws"] == "L", df["estimated_woba_using_speedangle"], np.nan)
+    df["b_pa_rh"] = np.where(df["p_throws"] == "R", df["at_bat_number"], np.nan)
+    df["b_pa_lh"] = np.where(df["p_throws"] == "L", df["at_bat_number"], np.nan)
+    
+    df["is_swing"] = df["description"].isin([
+        "swinging_strike", "swinging_strike_blocked", "foul", "foul_tip", 
+        "hit_into_play", "foul_bunt", "missed_bunt"
+    ])
+    df["is_chase"] = df["is_swing"] & (df["zone"] > 9)
+    df["is_in_zone_whiff"] = df["is_whiff"] & (df["zone"] <= 9)
+    
+    # Shadow zone approximation for edge%
+    df["is_edge"] = (
+        (df["plate_x"].abs().between(0.55, 0.85)) | 
+        (df["plate_z"].between(df["sz_top"] - 0.16, df["sz_top"] + 0.16)) |
+        (df["plate_z"].between(df["sz_bot"] - 0.16, df["sz_bot"] + 0.16))
+    )
+
+    # Spray Direction (hc_x goes from 0 [Left] to 250 [Right], center is ~125.42)
+    in_play = df["type"] == "X"
+    rhb = df["stand"] == "R"
+    lhb = df["stand"] == "L"
+    
+    df["is_pull"] = in_play & ((rhb & (df["hc_x"] < 110)) | (lhb & (df["hc_x"] > 140)))
+    df["is_oppo"] = in_play & ((rhb & (df["hc_x"] > 140)) | (lhb & (df["hc_x"] < 110)))
+    df["is_center"] = in_play & (df["hc_x"].between(110, 140))
+    
+    # Fastballs for velocity degradation
+    df["fb_speed"] = df.loc[df["pitch_type"].isin(["FF", "SI"]), "release_speed"]
+
     # 1. Pitcher Aggregation
     p_agg = (
         df.groupby(["game_pk", "pitcher", "game_date"])
@@ -79,10 +131,24 @@ def summarize_to_silver(
             avg_pfx_x=("pfx_x", "mean"),
             avg_pfx_z=("pfx_z", "mean"),
             avg_pitcher_xwoba=("estimated_woba_using_speedangle", "mean"),
+            avg_release_extension=("release_extension", "mean"),
+            avg_spin_rate=("release_spin_rate", "mean"),
+            avg_spin_axis=("spin_axis", "mean"),
+            std_arm_angle=("arm_angle", "std"),
+            std_release_pos_z=("release_pos_z", "std"),
+            edge_pct=("is_edge", "mean"),
+            max_fb_speed=("fb_speed", "max"),
+            avg_fb_speed=("fb_speed", "mean"),
+            hard_hits_allowed=("is_hard_hit", "sum"),
+            xwoba_vs_rh=("p_xwoba_rh", "mean"),
+            pa_vs_rh=("p_pa_rh", "nunique"),
+            xwoba_vs_lh=("p_xwoba_lh", "mean"),
+            pa_vs_lh=("p_pa_lh", "nunique"),
         )
         .reset_index()
         .rename(columns={"pitcher": "player_id"})
     )
+    p_agg["fastball_velo_degradation"] = p_agg["max_fb_speed"] - p_agg["avg_fb_speed"]
     p_agg["role"] = "PITCHER"
 
     # 2. Batter Aggregation
@@ -101,6 +167,21 @@ def summarize_to_silver(
             avg_launch_speed=("launch_speed", "mean"),
             avg_launch_angle=("launch_angle", "mean"),
             avg_batter_xwoba=("estimated_woba_using_speedangle", "mean"),
+            avg_bat_speed=("bat_speed", "mean"),
+            avg_swing_length=("swing_length", "mean"),
+            avg_attack_angle=("attack_angle", "mean"),
+            std_launch_angle=("launch_angle", "std"),
+            in_zone_whiff_count=("is_in_zone_whiff", "sum"),
+            chase_count=("is_chase", "sum"),
+            sweet_spots=("is_sweet_spot", "sum"),
+            hard_hits=("is_hard_hit", "sum"),
+            pull_count=("is_pull", "sum"),
+            center_count=("is_center", "sum"),
+            oppo_count=("is_oppo", "sum"),
+            xwoba_vs_rh=("b_xwoba_rh", "mean"),
+            pa_vs_rh=("b_pa_rh", "nunique"),
+            xwoba_vs_lh=("b_xwoba_lh", "mean"),
+            pa_vs_lh=("b_pa_lh", "nunique"),
         )
         .reset_index()
         .rename(columns={"batter": "player_id"})
@@ -257,7 +338,7 @@ def _upsert_silver(df: pd.DataFrame):
         # Convert nan to None for DB
         record = {k: (v if not pd.isna(v) else None) for k, v in record.items()}
         # Optimization: remove prior columns used in calculation
-        record = {k: v for k, v in record.items() if not str(k).endswith("_prior")}
+        record = {k: v for k, v in record.items() if not str(k).endswith("_prior") and k not in ["max_fb_speed", "avg_fb_speed"]}
 
         stmt = insert(StatcastPlayerGameLog).values(**record)
         stmt = stmt.on_conflict_do_update(
