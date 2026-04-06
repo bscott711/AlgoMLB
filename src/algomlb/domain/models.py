@@ -40,6 +40,21 @@ class BaselineQuality(StrEnum):
     FULL = "FULL"
 
 
+class SurfaceType(StrEnum):
+    """Playing surface of a ballpark."""
+
+    GRASS = "GRASS"
+    TURF = "TURF"
+
+
+class RoofType(StrEnum):
+    """Roof type of a ballpark."""
+
+    OPEN = "OPEN"
+    CLOSED = "CLOSED"
+    RETRACTABLE = "RETRACTABLE"
+
+
 class Game(BaseModel):
     """Represents a scheduled or completed baseball game."""
 
@@ -169,5 +184,6 @@ class Ballpark(BaseModel):
     extra_distance: Optional[float] = Field(default=None)
     avg_temp: Optional[float] = Field(default=None)
     elevation: Optional[int] = Field(default=None)
-    roof: Optional[float] = Field(default=None)
+    surface_type: Optional[SurfaceType] = Field(default=None)
+    roof_type: Optional[RoofType] = Field(default=None)
     daytime: Optional[float] = Field(default=None)

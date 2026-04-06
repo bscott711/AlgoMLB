@@ -100,7 +100,6 @@ class BallparkIngester:
         )
         orm.avg_temp = float(row["avg_temp"]) if pd.notna(row["avg_temp"]) else None
         orm.elevation = int(row["elevation"]) if pd.notna(row["elevation"]) else None
-        orm.roof = float(row["roof"]) if pd.notna(row["roof"]) else None
         orm.daytime = float(row["daytime"]) if pd.notna(row["daytime"]) else None
 
     def _update_geographic_data(
