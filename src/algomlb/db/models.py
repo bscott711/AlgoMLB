@@ -1103,3 +1103,30 @@ class StatcastBattedBallORM(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
     )
+
+
+class TeamEloHistoryORM(Base):
+    """
+    Team-level Elo ratings computed from game results only.
+    No market odds are used — this is a pure baseball outcomes prior.
+    Two rows per game (one home, one away).
+    """
+
+    __tablename__ = "team_elo_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    team_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    is_home: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    elo_pre: Mapped[float] = mapped_column(Float, nullable=False)
+    elo_post: Mapped[float] = mapped_column(Float, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk",
+            "team_id",
+            "is_home",
+            name="uq_team_elo_history_row",
+        ),
+    )

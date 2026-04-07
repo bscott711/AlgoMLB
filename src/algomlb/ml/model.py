@@ -12,6 +12,9 @@ class MLBModel:
     """XGBoost wrapper for MLB win probability classification with Isotonic Calibration."""
 
     def __init__(self, **params):
+        # Pop monotone_constraints before building the generic kwargs
+        mono = params.pop("monotone_constraints", None)
+
         # Default params for class imbalance and regularization
         # scale_pos_weight handles the slight Away-win bias if necessary
         self.clf = XGBClassifier(
@@ -19,6 +22,7 @@ class MLBModel:
             max_depth=params.get("max_depth", 3),
             learning_rate=params.get("learning_rate", 0.1),
             scale_pos_weight=params.get("scale_pos_weight", 1.0),
+            monotone_constraints=mono,
             random_state=42,
             **{
                 k: v
@@ -33,6 +37,7 @@ class MLBModel:
             },
         )
         self.calibrated_clf = None
+
 
     def train(self, X: pd.DataFrame, y: pd.Series, calibrate: bool = True) -> None:
         """

@@ -130,19 +130,60 @@ def train(
     logger.info("Fetching Gold Layer batter features...")
     batter_gold_df = pd.read_sql(batter_gold_query, engine)
 
+    # 5. Fetch Team Elo History
+    elo_query = """
+        SELECT game_pk, game_date, team_id, is_home, elo_pre, elo_post
+        FROM team_elo_history
+    """
+    logger.info("Fetching team Elo history...")
+    try:
+        elo_df = pd.read_sql(elo_query, engine)
+    except Exception:
+        logger.warning("team_elo_history table not found. Run 'algomlb ml elo-backfill' first.")
+        elo_df = pd.DataFrame()
+
+    # 5b. Compute Pythagorean Expectation (from games_df — no extra DB query)
+    from algomlb.ml.sabermetrics import compute_pythagorean_features, compute_re24_per_pa, compute_rolling_re24
+    logger.info("Computing Pythagorean expectation features...")
+    pythag_df = compute_pythagorean_features(games_df)
+
+    # 5c. Compute RE24 from Retrosheet events
+    re24_df = pd.DataFrame()
+    try:
+        retro_query = f"""
+            SELECT game_id, date, inning, top_bot, outs_pre, outs_post,
+                   br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
+                   runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team
+            FROM retrosheet_events
+            WHERE EXTRACT(YEAR FROM date) IN ({years_str})
+            AND pa_flag = 1
+        """
+        logger.info("Fetching Retrosheet events for RE24...")
+        retro_df = pd.read_sql(retro_query, engine)
+        if not retro_df.empty:
+            re24_pa = compute_re24_per_pa(retro_df)
+            re24_df = compute_rolling_re24(re24_pa, window=20)
+            logger.info(f"RE24 computed: {len(re24_df)} rolling player-game rows.")
+        else:
+            logger.warning("No Retrosheet events found for RE24.")
+    except Exception as e:
+        logger.warning(f"RE24 computation skipped: {e}")
+
     lineup_count = len(lineups_df) if not lineups_df.empty else 0
     batter_count = len(batter_gold_df) if not batter_gold_df.empty else 0
-    logger.info(f"Data loaded: {len(games_df)} games, {len(pitcher_gold_df)} pitcher records, {lineup_count} lineup slots, {batter_count} batter records")
+    elo_count = len(elo_df) if not elo_df.empty else 0
+    re24_count = len(re24_df) if not re24_df.empty else 0
+    logger.info(f"Data loaded: {len(games_df)} games, {len(pitcher_gold_df)} pitcher, {lineup_count} lineups, {batter_count} batter, {elo_count} Elo, {re24_count} RE24")
 
-    # 5. Build Uranium Matrix
+    # 6. Build Uranium Matrix
     pipeline = FeaturePipeline()
     
-    # Pass lineups and batter Gold if available
+    # Pass all available feature layers
     if not lineups_df.empty and not batter_gold_df.empty:
-        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df, lineups_df, batter_gold_df)
+        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df, lineups_df, batter_gold_df, elo_df=elo_df, pythag_df=pythag_df, re24_df=re24_df)
     else:
         logger.warning("Lineup or batter data unavailable. Training with pitcher-only features.")
-        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df)
+        X, y = pipeline.build_uranium_matrix(games_df, pitcher_gold_df, elo_df=elo_df, pythag_df=pythag_df, re24_df=re24_df)
     
     if X.empty:
         logger.error("Uranium feature matrix is empty after pipeline.")
@@ -180,15 +221,21 @@ def train(
         logger.warning(f"Test set (Year {test_year}) is empty! Results will only reflect training performance.")
         X_test, y_test = X_train, y_train # Fallback for reporting
     
-    # 7. Train Model
+    # 8. Train Model
     logger.info(f"Training XGBoost Uranium Model on {X_train.shape[0]} games, {X_train.shape[1]} features...")
-    model = MLBModel(n_estimators=300, max_depth=5, learning_rate=0.05, subsample=0.8, colsample_bytree=0.8)
-    model.train(X_train, y_train)
+    model = MLBModel(
+        n_estimators=300,
+        max_depth=5,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+    )
+    model.train(X_train, y_train, calibrate=True)
 
-    # 8. Evaluation
+    # 9. Evaluation — use calibrated probabilities
     from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
-    y_prob = model.clf.predict_proba(X_test)[:, 1]
-    y_pred = model.clf.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_prob >= 0.5).astype(int)
     
     acc = accuracy_score(y_test, y_pred)
     ll = log_loss(y_test, y_prob)
@@ -225,6 +272,21 @@ def train(
         )
 
 
+@app.command(name="elo-backfill")
+def elo_backfill(
+    ctx: typer.Context,
+) -> None:
+    """Compute and persist Elo ratings from all completed game results."""
+    from algomlb.ml.elo import backfill_team_elo_history
+
+    session_factory = get_session_factory()
+    engine = session_factory.kw["bind"]
+
+    logger.info("Starting Elo backfill from game_results...")
+    backfill_team_elo_history(engine=engine)
+    logger.success("Elo backfill complete.")
+
+
 @app.command()
 def optimize(
     ctx: typer.Context,
@@ -248,6 +310,198 @@ def decouple(
     except Exception as e:
         logger.error(f"Decoupler pipeline failed: {e}")
         raise typer.Exit(code=1)
+
+
+@app.command(name="walk-forward")
+def walk_forward(
+    ctx: typer.Context,
+    start_year: int = typer.Option(2019, help="First training year"),
+    end_year: int = typer.Option(2025, help="Last test year"),
+    skip_2020: bool = typer.Option(True, help="Exclude 2020 COVID season"),
+) -> None:
+    """
+    Walk-forward validation: iteratively expand training window and test on next year.
+
+    Example with defaults:
+        Fold 1: Train 2019        → Test 2021
+        Fold 2: Train 2019,2021   → Test 2022
+        Fold 3: Train 2019,2021-22 → Test 2023
+        ...
+    """
+    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    from algomlb.ml.sabermetrics import compute_pythagorean_features, compute_re24_per_pa, compute_rolling_re24
+
+    session_factory = get_session_factory()
+    engine = session_factory.kw["bind"]
+
+    # Build list of valid seasons
+    all_years = list(range(start_year, end_year + 1))
+    if skip_2020:
+        all_years = [y for y in all_years if y != 2020]
+
+    if len(all_years) < 2:
+        logger.error("Need at least 2 years for walk-forward validation.")
+        raise typer.Exit(code=1)
+
+    # ── Prefetch all data once ────────────────────────────────────────
+    years_str = ",".join(map(str, all_years))
+
+    games_query = f"""
+        SELECT game_id, game_pk, game_date, home_team, away_team,
+               home_pitcher_id, away_pitcher_id, home_score, away_score
+        FROM game_results
+        WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
+        AND home_pitcher_id IS NOT NULL
+        AND away_pitcher_id IS NOT NULL
+        AND status = 'COMPLETED'
+    """
+    games_df = pd.read_sql(games_query, engine)
+    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
+    games_df["year"] = games_df["game_date"].dt.year
+
+    pitcher_gold_df = pd.read_sql(
+        f"SELECT * FROM player_rolling_features WHERE role = 'PITCHER' AND season IN ({years_str})",
+        engine,
+    )
+    batter_gold_df = pd.read_sql(
+        f"SELECT * FROM player_rolling_features WHERE role = 'BATTER' AND season IN ({years_str})",
+        engine,
+    )
+    lineups_df = pd.read_sql(
+        f"SELECT game_pk, game_date, team_side, batting_order, player_id FROM game_lineups WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})",
+        engine,
+    )
+    try:
+        elo_df = pd.read_sql("SELECT game_pk, game_date, team_id, is_home, elo_pre, elo_post FROM team_elo_history", engine)
+    except Exception:
+        elo_df = pd.DataFrame()
+
+    logger.info(f"Prefetched: {len(games_df)} games, {len(pitcher_gold_df)} pitcher, {len(batter_gold_df)} batter, {len(lineups_df)} lineups, {len(elo_df)} elo")
+
+    # ── Pythagorean features (computed from game scores) ──────────────
+    pythag_df = compute_pythagorean_features(games_df)
+
+    # ── RE24 features (computed from Retrosheet) ──────────────────────
+    re24_df = pd.DataFrame()
+    try:
+        retro_query = f"""
+            SELECT game_id, date, inning, top_bot, outs_pre, outs_post,
+                   br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
+                   runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team
+            FROM retrosheet_events
+            WHERE EXTRACT(YEAR FROM date) IN ({years_str})
+            AND pa_flag = 1
+        """
+        logger.info("Fetching Retrosheet events for RE24...")
+        retro_df = pd.read_sql(retro_query, engine)
+        if not retro_df.empty:
+            re24_pa = compute_re24_per_pa(retro_df)
+            re24_df = compute_rolling_re24(re24_pa, window=20)
+            logger.info(f"RE24 computed: {len(re24_df)} rolling player-game rows.")
+        else:
+            logger.warning("No Retrosheet events found for RE24.")
+    except Exception as e:
+        logger.warning(f"RE24 computation skipped: {e}")
+
+    # ── Walk-forward folds ────────────────────────────────────────────
+    results_table: list[dict] = []
+
+    for test_idx in range(1, len(all_years)):
+        train_years = all_years[:test_idx]
+        test_year = all_years[test_idx]
+
+        logger.info(f"── Fold {test_idx}: Train {train_years} → Test {test_year} ──")
+
+        # Filter data for this fold
+        train_games = games_df[games_df["year"].isin(train_years)].copy()
+        test_games = games_df[games_df["year"] == test_year].copy()
+        fold_games = pd.concat([train_games, test_games], ignore_index=True)
+
+        train_seasons = set(train_years)
+        test_season = {test_year}
+        fold_seasons = train_seasons | test_season
+
+        fold_pitcher = pitcher_gold_df[pitcher_gold_df["season"].isin(fold_seasons)].copy()
+        fold_batter = batter_gold_df[batter_gold_df["season"].isin(fold_seasons)].copy()
+
+        fold_game_pks = set(fold_games["game_pk"].dropna().astype(int).tolist()) if "game_pk" in fold_games.columns else set()
+        fold_lineups = lineups_df[lineups_df["game_pk"].isin(fold_game_pks)].copy() if not lineups_df.empty else pd.DataFrame()
+        fold_elo = elo_df[elo_df["game_pk"].isin(fold_game_pks)].copy() if not elo_df.empty else pd.DataFrame()
+        fold_pythag = pythag_df[pythag_df["game_pk"].isin(fold_game_pks)].copy() if not pythag_df.empty else pd.DataFrame()
+        fold_re24 = re24_df  # RE24 is player-level, not game_pk filtered — rolling window handles temporal boundaries
+
+        # Build matrix
+        pipeline = FeaturePipeline()
+        if not fold_lineups.empty and not fold_batter.empty:
+            X, y = pipeline.build_uranium_matrix(
+                fold_games, fold_pitcher, fold_lineups, fold_batter,
+                elo_df=fold_elo, pythag_df=fold_pythag, re24_df=fold_re24,
+            )
+        else:
+            X, y = pipeline.build_uranium_matrix(
+                fold_games, fold_pitcher,
+                elo_df=fold_elo, pythag_df=fold_pythag, re24_df=fold_re24,
+            )
+
+        if X.empty:
+            logger.warning(f"Fold {test_idx}: Empty matrix, skipping.")
+            continue
+
+        # Split by year
+        X["_year"] = pd.to_datetime(fold_games.loc[X.index, "game_date"]).dt.year
+        train_mask = X["_year"].isin(train_years)
+        test_mask = X["_year"] == test_year
+
+        X_train = X[train_mask].drop(columns=["_year"])
+        y_train = y[train_mask]
+        X_test = X[test_mask].drop(columns=["_year"])
+        y_test = y[test_mask]
+        X = X.drop(columns=["_year"])
+
+        if X_train.empty or X_test.empty:
+            logger.warning(f"Fold {test_idx}: Train or test empty, skipping.")
+            continue
+
+        # Train
+        model = MLBModel(
+            n_estimators=300, max_depth=5, learning_rate=0.05,
+            subsample=0.8, colsample_bytree=0.8,
+        )
+        model.train(X_train, y_train, calibrate=True)
+
+        # Evaluate
+        y_prob = model.predict_proba(X_test)[:, 1]
+        y_pred = (y_prob >= 0.5).astype(int)
+
+        acc = accuracy_score(y_test, y_pred)
+        ll = log_loss(y_test, y_prob)
+        auc = roc_auc_score(y_test, y_prob)
+
+        results_table.append({
+            "fold": test_idx,
+            "train_years": str(train_years),
+            "test_year": test_year,
+            "train_games": len(X_train),
+            "test_games": len(X_test),
+            "accuracy": round(acc, 4),
+            "log_loss": round(ll, 4),
+            "roc_auc": round(auc, 4),
+        })
+
+        logger.success(f"Fold {test_idx} ({test_year}): Acc={acc:.4f}  LL={ll:.4f}  AUC={auc:.4f}")
+
+    # ── Summary Table ─────────────────────────────────────────────────
+    if results_table:
+        summary = pd.DataFrame(results_table)
+        logger.success("Walk-Forward Validation Summary:")
+        logger.info(f"\n{summary.to_string(index=False)}")
+
+        avg_acc = summary["accuracy"].mean()
+        avg_ll = summary["log_loss"].mean()
+        avg_auc = summary["roc_auc"].mean()
+        logger.success(f"Average: Acc={avg_acc:.4f}  LL={avg_ll:.4f}  AUC={avg_auc:.4f}")
+    else:
+        logger.error("No folds completed successfully.")
 
 
 # Dummy use for deptry to ignore optuna
