@@ -129,13 +129,13 @@ def backfill_team_elo_history(engine: Engine | None = None) -> None:
     eng = engine or get_engine()
 
     query = text("""
-        SELECT game_pk, game_date, home_team, away_team,
+        SELECT game_id::BIGINT as game_pk, game_date, home_team, away_team,
                home_score, away_score
         FROM game_results
         WHERE status = 'COMPLETED'
           AND home_score IS NOT NULL
           AND away_score IS NOT NULL
-        ORDER BY game_date, game_pk
+        ORDER BY game_date, game_id::BIGINT
     """)
     games = pd.read_sql(query, eng)
     if games.empty:

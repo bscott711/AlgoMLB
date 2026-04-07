@@ -65,12 +65,13 @@ def train(
     start_year: int = typer.Option(2019, help="Start year for training data"),
     end_year: int = typer.Option(2024, help="End year for training data"),
     test_year: int = typer.Option(2025, help="Year to use for validation/testing"),
+    model_version: str = typer.Option("v0.1", help="Model version label for eval tracking"),
 ) -> None:
     """Train the Uranium model using Gold Layer features and report on a specific test year."""
     session_factory = get_session_factory()
     
     logger.info(f"Initializing Uranium model training ({start_year}-{end_year}, excluding 2020)...")
-    logger.info(f"Validation Year: {test_year}")
+    logger.info(f"Validation Year: {test_year} | Model Version: {model_version}")
     
     engine = session_factory.kw["bind"]
     
@@ -82,7 +83,7 @@ def train(
     years_str = ",".join(map(str, sorted(list(set(years_to_fetch)))))
     
     games_query = f"""
-        SELECT game_id, game_pk, game_date, home_team, away_team, 
+        SELECT game_id as game_pk, game_date, home_team, away_team, 
                home_pitcher_id, away_pitcher_id, home_score, away_score
         FROM game_results
         WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
@@ -221,42 +222,60 @@ def train(
         logger.warning(f"Test set (Year {test_year}) is empty! Results will only reflect training performance.")
         X_test, y_test = X_train, y_train # Fallback for reporting
     
-    # 8. Train Model
+    # 8. Train Model — use Optuna-optimised params if available
+    from algomlb.ml.hyperopt import load_optimized_params
+
+    xgb_params = load_optimized_params(model_version)
     logger.info(f"Training XGBoost Uranium Model on {X_train.shape[0]} games, {X_train.shape[1]} features...")
-    model = MLBModel(
-        n_estimators=300,
-        max_depth=5,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
-    )
+    model = MLBModel(**xgb_params)
     model.train(X_train, y_train, calibrate=True)
 
-    # 9. Evaluation — use calibrated probabilities
-    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    # 9. Evaluation — eval harness
     y_prob = model.predict_proba(X_test)[:, 1]
-    y_pred = (y_prob >= 0.5).astype(int)
-    
-    acc = accuracy_score(y_test, y_pred)
-    ll = log_loss(y_test, y_prob)
-    auc = roc_auc_score(y_test, y_prob)
-    
-    logger.success(f"Uranium Evaluation ({test_year}):")
-    logger.info(f"  Accuracy: {acc:.4f}")
-    logger.info(f"  Log Loss: {ll:.4f}")
-    logger.info(f"  ROC AUC:  {auc:.4f}")
 
-    # 9. Save Artifact
+    from algomlb.ml.eval import compute_fold_metrics, compute_calibration_bins, persist_eval_results
+    metrics = compute_fold_metrics(y_test, y_prob)
+
+    logger.success(f"Uranium Evaluation ({test_year}):")
+    logger.info(f"  Accuracy: {metrics['accuracy']:.4f}")
+    logger.info(f"  Log Loss: {metrics['log_loss']:.4f}")
+    logger.info(f"  ROC AUC:  {metrics['auc']:.4f}")
+    logger.info(f"  Brier:    {metrics['brier']:.4f}")
+
+    # 9b. Feature Importance (XGB native gain)
+    impl_df = model.get_feature_importance().sort_values(by="importance", ascending=False).head(20)
+    logger.info("Top 20 Uranium Features (XGB Gain):")
+    for _, row in impl_df.iterrows():
+        logger.info(f"  {row['feature']:<30} : {row['importance']:.4f}")
+
+    # 9c. Calibration bins + persist
+    cal_bins = compute_calibration_bins(y_test, y_prob, n_bins=20)
+    try:
+        train_years_used = [y for y in range(start_year, end_year + 1) if y != 2020]
+        persist_eval_results(
+            engine=engine, model_version=model_version, test_year=test_year,
+            train_start=min(train_years_used), train_end=max(train_years_used),
+            n_games=len(X_test), metrics=metrics, cal_bins=cal_bins,
+        )
+    except Exception as e:
+        logger.warning(f"Eval persistence failed (run migration first): {e}")
+
+    # 9d. SHAP analysis
+    try:
+        from algomlb.ml.shap_analysis import compute_global_shap, persist_global_shap
+        shap_df = compute_global_shap(model, X_test, sample_n=5000)
+        if not shap_df.empty:
+            logger.info("Top 20 Uranium Features (SHAP |mean|):")
+            for _, row in shap_df.head(20).iterrows():
+                logger.info(f"  {row['feature_name']:<30} : {row['mean_abs_shap']:.6f}")
+            persist_global_shap(engine, model_version, f"test_{test_year}", shap_df)
+    except Exception as e:
+        logger.warning(f"SHAP computation skipped: {e}")
+
+    # 10. Save Artifact
     model_path = Path(".data/models/uranium_win_model.joblib")
     model.save(model_path)
-
     logger.success(f"Uranium model trained and saved to {model_path}")
-
-    # Log feature importances
-    if hasattr(model.clf, "feature_importances_"):
-        importances = pd.Series(model.clf.feature_importances_, index=X_train.columns)
-        top_20 = importances.sort_values(ascending=False).head(20)
-        logger.info(f"Top 20 Features:\n{top_20.to_string()}")
 
     agent_mode = ctx.obj.get("agent_mode", False)
     if agent_mode:
@@ -290,10 +309,119 @@ def elo_backfill(
 @app.command()
 def optimize(
     ctx: typer.Context,
-    market: str = typer.Option("Moneyline", help="Market to optimize"),
+    start_year: int = typer.Option(2019, help="First training year"),
+    end_year: int = typer.Option(2025, help="Last test year"),
+    skip_2020: bool = typer.Option(True, help="Exclude 2020 COVID season"),
+    n_trials: int = typer.Option(50, help="Number of Optuna trials"),
+    model_version: str = typer.Option("v0.1", help="Model version label"),
 ) -> None:
-    """Run Optuna optimization studies."""
-    typer.echo(f"TODO: Implement ML optimize for {market}")
+    """Run Optuna hyperparameter optimization using walk-forward validation."""
+    import json
+
+    from algomlb.ml.hyperopt import build_fold_data, optimize_model
+    from algomlb.ml.sabermetrics import (
+        compute_pythagorean_features,
+        compute_re24_per_pa,
+        compute_rolling_re24,
+    )
+
+    session_factory = get_session_factory()
+    engine = session_factory.kw["bind"]
+
+    # ── Build year list ───────────────────────────────────────────────
+    all_years = list(range(start_year, end_year + 1))
+    if skip_2020:
+        all_years = [y for y in all_years if y != 2020]
+
+    if len(all_years) < 2:
+        logger.error("Need at least 2 years for walk-forward optimization.")
+        raise typer.Exit(code=1)
+
+    years_str = ",".join(map(str, all_years))
+    logger.info(f"Starting Optuna walk-forward optimization ({n_trials} trials, years: {all_years})")
+
+    # ── Prefetch all data (identical to walk-forward) ─────────────────
+    games_df = pd.read_sql(
+        f"""SELECT game_id as game_pk, game_date, home_team, away_team,
+                   home_pitcher_id, away_pitcher_id, home_score, away_score
+            FROM game_results
+            WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
+            AND home_pitcher_id IS NOT NULL AND away_pitcher_id IS NOT NULL
+            AND status = 'COMPLETED'""",
+        engine,
+    )
+    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
+    games_df["year"] = games_df["game_date"].dt.year
+
+    pitcher_gold_df = pd.read_sql(
+        f"SELECT * FROM player_rolling_features WHERE role = 'PITCHER' AND season IN ({years_str})",
+        engine,
+    )
+    batter_gold_df = pd.read_sql(
+        f"SELECT * FROM player_rolling_features WHERE role = 'BATTER' AND season IN ({years_str})",
+        engine,
+    )
+    lineups_df = pd.read_sql(
+        f"SELECT game_pk, game_date, team_side, batting_order, player_id FROM game_lineups WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})",
+        engine,
+    )
+    try:
+        elo_df = pd.read_sql(
+            "SELECT game_pk, game_date, team_id, is_home, elo_pre, elo_post FROM team_elo_history",
+            engine,
+        )
+    except Exception:
+        elo_df = pd.DataFrame()
+
+    pythag_df = compute_pythagorean_features(games_df)
+
+    re24_df = pd.DataFrame()
+    try:
+        retro_df = pd.read_sql(
+            f"""SELECT game_id, date, inning, top_bot, outs_pre, outs_post,
+                       br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
+                       runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team
+                FROM retrosheet_events
+                WHERE EXTRACT(YEAR FROM date) IN ({years_str}) AND pa_flag = 1""",
+            engine,
+        )
+        if not retro_df.empty:
+            re24_pa = compute_re24_per_pa(retro_df)
+            re24_df = compute_rolling_re24(re24_pa, window=20)
+    except Exception as e:
+        logger.warning(f"RE24 skipped: {e}")
+
+    logger.info(
+        f"Data loaded: {len(games_df)} games, {len(pitcher_gold_df)} pitcher, "
+        f"{len(batter_gold_df)} batter, {len(lineups_df)} lineups"
+    )
+
+    # ── Pre-build fold matrices ───────────────────────────────────────
+    logger.info("Pre-building walk-forward fold matrices...")
+    fold_data = build_fold_data(
+        all_years, games_df, pitcher_gold_df, batter_gold_df,
+        lineups_df, elo_df, pythag_df, re24_df,
+    )
+
+    if not fold_data:
+        logger.error("No valid folds could be built. Exiting.")
+        raise typer.Exit(code=1)
+
+    logger.info(f"Built {len(fold_data)} folds. Launching Optuna study...")
+
+    # ── Run Optuna ────────────────────────────────────────────────────
+    best_params, study = optimize_model(
+        fold_data, n_trials=n_trials,
+        study_name=f"uranium_{model_version}",
+    )
+
+    # ── Persist best params ───────────────────────────────────────────
+    params_path = Path(f".data/models/optuna_best_params_{model_version}.json")
+    params_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(params_path, "w") as f:
+        json.dump(best_params, f, indent=2)
+    logger.success(f"Best params saved to {params_path}")
+
 
 
 @app.command()
@@ -318,6 +446,7 @@ def walk_forward(
     start_year: int = typer.Option(2019, help="First training year"),
     end_year: int = typer.Option(2025, help="Last test year"),
     skip_2020: bool = typer.Option(True, help="Exclude 2020 COVID season"),
+    model_version: str = typer.Option("v0.1", help="Model version label for eval tracking"),
 ) -> None:
     """
     Walk-forward validation: iteratively expand training window and test on next year.
@@ -328,7 +457,7 @@ def walk_forward(
         Fold 3: Train 2019,2021-22 → Test 2023
         ...
     """
-    from sklearn.metrics import accuracy_score, log_loss, roc_auc_score
+    from algomlb.ml.eval import compute_fold_metrics, compute_calibration_bins, persist_eval_results
     from algomlb.ml.sabermetrics import compute_pythagorean_features, compute_re24_per_pa, compute_rolling_re24
 
     session_factory = get_session_factory()
@@ -347,7 +476,7 @@ def walk_forward(
     years_str = ",".join(map(str, all_years))
 
     games_query = f"""
-        SELECT game_id, game_pk, game_date, home_team, away_team,
+        SELECT game_id as game_pk, game_date, home_team, away_team,
                home_pitcher_id, away_pitcher_id, home_score, away_score
         FROM game_results
         WHERE EXTRACT(YEAR FROM game_date) IN ({years_str})
@@ -404,6 +533,9 @@ def walk_forward(
         logger.warning(f"RE24 computation skipped: {e}")
 
     # ── Walk-forward folds ────────────────────────────────────────────
+    from algomlb.ml.hyperopt import load_optimized_params
+
+    xgb_params = load_optimized_params(model_version)
     results_table: list[dict] = []
 
     for test_idx in range(1, len(all_years)):
@@ -462,20 +594,25 @@ def walk_forward(
             logger.warning(f"Fold {test_idx}: Train or test empty, skipping.")
             continue
 
-        # Train
-        model = MLBModel(
-            n_estimators=300, max_depth=5, learning_rate=0.05,
-            subsample=0.8, colsample_bytree=0.8,
-        )
+        # Train — use Optuna-optimised params
+        model = MLBModel(**xgb_params)
         model.train(X_train, y_train, calibrate=True)
 
         # Evaluate
         y_prob = model.predict_proba(X_test)[:, 1]
-        y_pred = (y_prob >= 0.5).astype(int)
+        metrics = compute_fold_metrics(y_test, y_prob)
+        cal_bins = compute_calibration_bins(y_test, y_prob, n_bins=20)
 
-        acc = accuracy_score(y_test, y_pred)
-        ll = log_loss(y_test, y_prob)
-        auc = roc_auc_score(y_test, y_prob)
+        # Persist to DB
+        try:
+            persist_eval_results(
+                engine=engine, model_version=model_version,
+                test_year=test_year, train_start=min(train_years),
+                train_end=max(train_years), n_games=len(X_test),
+                metrics=metrics, cal_bins=cal_bins,
+            )
+        except Exception as e:
+            logger.warning(f"Fold {test_idx}: Persistence failed: {e}")
 
         results_table.append({
             "fold": test_idx,
@@ -483,12 +620,13 @@ def walk_forward(
             "test_year": test_year,
             "train_games": len(X_train),
             "test_games": len(X_test),
-            "accuracy": round(acc, 4),
-            "log_loss": round(ll, 4),
-            "roc_auc": round(auc, 4),
+            "accuracy": round(metrics["accuracy"], 4),
+            "log_loss": round(metrics["log_loss"], 4),
+            "roc_auc": round(metrics["auc"], 4),
+            "brier": round(metrics["brier"], 4),
         })
 
-        logger.success(f"Fold {test_idx} ({test_year}): Acc={acc:.4f}  LL={ll:.4f}  AUC={auc:.4f}")
+        logger.success(f"Fold {test_idx} ({test_year}): Acc={metrics['accuracy']:.4f}  LL={metrics['log_loss']:.4f}  AUC={metrics['auc']:.4f}  Brier={metrics['brier']:.4f}")
 
     # ── Summary Table ─────────────────────────────────────────────────
     if results_table:
@@ -499,7 +637,8 @@ def walk_forward(
         avg_acc = summary["accuracy"].mean()
         avg_ll = summary["log_loss"].mean()
         avg_auc = summary["roc_auc"].mean()
-        logger.success(f"Average: Acc={avg_acc:.4f}  LL={avg_ll:.4f}  AUC={avg_auc:.4f}")
+        avg_brier = summary["brier"].mean()
+        logger.success(f"Average: Acc={avg_acc:.4f}  LL={avg_ll:.4f}  AUC={avg_auc:.4f} Brier={avg_brier:.4f}")
     else:
         logger.error("No folds completed successfully.")
 

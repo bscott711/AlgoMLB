@@ -34,9 +34,12 @@ class FeaturePipeline:
         if side_lineups.empty:
             return pd.DataFrame()
 
-        # Ensure date types match
-        side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"])
-        batter_gold_df["game_date"] = pd.to_datetime(batter_gold_df["game_date"])
+        # Ensure date and ID types match
+        side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"]).dt.date
+        side_lineups["game_pk"] = pd.to_numeric(side_lineups["game_pk"], errors="coerce").astype(float)
+        batter_gold_df["game_date"] = pd.to_datetime(batter_gold_df["game_date"]).dt.date
+        batter_gold_df["player_id"] = pd.to_numeric(batter_gold_df["player_id"], errors="coerce").astype(float)
+        side_lineups["player_id"] = pd.to_numeric(side_lineups["player_id"], errors="coerce").astype(float)
 
         # Join each starter to their Gold BATTER record for that game_date
         merged = pd.merge(
@@ -100,11 +103,19 @@ class FeaturePipeline:
             logger.warning("Empty dataframes passed to Uranium pipeline.")
             return pd.DataFrame(), pd.Series()
 
-        # Ensure datetime/date matching
+        # Ensure datetime/date matching and ID normalization
         games_df = games_df.copy()
         pitcher_gold_df = pitcher_gold_df.copy()
-        games_df["game_date"] = pd.to_datetime(games_df["game_date"])
-        pitcher_gold_df["game_date"] = pd.to_datetime(pitcher_gold_df["game_date"])
+        
+        # Force IDs to float64 (then Int64) to ensure merge compatibility
+        for col in ["home_pitcher_id", "away_pitcher_id", "game_pk", "game_id"]:
+            if col in games_df.columns:
+                games_df[col] = pd.to_numeric(games_df[col], errors="coerce").astype(float)
+        
+        pitcher_gold_df["player_id"] = pd.to_numeric(pitcher_gold_df["player_id"], errors="coerce").astype(float)
+        
+        games_df["game_date"] = pd.to_datetime(games_df["game_date"]).dt.date
+        pitcher_gold_df["game_date"] = pd.to_datetime(pitcher_gold_df["game_date"]).dt.date
 
         # ── 1. Pitcher Spine ──────────────────────────────────────────────
         df = pd.merge(
@@ -126,13 +137,15 @@ class FeaturePipeline:
         if lineups_df is not None and batter_gold_df is not None:
             batter_gold_df = batter_gold_df.copy()
 
-            # Ensure game_pk is integer in both
+            # Ensure game_pk is numeric in both
             if "game_id" in df.columns:
-                df["game_pk_int"] = pd.to_numeric(df["game_id"], errors="coerce")
+                df["game_pk_int"] = pd.to_numeric(df["game_id"], errors="coerce").astype(float)
             elif "game_pk" in df.columns:
-                df["game_pk_int"] = df["game_pk"]
-
+                df["game_pk_int"] = pd.to_numeric(df["game_pk"], errors="coerce").astype(float)
+            
             lineups_df = lineups_df.copy()
+            lineups_df["game_pk"] = pd.to_numeric(lineups_df["game_pk"], errors="coerce").astype(float)
+            lineups_df["game_date"] = pd.to_datetime(lineups_df["game_date"]).dt.date
 
             home_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
             away_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
@@ -149,6 +162,7 @@ class FeaturePipeline:
         # ── 2b. Team Elo Spine ────────────────────────────────────────────
         if elo_df is not None and not elo_df.empty:
             elo = elo_df.copy()
+            elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype("Int64")
             elo["game_date"] = pd.to_datetime(elo["game_date"])
 
             # One row per (game_pk, is_home)
@@ -195,6 +209,7 @@ class FeaturePipeline:
         # ── 2c. Pythagorean Expectation Spine ─────────────────────────────
         if pythag_df is not None and not pythag_df.empty:
             pyth = pythag_df.copy()
+            pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype("Int64")
 
             home_pyth = pyth[pyth["is_home"]].rename(
                 columns={
@@ -236,9 +251,13 @@ class FeaturePipeline:
         if re24_df is not None and not re24_df.empty:
             re24 = re24_df.copy()
             re24["game_date"] = pd.to_datetime(re24["game_date"])
+            if "game_pk" in re24.columns:
+                re24["game_pk"] = pd.to_numeric(re24["game_pk"], errors="coerce").astype("Int64")
 
             # Pitcher RE24: join directly by pitcher_id + game_date
             pitcher_re24 = re24[re24["role"] == "PITCHER"][["player_id", "game_date", "roll_re24"]].copy()
+            pitcher_re24["player_id"] = pd.to_numeric(pitcher_re24["player_id"], errors="coerce").astype(float)
+            pitcher_re24["game_date"] = pd.to_datetime(pitcher_re24["game_date"]).dt.date
 
             # Home SP RE24
             h_pre24 = pitcher_re24.rename(columns={"roll_re24": "h_sp_roll_re24", "player_id": "h_sp_pid_re24"})
@@ -257,8 +276,14 @@ class FeaturePipeline:
             # Batter RE24: aggregate across lineup (mean of 9 starters)
             if lineups_df is not None and not lineups_df.empty:
                 batter_re24 = re24[re24["role"] == "BATTER"][["player_id", "game_date", "roll_re24"]].copy()
+                batter_re24["player_id"] = pd.to_numeric(batter_re24["player_id"], errors="coerce").astype(float)
+                batter_re24["game_date"] = pd.to_datetime(batter_re24["game_date"]).dt.date
+                
                 lu = lineups_df.copy()
-                lu["game_date"] = pd.to_datetime(lu["game_date"])
+                lu["game_date"] = pd.to_datetime(lu["game_date"]).dt.date
+                lu["player_id"] = pd.to_numeric(lu["player_id"], errors="coerce").astype(float)
+                lu["game_pk"] = pd.to_numeric(lu["game_pk"], errors="coerce").astype(float)
+                
                 lu_re24 = lu.merge(batter_re24, on=["player_id", "game_date"], how="left")
 
                 for side, prefix in [("home", "h_bat_roll_re24"), ("away", "a_bat_roll_re24")]:

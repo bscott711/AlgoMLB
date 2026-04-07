@@ -60,6 +60,33 @@ class MLBModel:
             return self.calibrated_clf.predict_proba(X)
         return self.clf.predict_proba(X)
 
+    def get_base_xgb_estimator(self):
+        """
+        Extract the raw XGBClassifier from inside CalibratedClassifierCV.
+        Needed for SHAP TreeExplainer which requires a native tree model.
+        """
+        if self.calibrated_clf is not None:
+            # CalibratedClassifierCV stores fitted sub-estimators
+            calibrated_classifiers = getattr(
+                self.calibrated_clf, "calibrated_classifiers_", None
+            )
+            if calibrated_classifiers:
+                return calibrated_classifiers[0].estimator
+        return self.clf
+
+    def get_feature_importance(self) -> pd.DataFrame:
+        """Return a DataFrame of (feature, importance) from the base XGB estimator."""
+        estimator = self.get_base_xgb_estimator()
+        if not hasattr(estimator, "feature_importances_"):
+            return pd.DataFrame(columns=["feature", "importance"])
+        names = getattr(estimator, "feature_names_in_", None)
+        if names is None:
+            names = [f"f{i}" for i in range(len(estimator.feature_importances_))]
+        return pd.DataFrame({
+            "feature": names,
+            "importance": estimator.feature_importances_,
+        })
+
     def save(self, file_path: Path) -> None:
         """Persist the model bundle (including calibration) to disk."""
         file_path.parent.mkdir(parents=True, exist_ok=True)

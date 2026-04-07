@@ -24,6 +24,7 @@ pages = {
     ],
     "ML Engineering": [
         st.Page("views/optuna.py", title="Optuna Studies", icon="🧪"),
+        st.Page("views/model_performance.py", title="Model Performance", icon="📊"),
     ],
     "System Health": [
         st.Page("views/data.py", title="Data & Ingest Health", icon="📡"),
