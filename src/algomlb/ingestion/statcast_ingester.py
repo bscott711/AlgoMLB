@@ -208,8 +208,9 @@ class StatcastIngester:
     ) -> int:
         """Fetch and persist Statcast events for a date range."""
         from pybaseball import cache
+
         cache.enable()
-        
+
         """
         Fetch and upsert Statcast events for a date range in 7-day chunks.
         Commits each chunk individually for robustness.

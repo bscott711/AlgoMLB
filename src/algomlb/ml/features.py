@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,14 +9,25 @@ class FeaturePipeline:
 
     # Columns to aggregate for team-level batting features
     BATTER_AGG_COLS = [
-        "roll_pas", "roll_hits_per_pa", "roll_k_pct_batter", "roll_bb_pct_batter",
-        "roll_barrel_pct", "roll_avg_launch_speed", "roll_avg_launch_angle",
-        "roll_avg_batter_xwoba", "roll_batter_xwoba_shrunk",
-        "ema_batter_xwoba_3g", "ema_batter_xwoba_7g",
-        "ema_bat_speed_3g", "ema_attack_angle_3g",
-        "ema_chase_pct_3g", "ema_iz_whiff_pct_3g",
-        "std_batter_xwoba_15g", "std_launch_angle_15g",
-        "seasonal_xwoba_vs_rh", "seasonal_xwoba_vs_lh",
+        "roll_pas",
+        "roll_hits_per_pa",
+        "roll_k_pct_batter",
+        "roll_bb_pct_batter",
+        "roll_barrel_pct",
+        "roll_avg_launch_speed",
+        "roll_avg_launch_angle",
+        "roll_avg_batter_xwoba",
+        "roll_batter_xwoba_shrunk",
+        "ema_batter_xwoba_3g",
+        "ema_batter_xwoba_7g",
+        "ema_bat_speed_3g",
+        "ema_attack_angle_3g",
+        "ema_chase_pct_3g",
+        "ema_iz_whiff_pct_3g",
+        "std_batter_xwoba_15g",
+        "std_launch_angle_15g",
+        "seasonal_xwoba_vs_rh",
+        "seasonal_xwoba_vs_lh",
     ]
 
     def _aggregate_team_batting(
@@ -36,10 +46,18 @@ class FeaturePipeline:
 
         # Ensure date and ID types match
         side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"]).dt.date
-        side_lineups["game_pk"] = pd.to_numeric(side_lineups["game_pk"], errors="coerce").astype(float)
-        batter_gold_df["game_date"] = pd.to_datetime(batter_gold_df["game_date"]).dt.date
-        batter_gold_df["player_id"] = pd.to_numeric(batter_gold_df["player_id"], errors="coerce").astype(float)
-        side_lineups["player_id"] = pd.to_numeric(side_lineups["player_id"], errors="coerce").astype(float)
+        side_lineups["game_pk"] = pd.to_numeric(
+            side_lineups["game_pk"], errors="coerce"
+        ).astype(float)
+        batter_gold_df["game_date"] = pd.to_datetime(
+            batter_gold_df["game_date"]
+        ).dt.date
+        batter_gold_df["player_id"] = pd.to_numeric(
+            batter_gold_df["player_id"], errors="coerce"
+        ).astype(float)
+        side_lineups["player_id"] = pd.to_numeric(
+            side_lineups["player_id"], errors="coerce"
+        ).astype(float)
 
         # Join each starter to their Gold BATTER record for that game_date
         merged = pd.merge(
@@ -57,11 +75,7 @@ class FeaturePipeline:
 
         # Aggregate: mean across the 9 starters per game
         prefix = "h_bat_" if side == "home" else "a_bat_"
-        team_agg = (
-            merged.groupby("game_pk")[available_cols]
-            .mean()
-            .reset_index()
-        )
+        team_agg = merged.groupby("game_pk")[available_cols].mean().reset_index()
         # Rename with prefix
         team_agg = team_agg.rename(columns={c: f"{prefix}{c}" for c in available_cols})
 
@@ -106,16 +120,22 @@ class FeaturePipeline:
         # Ensure datetime/date matching and ID normalization
         games_df = games_df.copy()
         pitcher_gold_df = pitcher_gold_df.copy()
-        
+
         # Force IDs to float64 (then Int64) to ensure merge compatibility
         for col in ["home_pitcher_id", "away_pitcher_id", "game_pk", "game_id"]:
             if col in games_df.columns:
-                games_df[col] = pd.to_numeric(games_df[col], errors="coerce").astype(float)
-        
-        pitcher_gold_df["player_id"] = pd.to_numeric(pitcher_gold_df["player_id"], errors="coerce").astype(float)
-        
+                games_df[col] = pd.to_numeric(games_df[col], errors="coerce").astype(
+                    float
+                )
+
+        pitcher_gold_df["player_id"] = pd.to_numeric(
+            pitcher_gold_df["player_id"], errors="coerce"
+        ).astype(float)
+
         games_df["game_date"] = pd.to_datetime(games_df["game_date"]).dt.date
-        pitcher_gold_df["game_date"] = pd.to_datetime(pitcher_gold_df["game_date"]).dt.date
+        pitcher_gold_df["game_date"] = pd.to_datetime(
+            pitcher_gold_df["game_date"]
+        ).dt.date
 
         # ── 1. Pitcher Spine ──────────────────────────────────────────────
         df = pd.merge(
@@ -139,22 +159,42 @@ class FeaturePipeline:
 
             # Ensure game_pk is numeric in both
             if "game_id" in df.columns:
-                df["game_pk_int"] = pd.to_numeric(df["game_id"], errors="coerce").astype(float)
+                df["game_pk_int"] = pd.to_numeric(
+                    df["game_id"], errors="coerce"
+                ).astype(float)
             elif "game_pk" in df.columns:
-                df["game_pk_int"] = pd.to_numeric(df["game_pk"], errors="coerce").astype(float)
-            
+                df["game_pk_int"] = pd.to_numeric(
+                    df["game_pk"], errors="coerce"
+                ).astype(float)
+
             lineups_df = lineups_df.copy()
-            lineups_df["game_pk"] = pd.to_numeric(lineups_df["game_pk"], errors="coerce").astype(float)
+            lineups_df["game_pk"] = pd.to_numeric(
+                lineups_df["game_pk"], errors="coerce"
+            ).astype(float)
             lineups_df["game_date"] = pd.to_datetime(lineups_df["game_date"]).dt.date
 
             home_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
             away_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
 
             if not home_bat.empty:
-                df = pd.merge(df, home_bat, left_on="game_pk_int", right_on="game_pk", how="left", suffixes=("", "_hbat"))
+                df = pd.merge(
+                    df,
+                    home_bat,
+                    left_on="game_pk_int",
+                    right_on="game_pk",
+                    how="left",
+                    suffixes=("", "_hbat"),
+                )
                 df = df.drop(columns=["game_pk_hbat"], errors="ignore")
             if not away_bat.empty:
-                df = pd.merge(df, away_bat, left_on="game_pk_int", right_on="game_pk", how="left", suffixes=("", "_abat"))
+                df = pd.merge(
+                    df,
+                    away_bat,
+                    left_on="game_pk_int",
+                    right_on="game_pk",
+                    how="left",
+                    suffixes=("", "_abat"),
+                )
                 df = df.drop(columns=["game_pk_abat"], errors="ignore")
 
             logger.info(f"Team batting features attached. Shape after join: {df.shape}")
@@ -162,7 +202,9 @@ class FeaturePipeline:
         # ── 2b. Team Elo Spine ────────────────────────────────────────────
         if elo_df is not None and not elo_df.empty:
             elo = elo_df.copy()
-            elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype("Int64")
+            elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype(
+                "Int64"
+            )
             elo["game_date"] = pd.to_datetime(elo["game_date"])
 
             # One row per (game_pk, is_home)
@@ -209,7 +251,9 @@ class FeaturePipeline:
         # ── 2c. Pythagorean Expectation Spine ─────────────────────────────
         if pythag_df is not None and not pythag_df.empty:
             pyth = pythag_df.copy()
-            pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype("Int64")
+            pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype(
+                "Int64"
+            )
 
             home_pyth = pyth[pyth["is_home"]].rename(
                 columns={
@@ -218,7 +262,15 @@ class FeaturePipeline:
                     "roll_rs_per_game": "h_roll_rs_per_game",
                     "roll_ra_per_game": "h_roll_ra_per_game",
                 }
-            )[["game_pk", "h_pythag_win_pct", "h_roll_run_diff", "h_roll_rs_per_game", "h_roll_ra_per_game"]]
+            )[
+                [
+                    "game_pk",
+                    "h_pythag_win_pct",
+                    "h_roll_run_diff",
+                    "h_roll_rs_per_game",
+                    "h_roll_ra_per_game",
+                ]
+            ]
 
             away_pyth = pyth[~pyth["is_home"]].rename(
                 columns={
@@ -227,7 +279,15 @@ class FeaturePipeline:
                     "roll_rs_per_game": "a_roll_rs_per_game",
                     "roll_ra_per_game": "a_roll_ra_per_game",
                 }
-            )[["game_pk", "a_pythag_win_pct", "a_roll_run_diff", "a_roll_rs_per_game", "a_roll_ra_per_game"]]
+            )[
+                [
+                    "game_pk",
+                    "a_pythag_win_pct",
+                    "a_roll_run_diff",
+                    "a_roll_rs_per_game",
+                    "a_roll_ra_per_game",
+                ]
+            ]
 
             if "game_pk_int" not in df.columns:
                 if "game_id" in df.columns:
@@ -236,12 +296,18 @@ class FeaturePipeline:
                     df["game_pk_int"] = df["game_pk"]
 
             df = df.merge(
-                home_pyth, left_on="game_pk_int", right_on="game_pk",
-                how="left", suffixes=("", "_hpyth"),
+                home_pyth,
+                left_on="game_pk_int",
+                right_on="game_pk",
+                how="left",
+                suffixes=("", "_hpyth"),
             ).drop(columns=["game_pk_hpyth"], errors="ignore")
             df = df.merge(
-                away_pyth, left_on="game_pk_int", right_on="game_pk",
-                how="left", suffixes=("", "_apyth"),
+                away_pyth,
+                left_on="game_pk_int",
+                right_on="game_pk",
+                how="left",
+                suffixes=("", "_apyth"),
             ).drop(columns=["game_pk_apyth"], errors="ignore")
 
             df["pythag_diff"] = df["h_pythag_win_pct"] - df["a_pythag_win_pct"]
@@ -252,41 +318,72 @@ class FeaturePipeline:
             re24 = re24_df.copy()
             re24["game_date"] = pd.to_datetime(re24["game_date"])
             if "game_pk" in re24.columns:
-                re24["game_pk"] = pd.to_numeric(re24["game_pk"], errors="coerce").astype("Int64")
+                re24["game_pk"] = pd.to_numeric(
+                    re24["game_pk"], errors="coerce"
+                ).astype("Int64")
 
             # Pitcher RE24: join directly by pitcher_id + game_date
-            pitcher_re24 = re24[re24["role"] == "PITCHER"][["player_id", "game_date", "roll_re24"]].copy()
-            pitcher_re24["player_id"] = pd.to_numeric(pitcher_re24["player_id"], errors="coerce").astype(float)
-            pitcher_re24["game_date"] = pd.to_datetime(pitcher_re24["game_date"]).dt.date
+            pitcher_re24 = re24[re24["role"] == "PITCHER"][
+                ["player_id", "game_date", "roll_re24"]
+            ].copy()
+            pitcher_re24["player_id"] = pd.to_numeric(
+                pitcher_re24["player_id"], errors="coerce"
+            ).astype(float)
+            pitcher_re24["game_date"] = pd.to_datetime(
+                pitcher_re24["game_date"]
+            ).dt.date
 
             # Home SP RE24
-            h_pre24 = pitcher_re24.rename(columns={"roll_re24": "h_sp_roll_re24", "player_id": "h_sp_pid_re24"})
+            h_pre24 = pitcher_re24.rename(
+                columns={"roll_re24": "h_sp_roll_re24", "player_id": "h_sp_pid_re24"}
+            )
             df = df.merge(
-                h_pre24, left_on=["home_pitcher_id", "game_date"],
-                right_on=["h_sp_pid_re24", "game_date"], how="left",
+                h_pre24,
+                left_on=["home_pitcher_id", "game_date"],
+                right_on=["h_sp_pid_re24", "game_date"],
+                how="left",
             ).drop(columns=["h_sp_pid_re24"], errors="ignore")
 
             # Away SP RE24
-            a_pre24 = pitcher_re24.rename(columns={"roll_re24": "a_sp_roll_re24", "player_id": "a_sp_pid_re24"})
+            a_pre24 = pitcher_re24.rename(
+                columns={"roll_re24": "a_sp_roll_re24", "player_id": "a_sp_pid_re24"}
+            )
             df = df.merge(
-                a_pre24, left_on=["away_pitcher_id", "game_date"],
-                right_on=["a_sp_pid_re24", "game_date"], how="left",
+                a_pre24,
+                left_on=["away_pitcher_id", "game_date"],
+                right_on=["a_sp_pid_re24", "game_date"],
+                how="left",
             ).drop(columns=["a_sp_pid_re24"], errors="ignore")
 
             # Batter RE24: aggregate across lineup (mean of 9 starters)
             if lineups_df is not None and not lineups_df.empty:
-                batter_re24 = re24[re24["role"] == "BATTER"][["player_id", "game_date", "roll_re24"]].copy()
-                batter_re24["player_id"] = pd.to_numeric(batter_re24["player_id"], errors="coerce").astype(float)
-                batter_re24["game_date"] = pd.to_datetime(batter_re24["game_date"]).dt.date
-                
+                batter_re24 = re24[re24["role"] == "BATTER"][
+                    ["player_id", "game_date", "roll_re24"]
+                ].copy()
+                batter_re24["player_id"] = pd.to_numeric(
+                    batter_re24["player_id"], errors="coerce"
+                ).astype(float)
+                batter_re24["game_date"] = pd.to_datetime(
+                    batter_re24["game_date"]
+                ).dt.date
+
                 lu = lineups_df.copy()
                 lu["game_date"] = pd.to_datetime(lu["game_date"]).dt.date
-                lu["player_id"] = pd.to_numeric(lu["player_id"], errors="coerce").astype(float)
-                lu["game_pk"] = pd.to_numeric(lu["game_pk"], errors="coerce").astype(float)
-                
-                lu_re24 = lu.merge(batter_re24, on=["player_id", "game_date"], how="left")
+                lu["player_id"] = pd.to_numeric(
+                    lu["player_id"], errors="coerce"
+                ).astype(float)
+                lu["game_pk"] = pd.to_numeric(lu["game_pk"], errors="coerce").astype(
+                    float
+                )
 
-                for side, prefix in [("home", "h_bat_roll_re24"), ("away", "a_bat_roll_re24")]:
+                lu_re24 = lu.merge(
+                    batter_re24, on=["player_id", "game_date"], how="left"
+                )
+
+                for side, prefix in [
+                    ("home", "h_bat_roll_re24"),
+                    ("away", "a_bat_roll_re24"),
+                ]:
                     side_agg = (
                         lu_re24[lu_re24["team_side"] == side]
                         .groupby("game_pk")["roll_re24"]
@@ -295,7 +392,13 @@ class FeaturePipeline:
                         .rename(columns={"roll_re24": prefix})
                     )
                     if "game_pk_int" in df.columns:
-                        df = df.merge(side_agg, left_on="game_pk_int", right_on="game_pk", how="left", suffixes=("", f"_{side}re24"))
+                        df = df.merge(
+                            side_agg,
+                            left_on="game_pk_int",
+                            right_on="game_pk",
+                            how="left",
+                            suffixes=("", f"_{side}re24"),
+                        )
                         df = df.drop(columns=[f"game_pk_{side}re24"], errors="ignore")
 
             # Compute diff
@@ -339,16 +442,19 @@ class FeaturePipeline:
         ]
 
         drop_patterns = [
-            "player_id", "_game_date", "season", "role",
-            "computed_at", "id", "game_pk"
+            "player_id",
+            "_game_date",
+            "season",
+            "role",
+            "computed_at",
+            "id",
+            "game_pk",
         ]
 
         feature_cols = [
-            c for c in df.columns
-            if (
-                any(c.startswith(p) for p in keep_prefixes)
-                or c in extra_features
-            )
+            c
+            for c in df.columns
+            if (any(c.startswith(p) for p in keep_prefixes) or c in extra_features)
             and not any(p in c for p in drop_patterns)
         ]
 
@@ -369,4 +475,3 @@ class FeaturePipeline:
 
         logger.info(f"Uranium Matrix built: {X.shape[0]} games, {X.shape[1]} features.")
         return X, y
-

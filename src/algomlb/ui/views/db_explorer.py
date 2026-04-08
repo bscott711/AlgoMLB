@@ -73,7 +73,7 @@ def _render_sidebar(inspector: SchemaInspector, tables: list):
     for table in filtered_tables:
         status_icon = "⚪" if table.is_empty else "🔵"
         label = f"{status_icon} {table.name} ({table.row_count:,})"
-        if st.button(label, key=f"btn_{table.name}", width='stretch'):
+        if st.button(label, key=f"btn_{table.name}", width="stretch"):
             st.session_state.db_exp_table = table.name
             st.session_state.db_exp_fk_filter = None
             st.session_state.db_exp_page = 0
@@ -151,7 +151,7 @@ def _render_data_tab(selected_table: str, table_meta, inspector: SchemaInspector
                 f"⚠️ **Data Quality Alert:** The following columns are 100% NULL: `{', '.join(null_cols)}`"
             )
 
-        st.dataframe(df, width='stretch')
+        st.dataframe(df, width="stretch")
         _render_fk_navigation(selected_table, inspector)
 
     except Exception as e:

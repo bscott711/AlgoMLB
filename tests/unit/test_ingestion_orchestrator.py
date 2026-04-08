@@ -14,6 +14,8 @@ def mock_dependencies():
     historical_loader = MagicMock()
     transactions_ingester = MagicMock()
     openmeteo_ingester = MagicMock()
+    statcast_ingester = MagicMock()
+    umpire_ingester = MagicMock()
     return (
         repo,
         odds_client,
@@ -21,6 +23,8 @@ def mock_dependencies():
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
 
@@ -32,6 +36,8 @@ def test_run_odds_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -40,6 +46,8 @@ def test_run_odds_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     # Mock return value
@@ -83,6 +91,8 @@ def test_run_schedule_ingestion(mock_dependencies):
         _,
         _,
         openmeteo_ingester,
+        _,
+        _,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -91,6 +101,8 @@ def test_run_schedule_ingestion(mock_dependencies):
         MagicMock(),
         MagicMock(),
         openmeteo_ingester,
+        MagicMock(),
+        MagicMock(),
     )
 
     # Mock return value
@@ -139,6 +151,8 @@ def test_run_odds_ingestion_empty(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -147,6 +161,8 @@ def test_run_odds_ingestion_empty(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     odds_client.fetch_live_odds.return_value = []
@@ -165,6 +181,8 @@ def test_run_historical_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -173,6 +191,8 @@ def test_run_historical_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     import pandas as pd
@@ -195,6 +215,8 @@ def test_run_transaction_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -203,6 +225,8 @@ def test_run_transaction_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     transactions_ingester.ingest_range.return_value = 5
@@ -223,6 +247,8 @@ def test_run_transaction_ingestion_defaults(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -231,6 +257,8 @@ def test_run_transaction_ingestion_defaults(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     transactions_ingester.ingest_range.return_value = 1
@@ -259,6 +287,8 @@ def test_run_weather_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -267,6 +297,8 @@ def test_run_weather_ingestion(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     d1 = datetime.date(2024, 1, 1)
@@ -283,6 +315,8 @@ def test_run_weather_ingestion_defaults(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     ) = mock_dependencies
     orchestrator = IngestionOrchestrator(
         repo,
@@ -291,6 +325,8 @@ def test_run_weather_ingestion_defaults(mock_dependencies):
         historical_loader,
         transactions_ingester,
         openmeteo_ingester,
+        statcast_ingester,
+        umpire_ingester,
     )
 
     orchestrator.run_weather_ingestion()

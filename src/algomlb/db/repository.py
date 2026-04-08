@@ -126,6 +126,9 @@ class DatabaseRepository:
             existing.away_score = game.away_score
             existing.status = game.status
             existing.game_type = game.game_type
+            existing.home_team_id = game.home_team_id
+            existing.away_team_id = game.away_team_id
+            existing.doubleheader_num = game.doubleheader_num
             if ballpark_id:
                 existing.ballpark_id = ballpark_id
         else:
@@ -135,6 +138,9 @@ class DatabaseRepository:
                 game_datetime=game.game_datetime,
                 home_team=game.home_team,
                 away_team=game.away_team,
+                home_team_id=game.home_team_id,
+                away_team_id=game.away_team_id,
+                doubleheader_num=game.doubleheader_num,
                 home_pitcher=game.home_pitcher,
                 away_pitcher=game.away_pitcher,
                 home_pitcher_id=game.home_pitcher_id,

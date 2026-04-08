@@ -22,6 +22,7 @@ class MLBModel:
             max_depth=params.get("max_depth", 3),
             learning_rate=params.get("learning_rate", 0.1),
             scale_pos_weight=params.get("scale_pos_weight", 1.0),
+            n_jobs=params.get("n_jobs", 1),
             monotone_constraints=mono,
             random_state=42,
             **{
@@ -33,11 +34,11 @@ class MLBModel:
                     "max_depth",
                     "learning_rate",
                     "scale_pos_weight",
+                    "n_jobs",
                 ]
             },
         )
         self.calibrated_clf = None
-
 
     def train(self, X: pd.DataFrame, y: pd.Series, calibrate: bool = True) -> None:
         """
@@ -82,10 +83,12 @@ class MLBModel:
         names = getattr(estimator, "feature_names_in_", None)
         if names is None:
             names = [f"f{i}" for i in range(len(estimator.feature_importances_))]
-        return pd.DataFrame({
-            "feature": names,
-            "importance": estimator.feature_importances_,
-        })
+        return pd.DataFrame(
+            {
+                "feature": names,
+                "importance": estimator.feature_importances_,
+            }
+        )
 
     def save(self, file_path: Path) -> None:
         """Persist the model bundle (including calibration) to disk."""

@@ -9,6 +9,7 @@ References:
     - FiveThirtyEight MLB Elo methodology
     - Logistic Elo expectation with explicit home-field advantage
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -157,7 +158,7 @@ def backfill_team_elo_history(engine: Engine | None = None) -> None:
     with eng.begin() as conn:
         for i in range(0, len(records), batch_size):
             batch = records[i : i + batch_size]
-            stmt = pg_insert(TeamEloHistoryORM.__table__).values(batch)
+            stmt = pg_insert(TeamEloHistoryORM).values(batch)
             upsert_stmt = stmt.on_conflict_do_update(
                 index_elements=["game_pk", "team_id", "is_home"],
                 set_={
@@ -168,6 +169,4 @@ def backfill_team_elo_history(engine: Engine | None = None) -> None:
             )
             conn.execute(upsert_stmt)
 
-    logger.success(
-        f"Backfilled/updated {len(records)} Elo rows into team_elo_history."
-    )
+    logger.success(f"Backfilled/updated {len(records)} Elo rows into team_elo_history.")

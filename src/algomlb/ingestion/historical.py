@@ -83,6 +83,7 @@ class HistoricalDataLoader:
         else:
             import pybaseball
             from pybaseball import cache
+
             cache.enable()
             df = pybaseball.pitching_stats(start_year, end_year)
             df = self._clean_columns(df)
@@ -107,6 +108,7 @@ class HistoricalDataLoader:
         else:
             import pybaseball
             from pybaseball import cache
+
             cache.enable()
             df = pybaseball.team_batting(start_year, end_year)
             df = self._clean_columns(df)
@@ -185,6 +187,7 @@ class HistoricalDataLoader:
         if total_days <= 7:
             # Short range: fetch normally
             from pybaseball import statcast, cache
+
             cache.enable()
             df = statcast(start_date, end_date)
             return self._clean_columns(df)
@@ -206,6 +209,7 @@ class HistoricalDataLoader:
                 # pybaseball.statcast usually handles internal day-splitting, but external chunks
                 # provide better logging progress and cache robustness in case of disconnects.
                 from pybaseball import statcast, cache
+
                 cache.enable()
                 chunk = statcast(s_str, e_str)
                 if chunk is not None and not chunk.empty:

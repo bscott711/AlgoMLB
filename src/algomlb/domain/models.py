@@ -64,6 +64,9 @@ class Game(BaseModel):
     game_type: GameType = Field(
         default=GameType.REGULAR_SEASON, description="R, P, S, etc."
     )
+    doubleheader_num: int = Field(
+        default=0, description="0 for single game, 1 or 2 for doubleheaders"
+    )
     date: datetime.date = Field(
         ..., description="Date of the game", validation_alias="game_date"
     )
@@ -73,6 +76,8 @@ class Game(BaseModel):
     venue_name: Optional[str] = Field(default=None, description="Ballpark name")
     home_team: str = Field(..., min_length=2, max_length=50)
     away_team: str = Field(..., min_length=2, max_length=50)
+    home_team_id: Optional[int] = Field(default=None)
+    away_team_id: Optional[int] = Field(default=None)
     home_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)
     away_pitcher: Optional[str] = Field(default=None, min_length=2, max_length=100)
     home_pitcher_id: Optional[int] = Field(default=None)

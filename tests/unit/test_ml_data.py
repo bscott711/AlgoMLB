@@ -92,9 +92,31 @@ def test_ml_fetch_history_cli(mock_loader_class, dummy_pitching_df, dummy_battin
 
 
 def test_ml_optimize_cli():
-    """Verify ml optimize CLI runs the TODO implementation."""
-    result = runner.invoke(app, ["ml", "optimize", "--market", "Runline"])
-    assert result.exit_code == 0
-    assert "TODO" in result.stdout
+    """Verify ml optimize CLI runs without hanging by mocking heavy logic."""
+    with (
+        patch("algomlb.ml.hyperopt.build_fold_data") as mock_build,
+        patch("algomlb.ml.hyperopt.optimize_model") as mock_opt,
+        patch("algomlb.cli.ml.pd.read_sql") as mock_read,
+        patch("algomlb.cli.ml.get_session_factory"),
+    ):
+        mock_build.return_value = {"fold1": {}}
+        mock_opt.return_value = ({}, MagicMock())
+        mock_read.return_value = pd.DataFrame(
+            [
+                {
+                    "game_pk": 1,
+                    "game_date": "2023-04-01",
+                    "home_team": "A",
+                    "away_team": "B",
+                    "home_pitcher_id": 1,
+                    "away_pitcher_id": 2,
+                    "home_score": 5,
+                    "away_score": 3,
+                }
+            ]
+        )
 
-    assert "Runline" in result.stdout
+        result = runner.invoke(app, ["ml", "optimize", "--n-trials", "1"])
+        assert result.exit_code == 0
+        assert mock_opt.called
+        assert mock_build.called

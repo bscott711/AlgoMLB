@@ -1,4 +1,5 @@
 """SHAP-based explainability for Uranium XGBoost models."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -49,7 +50,9 @@ def compute_global_shap(
     # Extract the raw XGBoost estimator
     base_estimator = model.get_base_xgb_estimator()
 
-    logger.info(f"Computing SHAP values on {len(X_sample)} samples, {X_sample.shape[1]} features...")
+    logger.info(
+        f"Computing SHAP values on {len(X_sample)} samples, {X_sample.shape[1]} features..."
+    )
     explainer = shap.TreeExplainer(base_estimator)
     shap_values = explainer.shap_values(X_sample)
 
@@ -64,11 +67,13 @@ def compute_global_shap(
     mean_abs = np.abs(sv).mean(axis=0)
     mean_val = sv.mean(axis=0)
 
-    result = pd.DataFrame({
-        "feature_name": X_sample.columns.tolist(),
-        "mean_abs_shap": mean_abs,
-        "mean_shap": mean_val,
-    })
+    result = pd.DataFrame(
+        {
+            "feature_name": X_sample.columns.tolist(),
+            "mean_abs_shap": mean_abs,
+            "mean_shap": mean_val,
+        }
+    )
 
     return result.sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
 
@@ -94,7 +99,7 @@ def persist_global_shap(
 
     with eng.begin() as conn:
         for row in rows:
-            stmt = pg_insert(UraniumShapGlobalORM.__table__).values([row])
+            stmt = pg_insert(UraniumShapGlobalORM).values([row])
             upsert = stmt.on_conflict_do_update(
                 index_elements=["model_version", "dataset_label", "feature_name"],
                 set_={

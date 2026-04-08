@@ -136,7 +136,9 @@ def silver(
     )
 
     if incremental:
-        typer.echo(f"Running incremental silver processing (Batch Size: {batch_size})...")
+        typer.echo(
+            f"Running incremental silver processing (Batch Size: {batch_size})..."
+        )
         process_silver_incremental(batch_size=batch_size)
         typer.echo("Incremental processing check complete.")
         return

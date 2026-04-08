@@ -151,12 +151,14 @@ class OpenMeteoIngester:
             # Forecast API only allows up to 15 days in the future
             max_forecast = today + datetime.timedelta(days=15)
             if e_date_obj > max_forecast:
-                logger.info(f"📍 Clamping end_date to {max_forecast} (Open-Meteo forecast limit)")
+                logger.info(
+                    f"📍 Clamping end_date to {max_forecast} (Open-Meteo forecast limit)"
+                )
                 e_date_obj = max_forecast
-            
+
             # Ensure start_date isn't in the future
             if s_date_obj > max_forecast:
-                 s_date_obj = today
+                s_date_obj = today
 
         s_date = s_date_obj.strftime("%Y-%m-%d")
         e_date = e_date_obj.strftime("%Y-%m-%d")

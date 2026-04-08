@@ -40,7 +40,7 @@ with c1:
             color_continuous_scale="Reds",
         )
         fig_parts.update_layout(yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig_parts, width='stretch')
+        st.plotly_chart(fig_parts, width="stretch")
 
 with c2:
     st.write("#### Typical Injury Types")
@@ -59,7 +59,7 @@ with c2:
             template="plotly_dark",
             hole=0.4,
         )
-        st.plotly_chart(fig_kind, width='stretch')
+        st.plotly_chart(fig_kind, width="stretch")
 
 st.markdown("---")
 
@@ -86,7 +86,7 @@ if not df_monthly.empty:
         markers=True,
         template="plotly_dark",
     )
-    st.plotly_chart(fig_monthly, width='stretch')
+    st.plotly_chart(fig_monthly, width="stretch")
 
 st.markdown("---")
 
@@ -144,7 +144,7 @@ if player_input:
         st.write(f"History for '{player_input}'")
         # Ensure days_on_il is int
         df_player["days_on_il"] = df_player["days_on_il"].fillna(0).astype(int)
-        st.dataframe(df_player, width='stretch')
+        st.dataframe(df_player, width="stretch")
 
         # Summary metrics
         total_il_days = df_player["days_on_il"].sum()
@@ -159,15 +159,18 @@ if player_input:
         # --- NEW: PHYSICAL FATIGUE & STABILITY (GOLD LAYER) ---
         st.markdown("---")
         st.subheader("🔋 Workload & Stuff Stability")
-        
+
         # Determine actual player ID for Gold lookup
         p_id = int(player_input) if player_input.isdigit() else None
         if not p_id and not df_player.empty:
             # Try to get p_id from another source if name was used
-            q_id = text("SELECT DISTINCT player_id FROM player_transactions WHERE player_name ILIKE :pname LIMIT 1")
+            q_id = text(
+                "SELECT DISTINCT player_id FROM player_transactions WHERE player_name ILIKE :pname LIMIT 1"
+            )
             with engine.connect() as conn:
                 res = conn.execute(q_id, {"pname": f"%{player_input}%"}).fetchone()
-                if res: p_id = res[0]
+                if res:
+                    p_id = res[0]
 
         if p_id:
             # Fetch latest Gold record (Pitcher priority for health)
@@ -178,48 +181,73 @@ if player_input:
             """)
             with engine.connect() as conn:
                 gold_df = pd.read_sql(q_gold, conn, params={"pid": p_id})
-            
+
             if not gold_df.empty:
                 latest = gold_df.iloc[0]
                 hg1, hg2 = st.columns([1, 1])
-                
+
                 with hg1:
                     # Fatigue Gauge
                     fi_7d = latest.get("fatigue_index_7d", 0)
-                    fig_gauge = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = fi_7d,
-                        title = {'text': "7-Day Fatigue Index (Whiteside)"},
-                        gauge = {
-                            'axis': {'range': [0, 30]},
-                            'bar': {'color': "#00E5FF"},
-                            'steps' : [
-                                {'range': [0, 15], 'color': "rgba(0, 255, 0, 0.1)"},
-                                {'range': [15, 25], 'color': "rgba(255, 255, 0, 0.1)"},
-                                {'range': [25, 30], 'color': "rgba(255, 0, 0, 0.2)"}
-                            ],
-                            'threshold': {
-                                'line': {'color': "red", 'width': 4},
-                                'thickness': 0.75,
-                                'value': 25
-                            }
-                        }
-                    ))
+                    fig_gauge = go.Figure(
+                        go.Indicator(
+                            mode="gauge+number",
+                            value=fi_7d,
+                            title={"text": "7-Day Fatigue Index (Whiteside)"},
+                            gauge={
+                                "axis": {"range": [0, 30]},
+                                "bar": {"color": "#00E5FF"},
+                                "steps": [
+                                    {"range": [0, 15], "color": "rgba(0, 255, 0, 0.1)"},
+                                    {
+                                        "range": [15, 25],
+                                        "color": "rgba(255, 255, 0, 0.1)",
+                                    },
+                                    {
+                                        "range": [25, 30],
+                                        "color": "rgba(255, 0, 0, 0.2)",
+                                    },
+                                ],
+                                "threshold": {
+                                    "line": {"color": "red", "width": 4},
+                                    "thickness": 0.75,
+                                    "value": 25,
+                                },
+                            },
+                        )
+                    )
                     fig_gauge.update_layout(template="plotly_dark", height=300)
                     st.plotly_chart(fig_gauge, use_container_width=True)
-                
+
                 with hg2:
                     # Stuff Stability Metrics
                     st.write("#### 📡 Early Warning Signals")
                     spin_delta = latest.get("delta_spin_rate_3g", 0)
                     velo_delta = latest.get("delta_fb_velo_3g", 0)
                     ext_delta = latest.get("delta_extension_3g", 0)
-                    
-                    st.metric("Spin Rate vs Season", f"{latest.get('roll_avg_spin_rate', 0):.0f} rpm", delta=f"{spin_delta:.1f} rpm", delta_color="normal")
-                    st.metric("Velo vs Season", f"{latest.get('roll_avg_release_speed', 0):.1f} mph", delta=f"{velo_delta:.1f} mph", delta_color="normal")
-                    st.metric("Extension vs Season", f"{latest.get('roll_avg_release_extension', 0):.2f} ft", delta=f"{ext_delta:.2f} ft", delta_color="normal")
+
+                    st.metric(
+                        "Spin Rate vs Season",
+                        f"{latest.get('roll_avg_spin_rate', 0):.0f} rpm",
+                        delta=f"{spin_delta:.1f} rpm",
+                        delta_color="normal",
+                    )
+                    st.metric(
+                        "Velo vs Season",
+                        f"{latest.get('roll_avg_release_speed', 0):.1f} mph",
+                        delta=f"{velo_delta:.1f} mph",
+                        delta_color="normal",
+                    )
+                    st.metric(
+                        "Extension vs Season",
+                        f"{latest.get('roll_avg_release_extension', 0):.2f} ft",
+                        delta=f"{ext_delta:.2f} ft",
+                        delta_color="normal",
+                    )
             else:
-                st.info("No recent Pitcher health metrics found for this player in the Gold Layer.")
+                st.info(
+                    "No recent Pitcher health metrics found for this player in the Gold Layer."
+                )
     else:
         st.warning(f"No data found for '{player_input}'.")
 

@@ -68,15 +68,17 @@ class LineupIngester:
                 person = pdata.get("person", {})
                 position = pdata.get("position", {})
 
-                records.append({
-                    "game_pk": game_pk,
-                    "game_date": game_date,
-                    "team_side": side,
-                    "batting_order": slot,
-                    "player_id": person.get("id"),
-                    "player_name": person.get("fullName"),
-                    "position": position.get("abbreviation"),
-                })
+                records.append(
+                    {
+                        "game_pk": game_pk,
+                        "game_date": game_date,
+                        "team_side": side,
+                        "batting_order": slot,
+                        "player_id": person.get("id"),
+                        "player_name": person.get("fullName"),
+                        "position": position.get("abbreviation"),
+                    }
+                )
 
         return records
 
@@ -130,7 +132,9 @@ class LineupIngester:
             query, {"start": start_date, "end": end_date}
         ).fetchall()
 
-        logger.info(f"Lineup backfill: {len(rows)} games to process ({start_date} to {end_date})")
+        logger.info(
+            f"Lineup backfill: {len(rows)} games to process ({start_date} to {end_date})"
+        )
 
         total = 0
         for i, row in enumerate(rows):
@@ -139,11 +143,15 @@ class LineupIngester:
             total += n
 
             if (i + 1) % 50 == 0:
-                logger.info(f"  Progress: {i + 1}/{len(rows)} games, {total} lineup slots")
+                logger.info(
+                    f"  Progress: {i + 1}/{len(rows)} games, {total} lineup slots"
+                )
 
             # Throttle to respect MLB API
             if throttle_ms > 0:
                 time.sleep(throttle_ms / 1000.0)
 
-        logger.success(f"Lineup backfill complete: {total} lineup slots across {len(rows)} games")
+        logger.success(
+            f"Lineup backfill complete: {total} lineup slots across {len(rows)} games"
+        )
         return total

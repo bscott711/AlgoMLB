@@ -1,4 +1,3 @@
-import datetime
 from datetime import date, timedelta
 import typer
 from algomlb.core.logger import logger
@@ -17,6 +16,7 @@ from algomlb.ingestion import (
 )
 
 app = typer.Typer(help="Synchronize all data layers (Ingest + Process).")
+
 
 @app.command("daily")
 def daily(
@@ -43,16 +43,16 @@ def daily(
         today = date.fromisoformat(target_date)
     else:
         today = date.today()
-    
+
     yesterday = today - timedelta(days=1)
     start_trailing = today - timedelta(days=days_back)
-    
+
     logger.info(f"🔄 Starting Daily Sync (Target: {yesterday})")
 
     session_factory = get_session_factory()
     with session_factory() as session:
         repo = DatabaseRepository(session)
-        
+
         # Ingestion Setup
         orchestrator = IngestionOrchestrator(
             repo=repo,
@@ -89,21 +89,22 @@ def daily(
         # G. Ingest Umpires (Scrape)
         logger.info("⚖️ Syncing Umpires (Scrape)")
         orchestrator.run_umpire_ingestion()
-        
+
         session.commit()
 
     # 2. Processing (Silver/Gold)
     logger.info("🛠️ Running Processing Pipelines")
-    
+
     # Silver Layer (Incremental)
     from algomlb.ml.silver_processor import process_silver_incremental
+
     process_silver_incremental(batch_size=50000)
-    
+
     # Gold Layer (Rolling Features for yesterday)
     from algomlb.ml.rolling_service import RollingService
     from algomlb.ml.rolling_processor import RollingProcessor
     from algomlb.config.settings import get_settings
-    
+
     settings = get_settings()
     with session_factory() as session:
         db = DatabaseRepository(session)
@@ -112,6 +113,7 @@ def daily(
         service.process_date_range(yesterday, yesterday)
 
     logger.success(f"✅ Daily Sync Complete for {yesterday}")
+
 
 if __name__ == "__main__":
     app()

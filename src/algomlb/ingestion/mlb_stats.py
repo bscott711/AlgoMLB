@@ -52,6 +52,8 @@ class MLBStatsAPIClient(BaseAPIClient):
 
                 home_team = home.get("team", {}).get("name", "unknown")
                 away_team = away.get("team", {}).get("name", "unknown")
+                home_team_id = home.get("team", {}).get("id")
+                away_team_id = away.get("team", {}).get("id")
 
                 # Extract probable pitchers and IDs if available via hydrate
                 h_p_data = home.get("probablePitcher", {})
@@ -75,6 +77,13 @@ class MLBStatsAPIClient(BaseAPIClient):
                 elif "postponed" in detailed_state:
                     status = GameStatus.POSTPONED
 
+                # Doubleheader identification
+                # Retrosheet uses 0 for single games, 1/2 for DH.
+                # MLB uses gameNumber (1, 2) and doubleHeader (Y/N/S).
+                is_dh = game_data.get("doubleHeader") in ("Y", "S")
+                game_num = game_data.get("gameNumber", 1)
+                dh_num = 0 if not is_dh else game_num
+
                 # Extract venue name
                 venue_name = game_data.get("venue", {}).get("name")
 
@@ -86,6 +95,9 @@ class MLBStatsAPIClient(BaseAPIClient):
                         venue_name=venue_name,
                         home_team=home_team,
                         away_team=away_team,
+                        home_team_id=home_team_id,
+                        away_team_id=away_team_id,
+                        doubleheader_num=dh_num,
                         home_pitcher=home_pitcher,
                         away_pitcher=away_pitcher,
                         home_pitcher_id=home_pitcher_id,

@@ -49,6 +49,14 @@ def test_compute_pitcher_full_window(processor):
                 "avg_pfx_x": -0.5,
                 "avg_pfx_z": 1.0,
                 "avg_pitcher_xwoba": 0.300,
+                "edge_pct": 0.45,
+                "fastball_velo_degradation": 0.0,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2400.0,
+                "avg_release_extension": 6.5,
+                "fb_speed": 95.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
             {
                 "game_date": date(2024, 3, 25),
@@ -61,6 +69,14 @@ def test_compute_pitcher_full_window(processor):
                 "avg_pfx_x": -0.6,
                 "avg_pfx_z": 1.1,
                 "avg_pitcher_xwoba": 0.250,
+                "edge_pct": 0.48,
+                "fastball_velo_degradation": -0.5,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2450.0,
+                "avg_release_extension": 6.6,
+                "fb_speed": 96.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
             {
                 "game_date": date(2024, 3, 30),
@@ -73,6 +89,14 @@ def test_compute_pitcher_full_window(processor):
                 "avg_pfx_x": -0.4,
                 "avg_pfx_z": 0.9,
                 "avg_pitcher_xwoba": 0.350,
+                "edge_pct": 0.42,
+                "fastball_velo_degradation": 0.5,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2350.0,
+                "avg_release_extension": 6.4,
+                "fb_speed": 94.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
             {
                 "game_date": date(2024, 4, 5),
@@ -85,6 +109,14 @@ def test_compute_pitcher_full_window(processor):
                 "avg_pfx_x": -0.5,
                 "avg_pfx_z": 1.0,
                 "avg_pitcher_xwoba": 0.310,
+                "edge_pct": 0.44,
+                "fastball_velo_degradation": 0.2,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2400.0,
+                "avg_release_extension": 6.5,
+                "fb_speed": 95.5,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
             {
                 "game_date": date(2024, 4, 10),
@@ -97,6 +129,14 @@ def test_compute_pitcher_full_window(processor):
                 "avg_pfx_x": -0.7,
                 "avg_pfx_z": 1.2,
                 "avg_pitcher_xwoba": 0.280,
+                "edge_pct": 0.46,
+                "fastball_velo_degradation": -0.2,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2420.0,
+                "avg_release_extension": 6.7,
+                "fb_speed": 96.5,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
         ]
     )
@@ -121,12 +161,10 @@ def test_days_since_last_game(processor):
     history = pd.DataFrame([{"game_date": date(2024, 3, 20), "pas": 4, "hits": 1}])
     # Manually add missing columns for batter
     for col in [
-        "batter_k",
-        "batter_bb",
-        "barrels",
-        "avg_launch_speed",
-        "avg_launch_angle",
-        "avg_batter_xwoba",
+        "batter_k", "batter_bb", "barrels", "avg_launch_speed", 
+        "avg_launch_angle", "avg_batter_xwoba", "avg_bat_speed", 
+        "avg_attack_angle", "chase_count", "in_zone_whiff_count", 
+        "std_launch_angle", "xwoba_vs_rh", "xwoba_vs_lh", "edge_pct"
     ]:
         history[col] = 0.0
 
@@ -151,6 +189,13 @@ def test_compute_batter_partial_window(processor):
                 "avg_launch_speed": 90.0,
                 "avg_launch_angle": 10.0,
                 "avg_batter_xwoba": 0.300,
+                "avg_bat_speed": 75.0,
+                "avg_attack_angle": 12.0,
+                "chase_count": 1,
+                "in_zone_whiff_count": 0,
+                "std_launch_angle": 5.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },
         ]
     )
@@ -183,6 +228,13 @@ def test_season_boundary_exclusion(processor):
                 "avg_launch_speed": 90.0,
                 "avg_launch_angle": 10.0,
                 "avg_batter_xwoba": 0.500,
+                "avg_bat_speed": 78.0,
+                "avg_attack_angle": 15.0,
+                "chase_count": 0,
+                "in_zone_whiff_count": 0,
+                "std_launch_angle": 4.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             },  # Prior season
             {
                 "game_date": date(2024, 3, 20),
@@ -194,6 +246,7 @@ def test_season_boundary_exclusion(processor):
                 "avg_launch_speed": 90.0,
                 "avg_launch_angle": 10.0,
                 "avg_batter_xwoba": 0.300,
+                "avg_bat_speed": 75.0,
             },
         ]
     )
@@ -242,6 +295,14 @@ def test_processor_edge_cases(processor):
                 "avg_pfx_x": -0.5,
                 "avg_pfx_z": 1.0,
                 "avg_pitcher_xwoba": 0.300,
+                "edge_pct": 0.45,
+                "fastball_velo_degradation": 0.0,
+                "std_release_pos_z": 0.0,
+                "avg_spin_rate": 2400.0,
+                "avg_release_extension": 6.5,
+                "fb_speed": 95.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             }
         ]
     )
@@ -272,6 +333,14 @@ def test_processor_edge_cases(processor):
                 "avg_launch_speed": 0.0,
                 "avg_launch_angle": 0.0,
                 "avg_batter_xwoba": 0.0,
+                "avg_bat_speed": 0.0,
+                "avg_attack_angle": 0.0,
+                "chase_count": 0,
+                "in_zone_whiff_count": 0,
+                "std_launch_angle": 0.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
+                "edge_pct": 0.0,
             }
         ]
     )
@@ -295,6 +364,13 @@ def test_compute_batter_full_window(processor):
                 "avg_launch_speed": 90.0,
                 "avg_launch_angle": 10.0,
                 "avg_batter_xwoba": 0.300,
+                "avg_bat_speed": 75.0,
+                "avg_attack_angle": 12.0,
+                "chase_count": 1,
+                "in_zone_whiff_count": 0,
+                "std_launch_angle": 5.0,
+                "xwoba_vs_rh": 0.320,
+                "xwoba_vs_lh": 0.310,
             }
         ]
         * 20

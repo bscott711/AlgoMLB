@@ -3,7 +3,10 @@ import pandas as pd
 from datetime import datetime, date
 from algomlb.db.session import get_engine
 from algomlb.ui.styles import apply_premium_styles
-from algomlb.ui.components.spray_charts import plot_spray_chart, get_ballpark_selection_ui
+from algomlb.ui.components.spray_charts import (
+    plot_spray_chart,
+    get_ballpark_selection_ui,
+)
 
 # --- Configuration & Styling ---
 st.set_page_config(page_title="Game Analytics Hub", layout="wide")
@@ -90,9 +93,7 @@ with st.sidebar:
 
     # 4. Ballpark Selection (Centralized SOLID HELPER)
     ballpark_dims = get_ballpark_selection_ui(
-        engine, 
-        native_id=int(game_row["ballpark_id"]), 
-        key_prefix="matchup"
+        engine, native_id=int(game_row["ballpark_id"]), key_prefix="matchup"
     )
 
 
@@ -137,7 +138,7 @@ if not df_events.empty:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_away, width='stretch')
+        st.plotly_chart(fig_away, width="stretch")
 
     with col_home:
         st.subheader(f"🏹 {TEAM_MAP.get(home_team, home_team)} Hits")
@@ -149,7 +150,7 @@ if not df_events.empty:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_home, width='stretch')
+        st.plotly_chart(fig_home, width="stretch")
 
     st.markdown("### 📊 Game Event Log")
     st.dataframe(
@@ -163,7 +164,7 @@ if not df_events.empty:
                 "events",
             ]
         ].sort_values("at_bat_number"),
-        width='stretch',
+        width="stretch",
     )
 
 else:

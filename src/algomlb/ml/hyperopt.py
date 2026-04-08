@@ -1,4 +1,5 @@
 """Optuna walk-forward hyperparameter optimization for Uranium XGBoost models."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,6 +15,7 @@ from algomlb.ml import FeaturePipeline, MLBModel
 
 # ── Single-fold evaluator ────────────────────────────────────────────────
 
+
 def _run_fold(
     X_train: pd.DataFrame,
     y_train: pd.Series,
@@ -23,12 +25,15 @@ def _run_fold(
 ) -> float:
     """Train an XGBoost model with *params* and return test log-loss."""
     model = MLBModel(**params)
-    model.train(X_train, y_train, calibrate=False)  # no calibration during optuna search — faster
+    model.train(
+        X_train, y_train, calibrate=False
+    )  # no calibration during optuna search — faster
     y_prob = model.predict_proba(X_test)[:, 1]
     return float(log_loss(y_test, y_prob))
 
 
 # ── Optuna objective ─────────────────────────────────────────────────────
+
 
 def walk_forward_objective(
     trial: optuna.Trial,
@@ -72,6 +77,7 @@ def walk_forward_objective(
 
 # ── Pre-build fold data ──────────────────────────────────────────────────
 
+
 def build_fold_data(
     all_years: list[int],
     games_df: pd.DataFrame,
@@ -92,14 +98,18 @@ def build_fold_data(
         train_years = all_years[:test_idx]
         test_year = all_years[test_idx]
 
-        logger.info(f"  Building fold {test_idx}: Train {train_years} → Test {test_year}")
+        logger.info(
+            f"  Building fold {test_idx}: Train {train_years} → Test {test_year}"
+        )
 
         train_games = games_df[games_df["year"].isin(train_years)].copy()
         test_games = games_df[games_df["year"] == test_year].copy()
         fold_games = pd.concat([train_games, test_games], ignore_index=True)
 
         fold_seasons = set(train_years) | {test_year}
-        fold_pitcher = pitcher_gold_df[pitcher_gold_df["season"].isin(fold_seasons)].copy()
+        fold_pitcher = pitcher_gold_df[
+            pitcher_gold_df["season"].isin(fold_seasons)
+        ].copy()
         fold_batter = batter_gold_df[batter_gold_df["season"].isin(fold_seasons)].copy()
 
         fold_game_pks = (
@@ -128,13 +138,21 @@ def build_fold_data(
         pipeline = FeaturePipeline()
         if not fold_lineups.empty and not fold_batter.empty:
             X, y = pipeline.build_uranium_matrix(
-                fold_games, fold_pitcher, fold_lineups, fold_batter,
-                elo_df=fold_elo, pythag_df=fold_pythag, re24_df=fold_re24,
+                fold_games,
+                fold_pitcher,
+                fold_lineups,
+                fold_batter,
+                elo_df=fold_elo,
+                pythag_df=fold_pythag,
+                re24_df=fold_re24,
             )
         else:
             X, y = pipeline.build_uranium_matrix(
-                fold_games, fold_pitcher,
-                elo_df=fold_elo, pythag_df=fold_pythag, re24_df=fold_re24,
+                fold_games,
+                fold_pitcher,
+                elo_df=fold_elo,
+                pythag_df=fold_pythag,
+                re24_df=fold_re24,
             )
 
         if X.empty:
@@ -156,12 +174,15 @@ def build_fold_data(
             continue
 
         fold_data.append((X_train, y_train, X_test, y_test))
-        logger.info(f"  Fold {test_idx}: {len(X_train)} train, {len(X_test)} test, {X_train.shape[1]} features")
+        logger.info(
+            f"  Fold {test_idx}: {len(X_train)} train, {len(X_test)} test, {X_train.shape[1]} features"
+        )
 
     return fold_data
 
 
 # ── Top-level runner ─────────────────────────────────────────────────────
+
 
 def optimize_model(
     fold_data: list[tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]],
@@ -205,6 +226,7 @@ def optimize_model(
 
 # ── Param loader ─────────────────────────────────────────────────────────
 
+
 def load_optimized_params(model_version: str = "v0.1") -> dict[str, Any]:
     """
     Load Optuna-optimised hyperparameters from the JSON artifact.
@@ -233,4 +255,3 @@ def load_optimized_params(model_version: str = "v0.1") -> dict[str, Any]:
         "subsample": 0.8,
         "colsample_bytree": 0.8,
     }
-

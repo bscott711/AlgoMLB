@@ -66,7 +66,7 @@ if not df_umps.empty:
         ).background_gradient(
             subset=["avg_accuracy", "avg_consistency"], cmap="RdYlGn"
         ),
-        width='stretch',
+        width="stretch",
     )
 
 st.markdown("---")
@@ -86,7 +86,7 @@ with col_left:
         template="plotly_dark",
         title="Umpire Reliability Matrix",
     )
-    st.plotly_chart(fig_acc, width='stretch')
+    st.plotly_chart(fig_acc, width="stretch")
 
 with col_right:
     st.markdown("#### Home Favoritism Bias")
@@ -104,6 +104,6 @@ with col_right:
         template="plotly_dark",
         title="Top 20 Umpires by Home/Away Favoritism (Run Impact)",
     )
-    st.plotly_chart(fig_bias, width='stretch')
+    st.plotly_chart(fig_bias, width="stretch")
 
 st.info("💡 Umpire data is synchronized from umpscorecards.us API.")

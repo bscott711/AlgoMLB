@@ -81,14 +81,15 @@ def test_field_shapes_generation():
         h_rf=3.0,
     )
 
-    # Should contain infield + 2 foul lines + 4 fence segments
-    assert len(shapes) == 7
+    # Should contain background, paths, hub, mound, bases, lines + fence segments (Total 58 in modern engine)
+    assert len(shapes) == 58
 
-    # Check that fence segments have higher width for Fenway's Green Monster
-    # Segment 0: LF to LC (Green Monster 37ft) -> width 37/4=9.25
-    assert shapes[3]["line"]["width"] >= 8.0
-    # Segment 3: RC to RF (Standard 3ft) -> width max(2.0, 3/4)=2.0
-    assert shapes[6]["line"]["width"] == 2.0
+    # Verify we have high fence segments (e.g. Green Monster part)
+    # Fence segments start at index 13. Color is C_FENCE (#00E5FF).
+    fences = [s for s in shapes if s.get("line", {}).get("color") == "#00E5FF"]
+    assert any(f["line"]["width"] >= 12.0 for f in fences)
+    # Verify we have low fence segments (e.g. RF part h=3.0 -> width 2.5)
+    assert any(f["line"]["width"] == 2.5 for f in fences)
 
 
 def test_style_tokens():

@@ -18,7 +18,6 @@ from algomlb.ingestion import (
 from algomlb.ingestion.historical import HistoricalDataLoader
 from algomlb.ingestion.ballpark_ingester import BallparkIngester
 from algomlb.ingestion.historical_odds import HistoricalOddsIngester
-from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 from algomlb.ingestion.retrosheet_ingester import RetrosheetIngester
 
 app = typer.Typer(help="Ingest data from external APIs.", no_args_is_help=True)
@@ -150,6 +149,8 @@ def historical(
         historical_loader = HistoricalDataLoader(repo)
         transactions_ingester = PlayerTransactionsIngester(repo)
         openmeteo_ingester = OpenMeteoIngester(session)
+        statcast_ingester = StatcastIngester(session)
+        umpire_ingester = UmpireScorecardIngester(session)
         orchestrator = IngestionOrchestrator(
             repo,
             odds_client,
@@ -157,6 +158,8 @@ def historical(
             historical_loader,
             transactions_ingester,
             openmeteo_ingester,
+            statcast_ingester,
+            umpire_ingester,
         )
 
         records_processed = 0
@@ -305,7 +308,9 @@ def lineups(
     start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
     game_pk: int = typer.Option(None, "--game-pk", help="Single game PK to ingest"),
-    throttle: int = typer.Option(200, "--throttle", help="Milliseconds between API calls"),
+    throttle: int = typer.Option(
+        200, "--throttle", help="Milliseconds between API calls"
+    ),
 ):
     """Ingest starting lineups (9 batters per side) from MLB Stats API boxscores."""
     from algomlb.ingestion.lineup_ingester import LineupIngester
@@ -315,7 +320,9 @@ def lineups(
         ingester = LineupIngester(session)
 
         if game_pk:
-            game_date = datetime.date.today()  # Fallback; real date resolved from DB if needed
+            game_date = (
+                datetime.date.today()
+            )  # Fallback; real date resolved from DB if needed
             count = ingester.ingest_game(game_pk, game_date)
             logger.success(f"Ingested {count} lineup slots for game {game_pk}")
         elif start and end:
@@ -458,15 +465,15 @@ def gumbo_feed(
     ctx: typer.Context,
     start: str = typer.Option(None, "--start", help="Start date (YYYY-MM-DD)"),
     end: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
-    game_pk: int = typer.Option(None, "--game-pk", help="Specific Game PK to ingest")
+    game_pk: int = typer.Option(None, "--game-pk", help="Specific Game PK to ingest"),
 ):
     """Fetch live GUMBO feed to establish canonical wall-clock timestamps for pitches."""
     from algomlb.ingestion.gumbo_ingester import GumboIngester
-    
+
     session_factory = get_session_factory()
     with session_factory() as session:
         ingester = GumboIngester(session)
-        
+
         if game_pk:
             logger.info(f"Ingesting GUMBO for game {game_pk}...")
             count = ingester.ingest_game(game_pk)
@@ -487,10 +494,15 @@ def gumbo_feed(
         repo = DatabaseRepository(session)
         from algomlb.ingestion.orchestrator import IngestionOrchestrator
         from algomlb.ingestion import (
-            MLBStatsAPIClient, OddsAPIClient, HistoricalDataLoader,
-            PlayerTransactionsIngester, OpenMeteoIngester, StatcastIngester, UmpireScorecardIngester
+            MLBStatsAPIClient,
+            OddsAPIClient,
+            HistoricalDataLoader,
+            PlayerTransactionsIngester,
+            OpenMeteoIngester,
+            StatcastIngester,
+            UmpireScorecardIngester,
         )
-        
+
         o = IngestionOrchestrator(
             repo,
             OddsAPIClient(),
@@ -500,7 +512,28 @@ def gumbo_feed(
             OpenMeteoIngester(session_factory),
             StatcastIngester(repo),
             UmpireScorecardIngester(session),
-            ingester
+            ingester,
         )
         count = o.run_gumbo_ingestion(start_date=s_date, end_date=e_date)
         logger.success(f"GUMBO: {count} pitch timestamps ingested.")
+
+
+@app.command()
+def managers(
+    ctx: typer.Context,
+    start_year: int = typer.Option(2019, help="First season to backfill"),
+    end_year: Optional[int] = typer.Option(
+        None, help="Last season (default: current year)"
+    ),
+) -> None:
+    """Backfill team managers from MLB StatsAPI coaching roster."""
+    from algomlb.ingestion.managers_ingester import backfill_team_managers
+
+    session_factory = get_session_factory()
+    engine = session_factory.kw["bind"]
+
+    backfill_team_managers(
+        start_year=start_year,
+        end_year=end_year,
+        engine=engine,
+    )

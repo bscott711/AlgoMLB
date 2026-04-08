@@ -1,4 +1,5 @@
 """Uranium evaluation harness — offline metrics, calibration, and persistence."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -11,6 +12,7 @@ from algomlb.db.session import get_engine
 
 
 # ── Metric helpers ────────────────────────────────────────────────────────
+
 
 def compute_fold_metrics(
     y_true: np.ndarray | pd.Series,
@@ -35,6 +37,7 @@ def compute_fold_metrics(
 
 # ── Calibration bins ─────────────────────────────────────────────────────
 
+
 def compute_calibration_bins(
     y_true: np.ndarray | pd.Series,
     y_prob: np.ndarray,
@@ -50,7 +53,11 @@ def compute_calibration_bins(
 
     for i in range(n_bins):
         lo, hi = edges[i], edges[i + 1]
-        mask = (y_prob >= lo) & (y_prob < hi) if i < n_bins - 1 else (y_prob >= lo) & (y_prob <= hi)
+        mask = (
+            (y_prob >= lo) & (y_prob < hi)
+            if i < n_bins - 1
+            else (y_prob >= lo) & (y_prob <= hi)
+        )
         n = int(mask.sum())
         if n == 0:
             pred_mean = (lo + hi) / 2
@@ -59,19 +66,22 @@ def compute_calibration_bins(
             pred_mean = float(y_prob[mask].mean())
             obs_rate = float(y_true[mask].mean())
 
-        rows.append({
-            "bin_index": i,
-            "bin_lower": float(lo),
-            "bin_upper": float(hi),
-            "pred_mean": pred_mean,
-            "obs_rate": obs_rate,
-            "n_samples": n,
-        })
+        rows.append(
+            {
+                "bin_index": i,
+                "bin_lower": float(lo),
+                "bin_upper": float(hi),
+                "pred_mean": pred_mean,
+                "obs_rate": obs_rate,
+                "n_samples": n,
+            }
+        )
 
     return pd.DataFrame(rows)
 
 
 # ── Per-game evaluation ──────────────────────────────────────────────────
+
 
 def compute_per_game_eval(
     games_df: pd.DataFrame,
@@ -102,12 +112,15 @@ def compute_per_game_eval(
 
     y_pred = (y_prob >= 0.5).astype(int)
     out["correct"] = (y_pred == y_true.values).astype(int)
-    out["is_high_conf_miss"] = (out["confidence_tier"] == "high") & (out["correct"] == 0)
+    out["is_high_conf_miss"] = (out["confidence_tier"] == "high") & (
+        out["correct"] == 0
+    )
 
     return out
 
 
 # ── DB persistence ───────────────────────────────────────────────────────
+
 
 def persist_eval_results(
     engine: Engine | None,
@@ -137,7 +150,7 @@ def persist_eval_results(
     }
 
     with eng.begin() as conn:
-        stmt = pg_insert(UraniumEvalHistoryORM.__table__).values([eval_row])
+        stmt = pg_insert(UraniumEvalHistoryORM).values([eval_row])
         upsert = stmt.on_conflict_do_update(
             index_elements=["model_version", "test_year"],
             set_={
@@ -160,7 +173,7 @@ def persist_eval_results(
 
     with eng.begin() as conn:
         for rec in records:
-            stmt = pg_insert(UraniumCalibrationBinORM.__table__).values([rec])
+            stmt = pg_insert(UraniumCalibrationBinORM).values([rec])
             upsert = stmt.on_conflict_do_update(
                 index_elements=["model_version", "test_year", "bin_index"],
                 set_={

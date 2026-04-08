@@ -26,7 +26,7 @@ class IngestionOrchestrator:
         openmeteo_ingester: OpenMeteoIngester,
         statcast_ingester: StatcastIngester,
         umpire_ingester: UmpireScorecardIngester,
-        gumbo_ingester: GumboIngester = None,
+        gumbo_ingester: GumboIngester | None = None,
     ):
         self.repo = repo
         self.odds_client = odds_client
@@ -143,15 +143,15 @@ class IngestionOrchestrator:
             end_date = start_date
 
         stmt = select(GameResultORM.game_id).where(
-            (GameResultORM.game_date >= start_date) & 
-            (GameResultORM.game_date <= end_date)
+            (GameResultORM.game_date >= start_date)
+            & (GameResultORM.game_date <= end_date)
         )
         game_ids = self.repo.session.execute(stmt).scalars().all()
         game_pks = []
         for gid in game_ids:
             try:
                 game_pks.append(int(gid))
-            except:
+            except (ValueError, TypeError):
                 pass
 
         if not game_pks:

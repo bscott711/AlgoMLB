@@ -56,17 +56,19 @@ def plot_rolling_trend(
         main_metric = metrics[0]
         upper = df[main_metric] + df[volatility_metric]
         lower = df[main_metric] - df[volatility_metric]
-        
-        fig.add_trace(go.Scatter(
-            x=pd.concat([df["game_date"], df["game_date"][::-1]]),
-            y=pd.concat([upper, lower[::-1]]),
-            fill='toself',
-            fillcolor='rgba(61, 90, 254, 0.1)',
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            showlegend=True,
-            name="Volatility Band (±1 STD)"
-        ))
+
+        fig.add_trace(
+            go.Scatter(
+                x=pd.concat([df["game_date"], df["game_date"][::-1]]),
+                y=pd.concat([upper, lower[::-1]]),
+                fill="toself",
+                fillcolor="rgba(61, 90, 254, 0.1)",
+                line=dict(color="rgba(255,255,255,0)"),
+                hoverinfo="skip",
+                showlegend=True,
+                name="Volatility Band (±1 STD)",
+            )
+        )
 
     # 2. Add League Mean Reference Line
     if league_mean is not None:
@@ -83,19 +85,19 @@ def plot_rolling_trend(
     for i, metric in enumerate(metrics):
         if metric not in df.columns:
             continue
-            
+
         y_label = label_map.get(metric, metric.replace("_", " ").title())
         is_main = "ema" not in metric
-        
+
         fig.add_trace(
             go.Scatter(
                 x=df["game_date"],
                 y=df[metric],
                 mode="lines" if not is_main else "lines+markers",
                 line=dict(
-                    width=4 if is_main else 2, 
+                    width=4 if is_main else 2,
                     color=colors[i % len(colors)],
-                    dash="solid" if is_main else "dot"
+                    dash="solid" if is_main else "dot",
                 ),
                 name=y_label,
                 text=df.apply(
@@ -126,7 +128,7 @@ def plot_rolling_trend(
     # Layout
     fig.update_layout(
         template=get_plotly_template(),
-        title=title or f"Performance Trends",
+        title=title or "Performance Trends",
         xaxis=dict(title="Game Date", showgrid=False),
         yaxis=dict(title="Metric Value", showgrid=True, zeroline=False),
         width=800,

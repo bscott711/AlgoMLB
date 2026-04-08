@@ -114,6 +114,17 @@ class RetrosheetIngester:
             # Ensure value is treated as a string to avoid integer date parsing issues
             return pd.to_datetime(str(val)).date()
 
+        def get_gametype(col: str) -> Optional[str]:
+            val = row.get(col)
+            if val is None or pd.isna(cast(Any, val)):
+                return None
+            val_str = str(val).lower()
+            if "regular" in val_str:
+                return "R"
+            if "post" in val_str:
+                return "P"
+            return "R"  # Default to regular if unknown but present
+
         # Mapping dictionary to handle the high volume of fields
         data: dict[str, object] = {
             "game_id": get_str("gid"),
@@ -264,7 +275,7 @@ class RetrosheetIngester:
             "umplf": get_opt_str("umplf"),
             "umprf": get_opt_str("umprf"),
             "date": get_date("date"),
-            "gametype": get_opt_str("gametype"),
+            "gametype": get_gametype("gametype"),
             "pbp": get_opt_str("pbp"),
         }
         return RetrosheetEventORM(**data)

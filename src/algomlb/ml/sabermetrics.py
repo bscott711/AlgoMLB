@@ -8,6 +8,7 @@ Computes team-level structural metrics that encode known baseball laws:
 
 These are computed from game_results only — no market data.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -103,8 +104,7 @@ def compute_pythagorean_features(
 
     result = pd.DataFrame(rows)
     logger.info(
-        f"Computed Pythagorean features for {len(team_logs)} teams, "
-        f"{len(result)} rows."
+        f"Computed Pythagorean features for {len(team_logs)} teams, {len(result)} rows."
     )
     return result
 
@@ -113,7 +113,10 @@ def compute_pythagorean_features(
 # RE24: Run Expectancy based on 24 base-out states
 # ═══════════════════════════════════════════════════════════════════════
 
-def _encode_base_out_state(outs: int, br1: str | None, br2: str | None, br3: str | None) -> str:
+
+def _encode_base_out_state(
+    outs: int, br1: str | None, br2: str | None, br3: str | None
+) -> str:
     """
     Encode the base-out state into a canonical string.
     Example: "2_100" = 2 outs, runner on 1st only.
@@ -146,12 +149,16 @@ def build_run_expectancy_matrix(events_df: pd.DataFrame) -> dict[str, float]:
 
     # Encode pre-state
     df["state"] = df.apply(
-        lambda r: _encode_base_out_state(r["outs_pre"], r.get("br1_pre"), r.get("br2_pre"), r.get("br3_pre")),
+        lambda r: _encode_base_out_state(
+            r["outs_pre"], r.get("br1_pre"), r.get("br2_pre"), r.get("br3_pre")
+        ),
         axis=1,
     )
 
     # For each half-inning, compute total runs scored from each PA onward
-    df["half_inning_id"] = df["game_id"] + "_" + df["inning"].astype(str) + "_" + df["top_bot"].astype(str)
+    df["half_inning_id"] = (
+        df["game_id"] + "_" + df["inning"].astype(str) + "_" + df["top_bot"].astype(str)
+    )
 
     # Reverse cumulative sum of runs within each half-inning
     df = df.sort_values(["game_id", "inning", "top_bot", "outs_pre"])
@@ -160,7 +167,11 @@ def build_run_expectancy_matrix(events_df: pd.DataFrame) -> dict[str, float]:
     )
 
     # Average RE per state
-    re_matrix = df.groupby("state")["runs_rest_of_inning"].mean().to_dict()
+    # Ensure keys are str and values are float for type compliance
+    re_matrix = {
+        str(k): float(v)
+        for k, v in df.groupby("state")["runs_rest_of_inning"].mean().to_dict().items()
+    }
 
     # Ensure all 24 states exist (3 out states × 8 base combos)
     for outs in range(3):
@@ -172,8 +183,10 @@ def build_run_expectancy_matrix(events_df: pd.DataFrame) -> dict[str, float]:
             if state not in re_matrix:
                 re_matrix[state] = 0.0
 
-    logger.info(f"Built RE24 matrix with {len(re_matrix)} states. "
-                f"Empty bases/0 outs: {re_matrix.get('0_000', 0):.3f} expected runs.")
+    logger.info(
+        f"Built RE24 matrix with {len(re_matrix)} states. "
+        f"Empty bases/0 outs: {re_matrix.get('0_000', 0):.3f} expected runs."
+    )
     return re_matrix
 
 
@@ -207,14 +220,18 @@ def compute_re24_per_pa(
 
     # Pre-state
     df["state_pre"] = df.apply(
-        lambda r: _encode_base_out_state(r["outs_pre"], r.get("br1_pre"), r.get("br2_pre"), r.get("br3_pre")),
+        lambda r: _encode_base_out_state(
+            r["outs_pre"], r.get("br1_pre"), r.get("br2_pre"), r.get("br3_pre")
+        ),
         axis=1,
     )
     df["re_pre"] = df["state_pre"].map(re_matrix).fillna(0.0)
 
     # Post-state
     df["state_post"] = df.apply(
-        lambda r: _encode_base_out_state(r["outs_post"], r.get("br1_post"), r.get("br2_post"), r.get("br3_post")),
+        lambda r: _encode_base_out_state(
+            r["outs_post"], r.get("br1_post"), r.get("br2_post"), r.get("br3_post")
+        ),
         axis=1,
     )
     # If 3 outs, RE = 0 (end of half-inning)
@@ -224,7 +241,9 @@ def compute_re24_per_pa(
     # RE24 = runs_scored + RE_post - RE_pre
     df["re24"] = df["runs"].fillna(0).astype(float) + df["re_post"] - df["re_pre"]
 
-    result = df[["game_id", "date", "batter_id", "pitcher_id", "bat_team", "pit_team", "re24"]].copy()
+    result = df[
+        ["game_id", "date", "batter_id", "pitcher_id", "bat_team", "pit_team", "re24"]
+    ].copy()
     result = result.rename(columns={"re24": "re24_batter"})
     # For pitchers, negative RE24 is good (prevented runs)
     result["re24_pitcher"] = -result["re24_batter"]
@@ -253,40 +272,55 @@ def compute_rolling_re24(
         re24_pa.groupby(["batter_id", "game_id", "date"])["re24_batter"]
         .sum()
         .reset_index()
-        .rename(columns={"batter_id": "player_id", "date": "game_date", "re24_batter": "game_re24"})
+        .rename(
+            columns={
+                "batter_id": "player_id",
+                "date": "game_date",
+                "re24_batter": "game_re24",
+            }
+        )
     )
     batter_game = batter_game.sort_values(["player_id", "game_date"])
     batter_game["roll_re24"] = batter_game.groupby("player_id")["game_re24"].transform(
         lambda x: x.shift(1).rolling(window, min_periods=3).mean()
     )
     for _, r in batter_game.dropna(subset=["roll_re24"]).iterrows():
-        rows.append(dict(
-            player_id=r["player_id"],
-            game_date=r["game_date"],
-            role="BATTER",
-            roll_re24=r["roll_re24"],
-        ))
+        rows.append(
+            dict(
+                player_id=r["player_id"],
+                game_date=r["game_date"],
+                role="BATTER",
+                roll_re24=r["roll_re24"],
+            )
+        )
 
     # ── Pitcher RE24 ──
     pitcher_game = (
         re24_pa.groupby(["pitcher_id", "game_id", "date"])["re24_pitcher"]
         .sum()
         .reset_index()
-        .rename(columns={"pitcher_id": "player_id", "date": "game_date", "re24_pitcher": "game_re24"})
+        .rename(
+            columns={
+                "pitcher_id": "player_id",
+                "date": "game_date",
+                "re24_pitcher": "game_re24",
+            }
+        )
     )
     pitcher_game = pitcher_game.sort_values(["player_id", "game_date"])
-    pitcher_game["roll_re24"] = pitcher_game.groupby("player_id")["game_re24"].transform(
-        lambda x: x.shift(1).rolling(window, min_periods=3).mean()
-    )
+    pitcher_game["roll_re24"] = pitcher_game.groupby("player_id")[
+        "game_re24"
+    ].transform(lambda x: x.shift(1).rolling(window, min_periods=3).mean())
     for _, r in pitcher_game.dropna(subset=["roll_re24"]).iterrows():
-        rows.append(dict(
-            player_id=r["player_id"],
-            game_date=r["game_date"],
-            role="PITCHER",
-            roll_re24=r["roll_re24"],
-        ))
+        rows.append(
+            dict(
+                player_id=r["player_id"],
+                game_date=r["game_date"],
+                role="PITCHER",
+                roll_re24=r["roll_re24"],
+            )
+        )
 
     result = pd.DataFrame(rows)
     logger.info(f"Computed rolling RE24 for {len(result)} player-game rows.")
     return result
-

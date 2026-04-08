@@ -1,11 +1,12 @@
 import datetime
 import httpx
-from typing import Optional, List
+from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
 from algomlb.core.logger import logger
 from algomlb.db.models import GumboPitchORM
+
 
 class GumboIngester:
     """Fetches and persists the live game feed to extract precise pitch timestamps."""
@@ -19,7 +20,9 @@ class GumboIngester:
         try:
             resp = httpx.get(url, timeout=30.0, follow_redirects=True)
             if resp.status_code != 200:
-                logger.warning(f"Failed to fetch GUMBO for {game_pk}: status {resp.status_code}")
+                logger.warning(
+                    f"Failed to fetch GUMBO for {game_pk}: status {resp.status_code}"
+                )
                 return 0
 
             data = resp.json()
@@ -39,11 +42,11 @@ class GumboIngester:
             at_bat_index = about.get("atBatIndex")
             # Usually atBatIndex maps well, sometimes the play might not have it strictly,
             # but for our purposes, we will align it as best we can. Standard pitch-by-pitch
-            # uses atBatIndex as the `at_bat_number`. Wait, Statcast uses `at_bat_number` which 
-            # is 1-indexed. atBatIndex is usually 0-indexed in MLB API but Statcast merges it 
+            # uses atBatIndex as the `at_bat_number`. Wait, Statcast uses `at_bat_number` which
+            # is 1-indexed. atBatIndex is usually 0-indexed in MLB API but Statcast merges it
             # into 1-based or 0-based. Let's just use what's in 'about.atBatIndex' + 1 to align
             # with Statcast's at_bat_number. Actually, Statcast's at_bat_number matches MLB API's
-            # about.atBatIndex exactly when the API's atBatIndex is 1? No, MLB API about.atBatIndex 
+            # about.atBatIndex exactly when the API's atBatIndex is 1? No, MLB API about.atBatIndex
             # usually starts at 0. Let's pull the raw value to see, or rely on pitch_number.
             # Statcast at_bat_number starts at 1. MLB API atBatIndex starts at 0.
             # We will use about.atBatIndex + 1.
@@ -69,24 +72,30 @@ class GumboIngester:
 
                 if start_time_str:
                     try:
-                        start_time = datetime.datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
-                    except:
-                        pass
-                
-                if end_time_str:
-                    try:
-                        end_time = datetime.datetime.fromisoformat(end_time_str.replace("Z", "+00:00"))
-                    except:
+                        start_time = datetime.datetime.fromisoformat(
+                            start_time_str.replace("Z", "+00:00")
+                        )
+                    except Exception:
                         pass
 
-                pitch_records.append({
-                    "game_pk": game_pk,
-                    "at_bat_number": at_bat_num,
-                    "pitch_number": pitch_num,
-                    "play_id": play_id,
-                    "start_time": start_time,
-                    "end_time": end_time
-                })
+                if end_time_str:
+                    try:
+                        end_time = datetime.datetime.fromisoformat(
+                            end_time_str.replace("Z", "+00:00")
+                        )
+                    except Exception:
+                        pass
+
+                pitch_records.append(
+                    {
+                        "game_pk": game_pk,
+                        "at_bat_number": at_bat_num,
+                        "pitch_number": pitch_num,
+                        "play_id": play_id,
+                        "start_time": start_time,
+                        "end_time": end_time,
+                    }
+                )
 
         if not pitch_records:
             return 0
@@ -98,8 +107,8 @@ class GumboIngester:
             set_={
                 "play_id": stmt.excluded.play_id,
                 "start_time": stmt.excluded.start_time,
-                "end_time": stmt.excluded.end_time
-            }
+                "end_time": stmt.excluded.end_time,
+            },
         )
         self.session.execute(stmt)
         self.session.commit()

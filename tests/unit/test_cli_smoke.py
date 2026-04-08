@@ -1,5 +1,6 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
@@ -43,8 +44,44 @@ def test_cli_ingest_stubs():
 
 
 def test_cli_ml_stubs():
-    # Basic smoke check for optimize which is just a TODO
-    assert runner.invoke(app, ["ml", "optimize"]).exit_code == 0
+    # Mocking real work to keep smoke tests fast
+    with (
+        patch("algomlb.ml.hyperopt.build_fold_data") as mock_build,
+        patch("algomlb.ml.hyperopt.optimize_model") as mock_opt,
+        patch("algomlb.cli.ml.pd.read_sql") as mock_read,
+        patch("algomlb.cli.ml.get_session_factory"),
+    ):
+        mock_build.return_value = {"fold1": {}}
+        mock_opt.return_value = ({}, MagicMock())
+
+        # Mocking sequential read_sql calls for games, pitchers, batters, lineups, elo
+        mock_read.side_effect = [
+            pd.DataFrame(
+                [
+                    {
+                        "game_pk": 1,
+                        "game_date": "2023-04-01",
+                        "home_team": "A",
+                        "away_team": "B",
+                        "home_pitcher_id": 1,
+                        "away_pitcher_id": 2,
+                        "home_score": 5,
+                        "away_score": 3,
+                    }
+                ]
+            ),  # games_df
+            pd.DataFrame([{"player_id": 1, "season": 2023}]),  # pitcher_gold_df
+            pd.DataFrame([{"player_id": 2, "season": 2023}]),  # batter_gold_df
+            pd.DataFrame([{"game_pk": 1, "game_date": "2023-04-01"}]),  # lineups_df
+            pd.DataFrame(),  # elo_df
+            pd.DataFrame(),  # retro_df
+        ]
+
+        # Basic smoke check for optimize
+        result = runner.invoke(app, ["ml", "optimize", "--n-trials", "1"])
+        assert result.exit_code == 0
+        assert mock_build.called
+        assert mock_opt.called
 
 
 def test_cli_run_stubs():

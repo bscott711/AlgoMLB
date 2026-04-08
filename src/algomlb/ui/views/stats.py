@@ -3,7 +3,10 @@ import pandas as pd
 from algomlb.db.session import get_engine
 from algomlb.config.settings import get_settings
 from algomlb.ui.styles import apply_premium_styles
-from algomlb.ui.components.spray_charts import plot_spray_chart, get_ballpark_selection_ui
+from algomlb.ui.components.spray_charts import (
+    plot_spray_chart,
+    get_ballpark_selection_ui,
+)
 from algomlb.ui.components.strike_zone import plot_strike_zone
 from algomlb.ui.components.rolling_trends import (
     load_rolling_features,
@@ -74,18 +77,19 @@ with st.sidebar:
 
     team_codes = get_teams(engine)
     team_display = {code: TEAM_MAP.get(code, code) for code in team_codes}
-    
+
     # Initialize default team in session state
     if "selected_team_widget" not in st.session_state:
         st.session_state.selected_team_widget = "Los Angeles Dodgers"
-    
+
     # Career Tracking: Jump to player's team ONLY if the year was just changed
     if "last_selected_player_id" in st.session_state:
         p_id = st.session_state.last_selected_player_id
-        req_year = st.session_state.get("season_slider", 2026) 
-        
+        req_year = st.session_state.get("season_slider", 2026)
+
         # Determine if we should trigger an auto-jump (Season changed)
         if st.session_state.get("last_season_for_jump") != req_year:
+
             @st.cache_data(ttl=3600)
             def get_team_for_player_and_year(_pid, _year, _engine):
                 # Aggregated lookup: Find the team the player appeared for most frequently in this year.
@@ -103,20 +107,18 @@ with st.sidebar:
                 """
                 df = pd.read_sql(query, _engine)
                 return df.iloc[0]["team_code"] if not df.empty else None
-                
+
             p_team_code = get_team_for_player_and_year(p_id, req_year, engine)
             if p_team_code:
                 p_display = team_display.get(p_team_code, p_team_code)
                 if st.session_state.get("selected_team_widget") != p_display:
                     st.session_state.selected_team_widget = p_display
-            
+
             # Mark this year as 'jumped' to avoid overriding manual team choices later
             st.session_state.last_season_for_jump = req_year
 
     selected_team_display = st.selectbox(
-        "Select Team",
-        options=list(team_display.values()),
-        key="selected_team_widget"
+        "Select Team", options=list(team_display.values()), key="selected_team_widget"
     )
     # Reverse map back to code
     selected_team = [
@@ -126,32 +128,42 @@ with st.sidebar:
     ][0]
 
     # 2. Season/Date Filter
-    season = st.slider("Season", 2019, 2026, 2026, key="season_slider")  # Expanded to 2026
+    season = st.slider(
+        "Season", 2019, 2026, 2026, key="season_slider"
+    )  # Expanded to 2026
 
     # 3. Hit Simulator (The "What-If" Engine)
     st.divider()
-    
+
     # NEW: Fetch home ballpark if player is selected in session state
     home_bp_id = None
     if "last_selected_player_id" in st.session_state:
+
         @st.cache_data(ttl=3600)
         def get_home_field_id(_player_id, _engine):
             # 1. Recent team code
             query = f"SELECT home_team FROM statcast_raw WHERE batter = {_player_id} OR pitcher = {_player_id} ORDER BY game_date DESC LIMIT 1"
             df = pd.read_sql(query, _engine)
-            if df.empty: return None
+            if df.empty:
+                return None
             t_code = df.iloc[0]["home_team"]
             t_full = TEAM_MAP.get(t_code, t_code)
+            if not t_full:
+                return None
             # 2. Map to ballpark id (escape single quotes safely)
-            safe_team_name = t_full.replace("'", "''")
-            q_bp = f"SELECT id FROM ballparks WHERE team_name = '{safe_team_name}' LIMIT 1"
+            safe_team_name = str(t_full).replace("'", "''")
+            q_bp = (
+                f"SELECT id FROM ballparks WHERE team_name = '{safe_team_name}' LIMIT 1"
+            )
             df_bp = pd.read_sql(q_bp, _engine)
             return int(df_bp.iloc[0]["id"]) if not df_bp.empty else None
-            
+
         home_bp_id = get_home_field_id(st.session_state.last_selected_player_id, engine)
 
     # 3. Ballpark Simulation (Centralized SOLID HELPER)
-    ballpark_dims = get_ballpark_selection_ui(engine, native_id=home_bp_id, key_prefix="player_stats")
+    ballpark_dims = get_ballpark_selection_ui(
+        engine, native_id=home_bp_id, key_prefix="player_stats"
+    )
 
 
 # --- Master Player Metadata Map ---
@@ -230,7 +242,7 @@ if not roster_ids_df.empty:
     st.info("Select a player from the table below to load the Performance Lab.")
     selection = st.dataframe(
         display_df,
-        width='stretch',
+        width="stretch",
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
@@ -239,7 +251,7 @@ if not roster_ids_df.empty:
     # --- Sticky Selection Logic ---
     selection_data = selection.get("selection", {})
     selected_rows = selection_data.get("rows", [])
-    
+
     selected_player_id = None
     selected_player_name = None
 
@@ -254,8 +266,10 @@ if not roster_ids_df.empty:
         prev_id = st.session_state.last_selected_player_id
         if prev_id in display_df["id"].values:
             selected_player_id = prev_id
-            selected_player_name = display_df[display_df["id"] == prev_id]["Player Name"].iloc[0]
-            
+            selected_player_name = display_df[display_df["id"] == prev_id][
+                "Player Name"
+            ].iloc[0]
+
     # Exit if no player identified
     if not selected_player_id:
         st.warning("Please select a player row in the table above.")
@@ -309,43 +323,63 @@ with tab_overview:
     if is_pitcher:
         avg_velo = df_events["release_speed"].mean()
         whiff_rate = (
-            len(df_events[df_events["description"].str.contains("swinging_strike", na=False)])
-            / len(df_events) if len(df_events) > 0 else 0
+            len(
+                df_events[
+                    df_events["description"].str.contains("swinging_strike", na=False)
+                ]
+            )
+            / len(df_events)
+            if len(df_events) > 0
+            else 0
         )
         col_m1.metric("Avg Velocity", f"{avg_velo:.1f} mph" if avg_velo else "N/A")
         col_m2.metric("Whiff %", f"{whiff_rate:.1%}")
-        
+
         if latest_gold is not None:
             # Fatigue Index (7d)
             fatigue = latest_gold.get("fatigue_index_7d")
-            col_m3.metric("Fatigue Index (7d)", f"{fatigue:.1f}" if pd.notna(fatigue) else "Rested", delta=None)
-            
+            col_m3.metric(
+                "Fatigue Index (7d)",
+                f"{fatigue:.1f}" if pd.notna(fatigue) else "Rested",
+                delta=None,
+            )
+
             # Stuff Stability (Spin Delta)
             spin_delta = latest_gold.get("delta_spin_rate_3g")
-            roll_spin = latest_gold.get('roll_avg_spin_rate')
-            col_m4.metric("Spin Stability", f"{roll_spin:.0f} rpm" if pd.notna(roll_spin) else "0 rpm", delta=f"{spin_delta:.0f} rpm" if pd.notna(spin_delta) else None)
+            roll_spin = latest_gold.get("roll_avg_spin_rate")
+            col_m4.metric(
+                "Spin Stability",
+                f"{roll_spin:.0f} rpm" if pd.notna(roll_spin) else "0 rpm",
+                delta=f"{spin_delta:.0f} rpm" if pd.notna(spin_delta) else None,
+            )
     else:
         max_ev = df_events["launch_speed"].max()
         avg_la = df_events["launch_angle"].mean()
         col_m1.metric("Max Exit Velo", f"{max_ev:.1f} mph" if max_ev else "N/A")
         col_m2.metric("Avg Launch Angle", f"{avg_la:.1f}°" if avg_la else "N/A")
-        
+
         if latest_gold is not None:
             # Momentum (EMA 3g vs 7g)
             ema3 = latest_gold.get("ema_batter_xwoba_3g")
             ema7 = latest_gold.get("ema_batter_xwoba_7g")
             if pd.notna(ema3) and pd.notna(ema7):
                 mom_delta = ema3 - ema7
-                col_m3.metric("xwOBA Momentum", f"{ema3:.3f}", delta=f"{mom_delta:+.3f}")
+                col_m3.metric(
+                    "xwOBA Momentum", f"{ema3:.3f}", delta=f"{mom_delta:+.3f}"
+                )
             else:
-                col_m3.metric("xwOBA Momentum", "N/A", help="No history yet (First Game)")
-            
+                col_m3.metric(
+                    "xwOBA Momentum", "N/A", help="No history yet (First Game)"
+                )
+
             # Bat Speed Stability
             bat_speed = latest_gold.get("roll_avg_bat_speed")
             bs_ema3 = latest_gold.get("ema_bat_speed_3g")
             if pd.notna(bs_ema3):
                 bs_delta = bs_ema3 - (bat_speed if pd.notna(bat_speed) else bs_ema3)
-                col_m4.metric("Bat Speed", f"{bs_ema3:.1f} mph", delta=f"{bs_delta:+.1f} mph")
+                col_m4.metric(
+                    "Bat Speed", f"{bs_ema3:.1f} mph", delta=f"{bs_delta:+.1f} mph"
+                )
             else:
                 col_m4.metric("Bat Speed", "N/A", help="No Bat Speed data found")
 
@@ -360,7 +394,7 @@ with tab_overview:
                 "events",
             ]
         ].head(100),
-        width='stretch',
+        width="stretch",
     )
 
 with tab_spray:
@@ -402,12 +436,12 @@ with tab_spray:
             color_col=color_col,
             ballpark_dims=ballpark_dims,
         )
-        st.plotly_chart(fig_spray, width='stretch')
+        st.plotly_chart(fig_spray, width="stretch")
 
     with col_right:
         st.subheader("🎯 Strike Zone Lab")
         fig_zone = plot_strike_zone(df_events, title="Pitch Locations & Quality")
-        st.plotly_chart(fig_zone, width='stretch')
+        st.plotly_chart(fig_zone, width="stretch")
 
 with tab_trends:
     st.subheader("📈 Rolling Feature Workbench")
@@ -416,11 +450,13 @@ with tab_trends:
     df_rolling = load_rolling_features(selected_player_id, role, engine)
 
     if not df_rolling.empty:
-        main_metric = "roll_avg_pitcher_xwoba" if is_pitcher else "roll_avg_batter_xwoba"
+        main_metric = (
+            "roll_avg_pitcher_xwoba" if is_pitcher else "roll_avg_batter_xwoba"
+        )
         ema3_metric = "ema_pitcher_xwoba_3g" if is_pitcher else "ema_batter_xwoba_3g"
         ema7_metric = "ema_pitcher_xwoba_7g" if is_pitcher else "ema_batter_xwoba_7g"
         std_metric = "std_pitcher_xwoba_15g" if is_pitcher else "std_batter_xwoba_15g"
-        
+
         league_mean = (
             getattr(settings.ml, "league_mean_pitcher_xwoba", 0.320)
             if is_pitcher

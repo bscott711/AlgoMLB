@@ -51,8 +51,6 @@ def get_baseball_field_shapes(
     C_FENCE = "#00E5FF"
 
     MOUND_Y = 60.5
-    INFIELD_DIRT_R = 130.0
-    INFIELD_GRASS_R = 95.0
     TRACK_W = 15.0
 
     def pol_to_cart(dist: float, angle_deg: float):
@@ -127,18 +125,18 @@ def get_baseball_field_shapes(
     # Angle from mound to foul lines (127, 127) is ~62.3 deg.
     # To avoid crossing through the mound, we order the points: Home -> Left Foul -> Arc -> Right Foul -> Home.
     skin_pts = get_mound_arc_pts(145, -62.3, 62.3)
-    
+
     # Left Foul Side (Negative X) / Right Foul Side (Positive X)
     # Using sort to ensure correct orientation regardless of point calculation order
     p_f_sorted = sorted([p_f[0], p_f[-1]], key=lambda p: p[0])
     p_left_foul = p_f_sorted[0]
     p_right_foul = p_f_sorted[-1]
 
-    skin_path = f"M 0,0" # Home
-    skin_path += f" L {p_left_foul[0]},{p_left_foul[1]}" # Left Foul
+    skin_path = "M 0,0"  # Home
+    skin_path += f" L {p_left_foul[0]},{p_left_foul[1]}"  # Left Foul
     for x, y in skin_pts:
         skin_path += f" L {x},{y}"
-    skin_path += f" L {p_right_foul[0]},{p_right_foul[1]}" # Right Foul
+    skin_path += f" L {p_right_foul[0]},{p_right_foul[1]}"  # Right Foul
     skin_path += " Z"
 
     shapes.append(
@@ -147,7 +145,7 @@ def get_baseball_field_shapes(
             path=skin_path,
             fillcolor=C_DIRT,
             line=dict(width=0),
-            layer="below"
+            layer="below",
         )
     )
 
@@ -157,12 +155,12 @@ def get_baseball_field_shapes(
     # 2. Shrunken Radius (55ft from mound) to ensure 2nd base (at y=127.3) is in the dirt (11.8ft clear).
     # Intersections occur at x ~ 54.3, y ~ 69.3 (Angle ~80.8 deg from mound).
     hub_pts = get_mound_arc_pts(55, -80.8, 80.8)
-    
-    hub_path = f"M 0,15" # Catcher's dirt cutout
-    hub_path += f" L -54.3,69.3" # Segment parallel to Home-3rd (Left)
+
+    hub_path = "M 0,15"  # Catcher's dirt cutout
+    hub_path += " L -54.3,69.3"  # Segment parallel to Home-3rd (Left)
     for x, y in hub_pts:
-        hub_path += f" L {x},{y}" # Arc from Left to Right
-    hub_path += f" L 54.3,69.3" # Segment parallel to Home-1st (Right)
+        hub_path += f" L {x},{y}"  # Arc from Left to Right
+    hub_path += " L 54.3,69.3"  # Segment parallel to Home-1st (Right)
     hub_path += " Z"
 
     shapes.append(
@@ -227,7 +225,12 @@ def get_baseball_field_shapes(
     for px, py in [p_f[0], p_f[-1]]:
         shapes.append(
             dict(
-                type="line", x0=0, y0=0, x1=px, y1=py, line=dict(color=C_WHITE, width=2),
+                type="line",
+                x0=0,
+                y0=0,
+                x1=px,
+                y1=py,
+                line=dict(color=C_WHITE, width=2),
                 layer="below",
             )
         )
@@ -477,13 +480,16 @@ def plot_spray_chart(
     )
     return fig
 
-def get_stadium_dims(engine, ballpark_id: int | None = None, ballpark_name: str | None = None) -> dict | None:
+
+def get_stadium_dims(
+    engine, ballpark_id: int | None = None, ballpark_name: str | None = None
+) -> dict | None:
     """
     Unified helper to fetch ballpark dimensions from the database.
     Supports fetching by 'id' or 'ballpark' (name). Escapes quotes for safety.
     """
     import pandas as pd
-    
+
     where_clause = ""
     if ballpark_id is not None:
         where_clause = f"WHERE id = {int(ballpark_id)}"
@@ -495,10 +501,10 @@ def get_stadium_dims(engine, ballpark_id: int | None = None, ballpark_name: str 
 
     query = f"SELECT * FROM ballparks {where_clause} LIMIT 1"
     df = pd.read_sql(query, engine)
-    
+
     if df.empty:
         return None
-        
+
     row = df.iloc[0]
     return {
         "lf": float(row.get("left_field", 330)),
@@ -514,7 +520,10 @@ def get_stadium_dims(engine, ballpark_id: int | None = None, ballpark_name: str 
         "name": row.get("ballpark"),
     }
 
-def get_ballpark_selection_ui(engine, native_id: int | None = None, key_prefix: str = ""):
+
+def get_ballpark_selection_ui(
+    engine, native_id: int | None = None, key_prefix: str = ""
+):
     """
     SOLID HELPER: Centrally manages the Streamlit UI and logic for ballpark selection.
     Encapsulates the 'Stadium Simulator' experience and ensures consistent geometry.
@@ -529,7 +538,9 @@ def get_ballpark_selection_ui(engine, native_id: int | None = None, key_prefix: 
 
     # 2. Render Sidebar UI
     st.subheader("🧪 Stadium Simulator")
-    simulate = st.checkbox("Swap Ballpark Fences", value=False, key=f"{key_prefix}_sim_chk")
+    simulate = st.checkbox(
+        "Swap Ballpark Fences", value=False, key=f"{key_prefix}_sim_chk"
+    )
 
     if simulate:
         # Fetch list of ballparks for selection
@@ -539,16 +550,26 @@ def get_ballpark_selection_ui(engine, native_id: int | None = None, key_prefix: 
 
         all_bp_df = _get_all_ballparks(engine)
         target_ballpark = st.selectbox(
-            "Target Ballpark", 
+            "Target Ballpark",
             all_bp_df["ballpark"].sort_values().unique(),
-            key=f"{key_prefix}_target_bp"
+            key=f"{key_prefix}_target_bp",
         )
-        selected_bp_id = all_bp_df[all_bp_df["ballpark"] == target_ballpark].iloc[0]["id"]
+        selected_bp_id = all_bp_df[all_bp_df["ballpark"] == target_ballpark].iloc[0][
+            "id"
+        ]
         return get_stadium_dims(engine, ballpark_id=int(selected_bp_id))
     else:
         # Fallback to native or standard standard
         return native_dims or {
-            "lf": 330, "lc": 375, "cf": 400, "rc": 375, "rf": 330,
-            "h_lf": 8.0, "h_lc": 8.0, "h_cf": 8.0, "h_rc": 8.0, "h_rf": 8.0,
-            "name": "Standard Field"
+            "lf": 330,
+            "lc": 375,
+            "cf": 400,
+            "rc": 375,
+            "rf": 330,
+            "h_lf": 8.0,
+            "h_lc": 8.0,
+            "h_cf": 8.0,
+            "h_rc": 8.0,
+            "h_rf": 8.0,
+            "name": "Standard Field",
         }
