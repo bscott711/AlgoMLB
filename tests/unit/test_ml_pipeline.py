@@ -10,8 +10,10 @@ from algomlb.cli.main import app
 from algomlb.ml import FeaturePipeline, MLBModel
 
 
+@patch("algomlb.cli.ml._evaluate_and_report")
+@patch("algomlb.cli.ml.MLBModel")
 @patch("algomlb.cli.ml.pd.read_sql")
-def test_ml_train_cli(mock_read_sql, dummy_stats, dummy_games):
+def test_ml_train_cli(mock_read_sql, mock_model_class, mock_eval, dummy_stats, dummy_games):
     """Verify ml train CLI command executes end-to-end with mocks."""
     runner = CliRunner()
     pitching, batting = dummy_stats

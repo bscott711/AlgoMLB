@@ -71,12 +71,22 @@ def test_cli_ml_elo_backfill(mock_session_factory):
         assert mock_backfill.called
 
 
+def test_cli_ml_decouple(mock_session_factory):
+    with patch("algomlb.cli.ml.run_decoupler_pipeline") as mock_run:
+        result = runner.invoke(app, ["decouple", "full"], obj={"agent_mode": False})
+        assert result.exit_code == 0
+        mock_run.assert_called_with("full", "v1")
+
+
 def test_cli_ml_optimize(mock_session_factory):
     # Patch the source since it's locally imported
+    # We also MUST patch 'open' and 'Path.mkdir' to prevent disk writes to calibration data
     with (
         patch("algomlb.cli.ml._load_ml_data") as mock_load,
         patch("algomlb.ml.hyperopt.build_fold_data", return_value=[(1, 2, 3, 4)]),
         patch("algomlb.ml.hyperopt.optimize_model") as mock_opt,
+        patch("pathlib.Path.mkdir"),  # Prevent directory creation
+        patch("builtins.open", MagicMock()),  # Prevent file writing
     ):
         mock_load.return_value = {
             "games": pd.DataFrame(columns=["game_pk", "year"]),
@@ -94,13 +104,6 @@ def test_cli_ml_optimize(mock_session_factory):
         )
         assert result.exit_code == 0
         assert mock_opt.called
-
-
-def test_cli_ml_decouple(mock_session_factory):
-    with patch("algomlb.cli.ml.run_decoupler_pipeline") as mock_run:
-        result = runner.invoke(app, ["decouple", "full"], obj={"agent_mode": False})
-        assert result.exit_code == 0
-        mock_run.assert_called_with("full", "v1")
 
 
 def test_cli_ml_walk_forward(mock_session_factory):

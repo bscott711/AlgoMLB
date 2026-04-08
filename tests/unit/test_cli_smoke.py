@@ -50,6 +50,8 @@ def test_cli_ml_stubs():
         patch("algomlb.ml.hyperopt.optimize_model") as mock_opt,
         patch("algomlb.cli.ml.pd.read_sql") as mock_read,
         patch("algomlb.cli.ml.get_session_factory"),
+        patch("pathlib.Path.mkdir"),  # Prevent directory creation
+        patch("builtins.open", MagicMock()),  # Prevent file writing
     ):
         mock_build.return_value = {"fold1": {}}
         mock_opt.return_value = ({}, MagicMock())
