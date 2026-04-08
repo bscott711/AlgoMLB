@@ -239,11 +239,20 @@ class FeaturePipeline:
         )[["game_pk", "away_team_elo_pre", "away_team_elo_post"]]
 
         df = df.merge(
-            home_elo, left_on="game_pk_int", right_on="game_pk", how="left"
-        ).drop(columns=["game_pk_y"], errors="ignore")
+            home_elo,
+            left_on="game_pk_int",
+            right_on="game_pk",
+            how="left",
+            suffixes=("", "_h_elo"),
+        ).drop(columns=["game_pk_h_elo", "game_pk"], errors="ignore")
+
         df = df.merge(
-            away_elo, left_on="game_pk_int", right_on="game_pk", how="left"
-        ).drop(columns=["game_pk_y"], errors="ignore")
+            away_elo,
+            left_on="game_pk_int",
+            right_on="game_pk",
+            how="left",
+            suffixes=("", "_a_elo"),
+        ).drop(columns=["game_pk_a_elo", "game_pk"], errors="ignore")
         df["elo_diff"] = df["home_team_elo_pre"] - df["away_team_elo_pre"]
         return df
 
@@ -273,8 +282,12 @@ class FeaturePipeline:
                 ]
             ]
             df = df.merge(
-                side_pyth, left_on="game_pk_int", right_on="game_pk", how="left"
-            ).drop(columns=["game_pk_y"], errors="ignore")
+                side_pyth,
+                left_on="game_pk_int",
+                right_on="game_pk",
+                how="left",
+                suffixes=("", f"_{side}_pyth"),
+            ).drop(columns=[f"game_pk_{side}_pyth", "game_pk"], errors="ignore")
 
         df["pythag_diff"] = df["h_pythag_win_pct"] - df["a_pythag_win_pct"]
         return df
@@ -323,8 +336,12 @@ class FeaturePipeline:
                     .rename(columns={"roll_re24": prefix})
                 )
                 df = df.merge(
-                    side_agg, left_on="game_pk_int", right_on="game_pk", how="left"
-                ).drop(columns=["game_pk_y"], errors="ignore")
+                    side_agg,
+                    left_on="game_pk_int",
+                    right_on="game_pk",
+                    how="left",
+                    suffixes=("", f"_{side}_re24_agg"),
+                ).drop(columns=[f"game_pk_{side}_re24_agg", "game_pk"], errors="ignore")
 
         if "h_sp_roll_re24" in df.columns and "a_sp_roll_re24" in df.columns:
             df["re24_sp_diff"] = df["h_sp_roll_re24"] - df["a_sp_roll_re24"]

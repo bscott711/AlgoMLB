@@ -232,7 +232,7 @@ def train(
     model.train(X_train, y_train, calibrate=True)
 
     # Evaluate
-    _evaluate_and_report(
+    metrics = _evaluate_and_report(
         model,
         X_test if not X_test.empty else X_train,
         y_test if not y_test.empty else y_train,
@@ -253,7 +253,11 @@ def train(
             AgentResult(
                 status="success",
                 command="ml.train",
-                data={"model_path": str(model_path)},
+                data={
+                    "model_path": str(model_path),
+                    "feature_shape": X.shape,
+                    "metrics": metrics,
+                },
             )
         )
 
@@ -471,6 +475,18 @@ def walk_forward(
                 "ll": round(metrics["log_loss"], 4),
                 "auc": round(metrics["auc"], 4),
             }
+        )
+
+    if ctx.obj.get("agent_mode", False):
+        emit_agent_result(
+            AgentResult(
+                status="success",
+                command="ml.walk-forward",
+                data={
+                    "results": results_table,
+                    "model_version": model_version,
+                },
+            )
         )
 
     if results_table:

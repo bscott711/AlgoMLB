@@ -270,7 +270,6 @@ def get_baseball_field_shapes(
 
 
 def get_fence_at_angle(angle_deg: float, dims: Dict) -> tuple[float, float]:
-    import numpy as np
 
     anchors = [
         (-45.0, float(dims["lf"]), float(dims["h_lf"])),
@@ -279,7 +278,8 @@ def get_fence_at_angle(angle_deg: float, dims: Dict) -> tuple[float, float]:
         (22.5, float(dims["rc"]), float(dims["h_rc"])),
         (45.0, float(dims["rf"]), float(dims["h_rf"])),
     ]
-    angle_deg = np.clip(angle_deg, -45.0, 45.0)
+
+    # Remove clip to allow fallback for extreme angles
     for i in range(len(anchors) - 1):
         a1, a2 = anchors[i], anchors[i + 1]
         if a1[0] <= angle_deg <= a2[0]:

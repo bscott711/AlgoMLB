@@ -1,0 +1,140 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/opc/AlgoMLB
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, xdist-3.8.0, anyio-4.13.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 382 items
+
+tests/unit/cli/test_process.py ..........                                [  2%]
+tests/unit/cli/test_process_rolling.py ...                               [  3%]
+tests/unit/ingestion/test_ballpark_ingester.py ...                       [  4%]
+tests/unit/ingestion/test_gumbo_ingester.py ..                           [  4%]
+tests/unit/ingestion/test_historical_odds.py .........                   [  7%]
+tests/unit/ingestion/test_orchestrator.py .........                      [  9%]
+tests/unit/ingestion/test_retrosheet.py .....                            [ 10%]
+tests/unit/ingestion/test_statcast_ingester.py ..........                [ 13%]
+tests/unit/ingestion/test_transactions.py ......                         [ 14%]
+tests/unit/ingestion/test_umpire.py ......                               [ 16%]
+tests/unit/ml/test_coverage_gaps.py ....                                 [ 17%]
+tests/unit/ml/test_decoupler.py ............                             [ 20%]
+tests/unit/ml/test_features_units.py .....                               [ 21%]
+tests/unit/ml/test_hooks.py ........                                     [ 24%]
+tests/unit/ml/test_hyperopt.py ..                                        [ 24%]
+tests/unit/ml/test_quant_processor.py ............                       [ 27%]
+tests/unit/ml/test_quant_service.py ........................             [ 34%]
+tests/unit/ml/test_registry.py .....                                     [ 35%]
+tests/unit/ml/test_rolling_processor.py .........                        [ 37%]
+tests/unit/ml/test_rolling_service.py .....                              [ 39%]
+tests/unit/ml/test_sabermetrics.py ....                                  [ 40%]
+tests/unit/ml/test_shap_analysis.py .....                                [ 41%]
+tests/unit/ml/test_silver_processor.py .........                         [ 43%]
+tests/unit/test_cli_ingest.py .............                              [ 47%]
+tests/unit/test_cli_smoke.py ............                                [ 50%]
+tests/unit/test_core.py ...                                              [ 51%]
+tests/unit/test_db.py .........................                          [ 57%]
+tests/unit/test_domain.py ........                                       [ 59%]
+tests/unit/test_ingesters.py ........                                    [ 61%]
+tests/unit/test_ingestion.py ...................                         [ 66%]
+tests/unit/test_ingestion_helpers.py ..                                  [ 67%]
+tests/unit/test_ingestion_orchestrator.py ........                       [ 69%]
+tests/unit/test_introspection.py .........                               [ 71%]
+tests/unit/test_ml_data.py ...                                           [ 72%]
+tests/unit/test_ml_pipeline.py ............                              [ 75%]
+tests/unit/test_new_ingesters.py ..............                          [ 79%]
+tests/unit/test_odds_api.py .....                                        [ 80%]
+tests/unit/test_openmeteo_ingester.py ..............                     [ 84%]
+tests/unit/test_proxies.py ...                                           [ 85%]
+tests/unit/test_repository_ballpark.py ....                              [ 86%]
+tests/unit/test_retrosheet_ingester.py ......                            [ 87%]
+tests/unit/test_settings.py .....                                        [ 89%]
+tests/unit/test_transactions_ingester.py ....................            [ 94%]
+tests/unit/test_ui_components.py ........                                [ 96%]
+tests/unit/test_ui_smoke.py ..                                           [ 96%]
+tests/unit/test_ui_views.py ..                                           [ 97%]
+tests/unit/test_wind_physics.py ..........                               [100%]
+
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.13-final-0 _______________
+
+Name                                             Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------
+src/algomlb/__init__.py                              0      0   100%
+src/algomlb/cli/__init__.py                          0      0   100%
+src/algomlb/cli/db.py                               29      0   100%
+src/algomlb/cli/ingest.py                          220     36    84%   316-334, 471-518, 530-535
+src/algomlb/cli/main.py                             14      0   100%
+src/algomlb/cli/ml.py                              179     69    61%   96-98, 174-175, 198-199, 214-215, 270-277, 287-292, 302-307, 331-332, 351-352, 378-382, 394-494
+src/algomlb/cli/process.py                          96      0   100%
+src/algomlb/cli/run.py                               5      0   100%
+src/algomlb/cli/sync.py                             45     36    20%   42-115
+src/algomlb/cli/ui.py                               12      0   100%
+src/algomlb/config/__init__.py                       2      0   100%
+src/algomlb/config/settings.py                      63      0   100%
+src/algomlb/core/__init__.py                         3      0   100%
+src/algomlb/core/agent_io.py                        12      0   100%
+src/algomlb/core/logger.py                          10      0   100%
+src/algomlb/db/__init__.py                           4      0   100%
+src/algomlb/db/introspection.py                     94      0   100%
+src/algomlb/db/models.py                           834      0   100%
+src/algomlb/db/repository.py                       176      0   100%
+src/algomlb/db/session.py                           29      0   100%
+src/algomlb/domain/__init__.py                       2      0   100%
+src/algomlb/domain/models.py                       114      0   100%
+src/algomlb/domain/stadium_bearings.py               2      0   100%
+src/algomlb/domain/teams.py                          2      0   100%
+src/algomlb/domain/wind_physics.py                  18      0   100%
+src/algomlb/execution/__init__.py                    0      0   100%
+src/algomlb/ingestion/__init__.py                   11      0   100%
+src/algomlb/ingestion/ballpark_ingester.py          72      0   100%
+src/algomlb/ingestion/gumbo_ingester.py             61     11    82%   27, 42-43, 49, 52-53, 68, 99-102
+src/algomlb/ingestion/historical.py                178      0   100%
+src/algomlb/ingestion/historical_odds.py            97      0   100%
+src/algomlb/ingestion/http_client.py                53      0   100%
+src/algomlb/ingestion/lineup_ingester.py            75     75     0%   3-157
+src/algomlb/ingestion/managers_ingester.py          58     58     0%   3-141
+src/algomlb/ingestion/mlb_stats.py                  50      0   100%
+src/algomlb/ingestion/odds_api.py                   76      0   100%
+src/algomlb/ingestion/openmeteo_ingester.py        135      0   100%
+src/algomlb/ingestion/orchestrator.py               91      3    97%   141, 143, 158
+src/algomlb/ingestion/proxies.py                    18      0   100%
+src/algomlb/ingestion/retrosheet_ingester.py        96      0   100%
+src/algomlb/ingestion/statcast_ingester.py          65      0   100%
+src/algomlb/ingestion/transactions_ingester.py      90      0   100%
+src/algomlb/ingestion/umpire_ingester.py            79      0   100%
+src/algomlb/ml/__init__.py                           3      0   100%
+src/algomlb/ml/batted_ball_decoupler.py             56      0   100%
+src/algomlb/ml/coefficients.py                      25      0   100%
+src/algomlb/ml/decoupler_pipeline.py                56     46    18%   22-55, 60-154
+src/algomlb/ml/elo.py                               63     63     0%   13-172
+src/algomlb/ml/eval.py                              57     12    79%   95-119
+src/algomlb/ml/feature_engineering.py               16      0   100%
+src/algomlb/ml/features.py                         120      0   100%
+src/algomlb/ml/hooks.py                            130      1    99%   18
+src/algomlb/ml/hyperopt.py                          88     20    77%   27-32, 53-75, 129-130, 204, 225, 271-275
+src/algomlb/ml/model.py                             47      3    94%   76, 82, 85
+src/algomlb/ml/model_io.py                          25      0   100%
+src/algomlb/ml/quant_processor.py                   64      0   100%
+src/algomlb/ml/quant_service.py                     71      0   100%
+src/algomlb/ml/registry.py                          60      1    98%   140
+src/algomlb/ml/rolling_processor.py                170      1    99%   314
+src/algomlb/ml/rolling_service.py                   58      2    97%   172-173
+src/algomlb/ml/sabermetrics.py                      94      0   100%
+src/algomlb/ml/shap_analysis.py                     43      0   100%
+src/algomlb/ml/silver_processor.py                 109      1    99%   85
+src/algomlb/ml/weather_features.py                  33      0   100%
+src/algomlb/social/__init__.py                       0      0   100%
+src/algomlb/strategy/__init__.py                     0      0   100%
+src/algomlb/ui/__init__.py                           2      0   100%
+src/algomlb/ui/app.py                                9      0   100%
+src/algomlb/ui/components/field_equations.py       532    492     8%   10-31, 40-146, 156-171, 180-218, 226-249, 257-281, 289-312, 320-338, 346-357, 365-376, 384-399, 408-426, 434-481, 489-516, 524-551, 560-599, 607-630, 639-652, 660-675, 684-713, 722-737, 746-763, 772-797, 806-821, 830-845, 854-871, 880-962, 971-1078, 1086-1099, 1108-1127, 1167, 1179-1187
+src/algomlb/ui/components/spray_charts.py          186     42    77%   288, 298-310, 346, 491-509, 531-563
+src/algomlb/ui/styles.py                            10      0   100%
+src/algomlb/ui/views/bankroll.py                     5      0   100%
+src/algomlb/ui/views/data.py                        94      0   100%
+src/algomlb/ui/views/optuna.py                       5      0   100%
+src/algomlb/ui/views/picks.py                        5      0   100%
+src/algomlb/ui/views/player_health.py               90      5    94%   167-173
+------------------------------------------------------------------------------
+TOTAL                                             5596    977    83%
+======================== 382 passed in 68.69s (0:01:08) ========================

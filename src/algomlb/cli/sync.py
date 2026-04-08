@@ -20,7 +20,6 @@ app = typer.Typer(help="Synchronize all data layers (Ingest + Process).")
 
 @app.command("daily")
 def daily(
-    ctx: typer.Context,
     target_date: str = typer.Option(
         None, "--date", help="Target date for sync (YYYY-MM-DD). Defaults to yesterday."
     ),
