@@ -161,10 +161,20 @@ def test_days_since_last_game(processor):
     history = pd.DataFrame([{"game_date": date(2024, 3, 20), "pas": 4, "hits": 1}])
     # Manually add missing columns for batter
     for col in [
-        "batter_k", "batter_bb", "barrels", "avg_launch_speed", 
-        "avg_launch_angle", "avg_batter_xwoba", "avg_bat_speed", 
-        "avg_attack_angle", "chase_count", "in_zone_whiff_count", 
-        "std_launch_angle", "xwoba_vs_rh", "xwoba_vs_lh", "edge_pct"
+        "batter_k",
+        "batter_bb",
+        "barrels",
+        "avg_launch_speed",
+        "avg_launch_angle",
+        "avg_batter_xwoba",
+        "avg_bat_speed",
+        "avg_attack_angle",
+        "chase_count",
+        "in_zone_whiff_count",
+        "std_launch_angle",
+        "xwoba_vs_rh",
+        "xwoba_vs_lh",
+        "edge_pct",
     ]:
         history[col] = 0.0
 

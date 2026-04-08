@@ -78,204 +78,133 @@ class RetrosheetIngester:
                         if file.endswith(".csv"):
                             self.ingest_from_csv(os.path.join(root, file))
 
+    def _extract_int(
+        self, row: Mapping[str, object], col: str, default: int = 0
+    ) -> int:
+        val = row.get(col)
+        return (
+            int(float(cast(Any, val)))
+            if val is not None and not pd.isna(cast(Any, val))
+            else default
+        )
+
+    def _extract_str(
+        self, row: Mapping[str, object], col: str, default: str = ""
+    ) -> str:
+        val = row.get(col)
+        return str(val) if val is not None and not pd.isna(cast(Any, val)) else default
+
+    def _extract_opt_int(self, row: Mapping[str, object], col: str) -> Optional[int]:
+        val = row.get(col)
+        return (
+            int(float(cast(Any, val)))
+            if val is not None and not pd.isna(cast(Any, val))
+            else None
+        )
+
+    def _extract_opt_str(self, row: Mapping[str, object], col: str) -> Optional[str]:
+        val = row.get(col)
+        return str(val) if val is not None and not pd.isna(cast(Any, val)) else None
+
+    def _extract_date(self, row: Mapping[str, object], col: str) -> datetime.date:
+        val = row.get(col)
+        if val is None or pd.isna(cast(Any, val)):
+            return datetime.date(1900, 1, 1)
+        return pd.to_datetime(str(val)).date()
+
+    def _extract_gametype(self, row: Mapping[str, object], col: str) -> Optional[str]:
+        val = row.get(col)
+        if val is None or pd.isna(cast(Any, val)):
+            return None
+        val_str = str(val).lower()
+        return "P" if "post" in val_str else "R"
+
     def _row_to_orm(self, row: Mapping[str, object]) -> RetrosheetEventORM:
         """Helper to convert a pandas row to a RetrosheetEventORM object."""
-
-        # Type-safe helpers for extracting row values from Mapping[str, object]
-        def get_int(col: str) -> int:
-            val = row.get(col)
-            # Use cast(Any, val) to satisfy restrictive pd.isna stubs for object type
-            return (
-                int(float(cast(Any, val)))
-                if val is not None and not pd.isna(cast(Any, val))
-                else 0
-            )
-
-        def get_str(col: str) -> str:
-            val = row.get(col)
-            return str(val) if val is not None and not pd.isna(cast(Any, val)) else ""
-
-        def get_opt_int(col: str) -> Optional[int]:
-            val = row.get(col)
-            return (
-                int(float(cast(Any, val)))
-                if val is not None and not pd.isna(cast(Any, val))
-                else None
-            )
-
-        def get_opt_str(col: str) -> Optional[str]:
-            val = row.get(col)
-            return str(val) if val is not None and not pd.isna(cast(Any, val)) else None
-
-        def get_date(col: str) -> datetime.date:
-            val = row.get(col)
-            if val is None or pd.isna(cast(Any, val)):
-                return datetime.date(1900, 1, 1)
-            # Ensure value is treated as a string to avoid integer date parsing issues
-            return pd.to_datetime(str(val)).date()
-
-        def get_gametype(col: str) -> Optional[str]:
-            val = row.get(col)
-            if val is None or pd.isna(cast(Any, val)):
-                return None
-            val_str = str(val).lower()
-            if "regular" in val_str:
-                return "R"
-            if "post" in val_str:
-                return "P"
-            return "R"  # Default to regular if unknown but present
-
-        # Mapping dictionary to handle the high volume of fields
-        data: dict[str, object] = {
-            "game_id": get_str("gid"),
-            "play_number": get_int("pn"),
-            "event_text": get_str("event"),
-            "inning": get_int("inning"),
-            "top_bot": get_int("top_bot"),
-            "vis_home": get_int("vis_home"),
-            "site": get_str("site"),
-            "bat_team": get_str("batteam"),
-            "pit_team": get_str("pitteam"),
-            "score_v": get_int("score_v"),
-            "score_h": get_int("score_h"),
-            "batter_id": get_str("batter"),
-            "pitcher_id": get_str("pitcher"),
-            "lp": get_int("lp"),
-            "bat_f": get_int("bat_f"),
-            "batter_hand": get_opt_str("bathand"),
-            "pitcher_hand": get_opt_str("pithand"),
-            "balls": get_int("balls"),
-            "strikes": get_int("strikes"),
-            "count_text": get_opt_str("count"),
-            "pitches": get_opt_str("pitches"),
-            "nump": get_opt_int("nump"),
-            "pa_flag": get_int("pa"),
-            "ab_flag": get_int("ab"),
-            "single": get_int("single"),
-            "double_flag": get_int("double"),
-            "triple": get_int("triple"),
-            "hr": get_int("hr"),
-            "sh": get_int("sh"),
-            "sf": get_int("sf"),
-            "hbp": get_int("hbp"),
-            "walk": get_int("walk"),
-            "k": get_int("k"),
-            "xi": get_int("xi"),
-            "roe": get_int("roe"),
-            "fc": get_int("fc"),
-            "othout": get_int("othout"),
-            "noout": get_int("noout"),
-            "bip": get_int("bip"),
-            "bunt": get_int("bunt"),
-            "ground": get_int("ground"),
-            "fly": get_int("fly"),
-            "line_flag": get_int("line"),
-            "iw": get_int("iw"),
-            "gdp": get_int("gdp"),
-            "othdp": get_int("othdp"),
-            "tp": get_int("tp"),
-            "fle": get_int("fle"),
-            "wp": get_int("wp"),
-            "pb": get_int("pb"),
-            "bk": get_int("bk"),
-            "oa": get_int("oa"),
-            "di": get_int("di"),
-            "sb2": get_int("sb2"),
-            "sb3": get_int("sb3"),
-            "sbh": get_int("sbh"),
-            "cs2": get_int("cs2"),
-            "cs3": get_int("cs3"),
-            "csh": get_int("csh"),
-            "pko1": get_int("pko1"),
-            "pko2": get_int("pko2"),
-            "pko3": get_int("pko3"),
-            "k_safe": get_int("k_safe"),
-            "e1": get_int("e1"),
-            "e2": get_int("e2"),
-            "e3": get_int("e3"),
-            "e4": get_int("e4"),
-            "e5": get_int("e5"),
-            "e6": get_int("e6"),
-            "e7": get_int("e7"),
-            "e8": get_int("e8"),
-            "e9": get_int("e9"),
-            "outs_pre": get_int("outs_pre"),
-            "outs_post": get_int("outs_post"),
-            "br1_pre": get_opt_str("br1_pre"),
-            "br2_pre": get_opt_str("br2_pre"),
-            "br3_pre": get_opt_str("br3_pre"),
-            "br1_post": get_opt_str("br1_post"),
-            "br2_post": get_opt_str("br2_post"),
-            "br3_post": get_opt_str("br3_post"),
-            "lob_id1": get_opt_str("lob_id1"),
-            "lob_id2": get_opt_str("lob_id2"),
-            "lob_id3": get_opt_str("lob_id3"),
-            "pr1_pre": get_opt_str("pr1_pre"),
-            "pr2_pre": get_opt_str("pr2_pre"),
-            "pr3_pre": get_opt_str("pr3_pre"),
-            "pr1_post": get_opt_str("pr1_post"),
-            "pr2_post": get_opt_str("pr2_post"),
-            "pr3_post": get_opt_str("pr3_post"),
-            "run_b": get_opt_str("run_b"),
-            "run1": get_opt_str("run1"),
-            "run2": get_opt_str("run2"),
-            "run3": get_opt_str("run3"),
-            "prun_b": get_opt_str("prun_b"),
-            "prun1": get_opt_str("prun1"),
-            "prun2": get_opt_str("prun2"),
-            "prun3": get_opt_str("prun3"),
-            "ur_b": get_int("ur_b"),
-            "ur1": get_int("ur1"),
-            "ur2": get_int("ur2"),
-            "ur3": get_int("ur3"),
-            "rbi_b": get_int("rbi_b"),
-            "rbi1": get_int("rbi1"),
-            "rbi2": get_int("rbi2"),
-            "rbi3": get_int("rbi3"),
-            "runs": get_int("runs"),
-            "rbi": get_int("rbi"),
-            "er": get_int("er"),
-            "tur": get_int("tur"),
-            "f2": get_opt_str("f2"),
-            "f3": get_opt_str("f3"),
-            "f4": get_opt_str("f4"),
-            "f5": get_opt_str("f5"),
-            "f6": get_opt_str("f6"),
-            "f7": get_opt_str("f7"),
-            "f8": get_opt_str("f8"),
-            "f9": get_opt_str("f9"),
-            "po1": get_int("po1"),
-            "po2": get_int("po2"),
-            "po3": get_int("po3"),
-            "po4": get_int("po4"),
-            "po5": get_int("po5"),
-            "po6": get_int("po6"),
-            "po7": get_int("po7"),
-            "po8": get_int("po8"),
-            "po9": get_int("po9"),
-            "a1": get_int("a1"),
-            "a2": get_int("a2"),
-            "a3": get_int("a3"),
-            "a4": get_int("a4"),
-            "a5": get_int("a5"),
-            "a6": get_int("a6"),
-            "a7": get_int("a7"),
-            "a8": get_int("a8"),
-            "a9": get_int("a9"),
-            "fseq": get_opt_str("fseq"),
-            "firstf": get_int("firstf"),
-            "loc": get_opt_str("loc"),
-            "hittype": get_opt_str("hittype"),
-            "dpopp": get_int("dpopp"),
-            "pivot": get_int("pivot"),
-            "umphome": get_opt_str("umphome"),
-            "ump1b": get_opt_str("ump1b"),
-            "ump2b": get_opt_str("ump2b"),
-            "ump3b": get_opt_str("ump3b"),
-            "umplf": get_opt_str("umplf"),
-            "umprf": get_opt_str("umprf"),
-            "date": get_date("date"),
-            "gametype": get_gametype("gametype"),
-            "pbp": get_opt_str("pbp"),
+        # Split mapping into logical segments to keep complexity low
+        identity = {
+            "game_id": self._extract_str(row, "gid"),
+            "play_number": self._extract_int(row, "pn"),
+            "event_text": self._extract_str(row, "event"),
+            "inning": self._extract_int(row, "inning"),
+            "top_bot": self._extract_int(row, "top_bot"),
+            "vis_home": self._extract_int(row, "vis_home"),
+            "bat_team": self._extract_str(row, "batteam"),
+            "pit_team": self._extract_str(row, "pitteam"),
+            "batter_id": self._extract_str(row, "batter"),
+            "pitcher_id": self._extract_str(row, "pitcher"),
+            "date": self._extract_date(row, "date"),
+            "gametype": self._extract_gametype(row, "gametype"),
         }
-        return RetrosheetEventORM(**data)
+
+        outcomes = {
+            "single": self._extract_int(row, "single"),
+            "double_flag": self._extract_int(row, "double"),
+            "triple": self._extract_int(row, "triple"),
+            "hr": self._extract_int(row, "hr"),
+            "walk": self._extract_int(row, "walk"),
+            "hbp": self._extract_int(row, "hbp"),
+            "k": self._extract_int(row, "k"),
+            "k_safe": self._extract_int(row, "k_safe"),
+            "error_flag": any(
+                self._extract_int(row, f"e{i}") > 0 for i in range(1, 10)
+            ),
+            "outs_pre": self._extract_int(row, "outs_pre"),
+            "outs_post": self._extract_int(row, "outs_post"),
+            "runs": self._extract_int(row, "runs"),
+            "rbi": self._extract_int(row, "rbi"),
+        }
+
+        # Mapping the remainder including those with direct name mappings
+        remainder = {
+            "site": self._extract_str(row, "site"),
+            "score_v": self._extract_int(row, "score_v"),
+            "score_h": self._extract_int(row, "score_h"),
+            "lp": self._extract_int(row, "lp"),
+            "bat_f": self._extract_int(row, "bat_f"),
+            "batter_hand": self._extract_opt_str(row, "bathand"),
+            "pitcher_hand": self._extract_opt_str(row, "pithand"),
+            "balls": self._extract_int(row, "balls"),
+            "strikes": self._extract_int(row, "strikes"),
+            "count_text": self._extract_opt_str(row, "count"),
+            "pitches": self._extract_opt_str(row, "pitches"),
+            "nump": self._extract_opt_int(row, "nump"),
+            "pa_flag": self._extract_int(row, "pa"),
+            "ab_flag": self._extract_int(row, "ab"),
+        }
+
+        # Handle defensive and other columns (po, a, e, f, br, pr, etc.)
+        for prefix in ["e", "po", "a", "f"]:
+            for i in range(1, 10):
+                field = f"{prefix}{i}"
+                if prefix == "f":
+                    identity[field] = self._extract_opt_str(row, field)
+                else:
+                    identity[field] = self._extract_int(row, field)
+
+        # Runner states
+        for base in [1, 2, 3]:
+            for event in ["_pre", "_post"]:
+                field = f"br{base}{event}"
+                identity[field] = self._extract_opt_str(row, field)
+                field_p = f"pr{base}{event}"
+                identity[field_p] = self._extract_opt_str(row, field_p)
+
+        data = {**identity, **outcomes, **remainder}
+        # Final pass for specific optional strings not caught in loops
+        data.update(
+            {
+                "fseq": self._extract_opt_str(row, "fseq"),
+                "loc": self._extract_opt_str(row, "loc"),
+                "hittype": self._extract_opt_str(row, "hittype"),
+                "umphome": self._extract_opt_str(row, "umphome"),
+                "ump1b": self._extract_opt_str(row, "ump1b"),
+                "ump2b": self._extract_opt_str(row, "ump2b"),
+                "ump3b": self._extract_opt_str(row, "ump3b"),
+                "pbp": self._extract_opt_str(row, "pbp"),
+            }
+        )
+
+        return RetrosheetEventORM(
+            **{k: v for k, v in data.items() if hasattr(RetrosheetEventORM, k)}
+        )

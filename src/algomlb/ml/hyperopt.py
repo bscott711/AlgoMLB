@@ -90,95 +90,119 @@ def build_fold_data(
 ) -> list[tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]]:
     """
     Pre-build the Uranium feature matrices for each walk-forward fold.
-    This mirrors the exact logic in ``cli.ml.walk_forward``.
     """
     fold_data: list[tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]] = []
 
     for test_idx in range(1, len(all_years)):
         train_years = all_years[:test_idx]
         test_year = all_years[test_idx]
-
         logger.info(
             f"  Building fold {test_idx}: Train {train_years} → Test {test_year}"
         )
 
-        train_games = games_df[games_df["year"].isin(train_years)].copy()
-        test_games = games_df[games_df["year"] == test_year].copy()
-        fold_games = pd.concat([train_games, test_games], ignore_index=True)
-
+        # 1. Games & Gold filtering
+        fold_games = _get_fold_games(games_df, train_years, test_year)
         fold_seasons = set(train_years) | {test_year}
         fold_pitcher = pitcher_gold_df[
             pitcher_gold_df["season"].isin(fold_seasons)
         ].copy()
         fold_batter = batter_gold_df[batter_gold_df["season"].isin(fold_seasons)].copy()
 
-        fold_game_pks = (
-            set(fold_games["game_pk"].dropna().astype(int).tolist())
-            if "game_pk" in fold_games.columns
-            else set()
+        # 2. Support data filtering
+        fold_lineups, fold_elo, fold_pythag = _subset_fold_data(
+            fold_games, lineups_df, elo_df, pythag_df
         )
-        fold_lineups = (
-            lineups_df[lineups_df["game_pk"].isin(fold_game_pks)].copy()
-            if not lineups_df.empty
-            else pd.DataFrame()
-        )
-        fold_elo = (
-            elo_df[elo_df["game_pk"].isin(fold_game_pks)].copy()
-            if not elo_df.empty
-            else pd.DataFrame()
-        )
-        fold_pythag = (
-            pythag_df[pythag_df["game_pk"].isin(fold_game_pks)].copy()
-            if not pythag_df.empty
-            else pd.DataFrame()
-        )
-        fold_re24 = re24_df  # player-level, rolling window handles temporal boundaries
 
-        # Build Uranium matrix
+        # 3. Build matrix
         pipeline = FeaturePipeline()
-        if not fold_lineups.empty and not fold_batter.empty:
-            X, y = pipeline.build_uranium_matrix(
-                fold_games,
-                fold_pitcher,
-                fold_lineups,
-                fold_batter,
-                elo_df=fold_elo,
-                pythag_df=fold_pythag,
-                re24_df=fold_re24,
-            )
-        else:
-            X, y = pipeline.build_uranium_matrix(
-                fold_games,
-                fold_pitcher,
-                elo_df=fold_elo,
-                pythag_df=fold_pythag,
-                re24_df=fold_re24,
-            )
+        X, y = pipeline.build_uranium_matrix(
+            fold_games,
+            fold_pitcher,
+            fold_lineups if not fold_lineups.empty else None,
+            fold_batter if not fold_batter.empty else None,
+            elo_df=fold_elo,
+            pythag_df=fold_pythag,
+            re24_df=re24_df,
+        )
 
         if X.empty:
             logger.warning(f"  Fold {test_idx}: Empty matrix, skipping.")
             continue
 
-        # Split by year
-        X["_year"] = pd.to_datetime(fold_games.loc[X.index, "game_date"]).dt.year
-        train_mask = X["_year"].isin(train_years)
-        test_mask = X["_year"] == test_year
-
-        X_train = X[train_mask].drop(columns=["_year"])
-        y_train = y[train_mask]
-        X_test = X[test_mask].drop(columns=["_year"])
-        y_test = y[test_mask]
-
-        if X_train.empty or X_test.empty:
-            logger.warning(f"  Fold {test_idx}: Train or test empty, skipping.")
-            continue
-
-        fold_data.append((X_train, y_train, X_test, y_test))
-        logger.info(
-            f"  Fold {test_idx}: {len(X_train)} train, {len(X_test)} test, {X_train.shape[1]} features"
-        )
+        # 4. Split
+        fold_result = _split_fold_output(X, y, fold_games, train_years, test_year)
+        if fold_result:
+            fold_data.append(fold_result)
+            logger.info(
+                f"  Fold {test_idx}: {len(fold_result[0])} train, {len(fold_result[2])} test"
+            )
 
     return fold_data
+
+
+def _get_fold_games(
+    games_df: pd.DataFrame, train_years: list[int], test_year: int
+) -> pd.DataFrame:
+    """Concatenate training and test year games."""
+    train_games = games_df[games_df["year"].isin(train_years)].copy()
+    test_games = games_df[games_df["year"] == test_year].copy()
+    return pd.concat([train_games, test_games], ignore_index=True)
+
+
+def _subset_fold_data(
+    fold_games: pd.DataFrame,
+    lineups_df: pd.DataFrame,
+    elo_df: pd.DataFrame,
+    pythag_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Filter secondary feature sets by game keys in the current fold."""
+    pks = (
+        set(fold_games["game_pk"].dropna().astype(int))
+        if "game_pk" in fold_games.columns
+        else set()
+    )
+
+    f_lineups = (
+        lineups_df[lineups_df["game_pk"].isin(pks)].copy()
+        if not lineups_df.empty
+        else pd.DataFrame()
+    )
+    f_elo = (
+        elo_df[elo_df["game_pk"].isin(pks)].copy()
+        if not elo_df.empty
+        else pd.DataFrame()
+    )
+    f_pythag = (
+        pythag_df[pythag_df["game_pk"].isin(pks)].copy()
+        if not pythag_df.empty
+        else pd.DataFrame()
+    )
+
+    return f_lineups, f_elo, f_pythag
+
+
+def _split_fold_output(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fold_games: pd.DataFrame,
+    train_years: list[int],
+    test_year: int,
+) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series] | None:
+    """Perform the temporal train/test split on the built matrix."""
+    X = X.copy()
+    X["_year"] = pd.to_datetime(fold_games.loc[X.index, "game_date"]).dt.year
+
+    train_mask = X["_year"].isin(train_years)
+    test_mask = X["_year"] == test_year
+
+    X_train = X[train_mask].drop(columns=["_year"])
+    y_train = y[train_mask]
+    X_test = X[test_mask].drop(columns=["_year"])
+    y_test = y[test_mask]
+
+    if X_train.empty or X_test.empty:
+        return None
+    return (X_train, y_train, X_test, y_test)
 
 
 # ── Top-level runner ─────────────────────────────────────────────────────

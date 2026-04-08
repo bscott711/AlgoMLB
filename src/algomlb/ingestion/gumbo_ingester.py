@@ -16,46 +16,50 @@ class GumboIngester:
 
     def ingest_game(self, game_pk: int) -> int:
         """Fetch the GUMBO live feed for a single game and insert pitch events."""
+        data = self._fetch_gumbo_json(game_pk)
+        if not data:
+            return 0
+
+        all_plays = data.get("liveData", {}).get("plays", {}).get("allPlays", [])
+        pitch_records = self._parse_all_plays(game_pk, all_plays)
+
+        if not pitch_records:
+            return 0
+
+        self._upsert_pitches(pitch_records)
+        return len(pitch_records)
+
+    def _fetch_gumbo_json(self, game_pk: int) -> dict | None:
+        """Perform HTTP fetch of GUMBO live feed."""
         url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
         try:
             resp = httpx.get(url, timeout=30.0, follow_redirects=True)
-            if resp.status_code != 200:
-                logger.warning(
-                    f"Failed to fetch GUMBO for {game_pk}: status {resp.status_code}"
-                )
-                return 0
-
-            data = resp.json()
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning(
+                f"Failed to fetch GUMBO for {game_pk}: status {resp.status_code}"
+            )
         except Exception as e:
             logger.error(f"Error fetching GUMBO for {game_pk}: {e}")
-            return 0
+        return None
 
-        # Parse liveData -> plays -> allPlays -> playEvents
-        live_data = data.get("liveData", {})
-        plays = live_data.get("plays", {})
-        all_plays = plays.get("allPlays", [])
+    def _parse_iso_time(self, time_str: str | None) -> datetime.datetime | None:
+        """Sanitizer for ISO format timestamps."""
+        if not time_str:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
 
-        pitch_records = []
-
+    def _parse_all_plays(self, game_pk: int, all_plays: list) -> list[dict]:
+        """Extract pitch-level records from the raw play data."""
+        records = []
         for play in all_plays:
-            about = play.get("about", {})
-            at_bat_index = about.get("atBatIndex")
-            # Usually atBatIndex maps well, sometimes the play might not have it strictly,
-            # but for our purposes, we will align it as best we can. Standard pitch-by-pitch
-            # uses atBatIndex as the `at_bat_number`. Wait, Statcast uses `at_bat_number` which
-            # is 1-indexed. atBatIndex is usually 0-indexed in MLB API but Statcast merges it
-            # into 1-based or 0-based. Let's just use what's in 'about.atBatIndex' + 1 to align
-            # with Statcast's at_bat_number. Actually, Statcast's at_bat_number matches MLB API's
-            # about.atBatIndex exactly when the API's atBatIndex is 1? No, MLB API about.atBatIndex
-            # usually starts at 0. Let's pull the raw value to see, or rely on pitch_number.
-            # Statcast at_bat_number starts at 1. MLB API atBatIndex starts at 0.
-            # We will use about.atBatIndex + 1.
+            at_bat_idx = play.get("about", {}).get("atBatIndex")
+            at_bat_num = at_bat_idx + 1 if at_bat_idx is not None else -1
 
-            at_bat_num = at_bat_index + 1 if at_bat_index is not None else -1
-
-            play_events = play.get("playEvents", [])
-            for event in play_events:
-                # We only want pitch events (or pickoffs/actions if needed, but Statcast maps pitches)
+            for event in play.get("playEvents", []):
                 if not event.get("isPitch"):
                     continue
 
@@ -63,44 +67,20 @@ class GumboIngester:
                 if pitch_num is None:
                     continue
 
-                play_id = event.get("playId")
-                start_time_str = event.get("startTime")
-                end_time_str = event.get("endTime")
-
-                start_time = None
-                end_time = None
-
-                if start_time_str:
-                    try:
-                        start_time = datetime.datetime.fromisoformat(
-                            start_time_str.replace("Z", "+00:00")
-                        )
-                    except Exception:
-                        pass
-
-                if end_time_str:
-                    try:
-                        end_time = datetime.datetime.fromisoformat(
-                            end_time_str.replace("Z", "+00:00")
-                        )
-                    except Exception:
-                        pass
-
-                pitch_records.append(
+                records.append(
                     {
                         "game_pk": game_pk,
                         "at_bat_number": at_bat_num,
                         "pitch_number": pitch_num,
-                        "play_id": play_id,
-                        "start_time": start_time,
-                        "end_time": end_time,
+                        "play_id": event.get("playId"),
+                        "start_time": self._parse_iso_time(event.get("startTime")),
+                        "end_time": self._parse_iso_time(event.get("endTime")),
                     }
                 )
+        return records
 
-        if not pitch_records:
-            return 0
-
-        # Upsert
+    def _upsert_pitches(self, pitch_records: list[dict]):
+        """Perform database upsert of pitch records."""
         stmt = insert(GumboPitchORM).values(pitch_records)
         stmt = stmt.on_conflict_do_update(
             index_elements=["game_pk", "at_bat_number", "pitch_number"],

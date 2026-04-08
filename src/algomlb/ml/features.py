@@ -92,36 +92,42 @@ class FeaturePipeline:
         re24_df: pd.DataFrame | None = None,
     ) -> tuple[pd.DataFrame, pd.Series]:
         """
-        Merge Gold Layer features onto historical games.
-
-        Phase 1: Pitcher matchup (h_sp_ / a_sp_) — exact temporal join.
-        Phase 2: Team batting (h_bat_ / a_bat_) — lineup-aware aggregate.
-        Phase 2b: Team Elo spine — slow-moving franchise strength prior.
-        Phase 2c: Pythagorean expectation — fundamental run production law.
-        Phase 2d: RE24 — context-neutral run production/prevention.
-
-        Args:
-            games_df: DataFrame of GameResultORM records.
-            pitcher_gold_df: Gold features for PITCHER role.
-            lineups_df: (Optional) DataFrame from game_lineups table.
-            batter_gold_df: (Optional) Gold features for BATTER role.
-            elo_df: (Optional) DataFrame from team_elo_history table.
-            pythag_df: (Optional) DataFrame from sabermetrics.compute_pythagorean_features.
-            re24_df: (Optional) DataFrame from sabermetrics.compute_rolling_re24.
-
-        Returns:
-            X: Feature matrix
-            y: Target series (home_win)
+        Merge Gold Layer features onto historical games using a modular pipeline.
         """
         if games_df.empty or pitcher_gold_df.empty:
             logger.warning("Empty dataframes passed to Uranium pipeline.")
             return pd.DataFrame(), pd.Series()
 
-        # Ensure datetime/date matching and ID normalization
+        # 1. Normalization
+        games_df, pitcher_gold_df, lineups_df, batter_gold_df = (
+            self._prepare_data_for_merge(
+                games_df, pitcher_gold_df, lineups_df, batter_gold_df
+            )
+        )
+
+        # 2. Pitcher Matchup Spine
+        df = self._attach_pitcher_spines(games_df, pitcher_gold_df)
+
+        # 3. Team Features (Batting, Elo, Pythag, RE24)
+        df = self._attach_team_spines(
+            df, lineups_df, batter_gold_df, elo_df, pythag_df, re24_df
+        )
+
+        # 4. Finalize features and labels
+        return self._finalize_features(df)
+
+    def _prepare_data_for_merge(
+        self,
+        games_df: pd.DataFrame,
+        pitcher_gold_df: pd.DataFrame,
+        lineups_df: pd.DataFrame | None = None,
+        batter_gold_df: pd.DataFrame | None = None,
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None]:
+        """Normalize IDs and dates across dataframes."""
         games_df = games_df.copy()
         pitcher_gold_df = pitcher_gold_df.copy()
 
-        # Force IDs to float64 (then Int64) to ensure merge compatibility
+        # Force IDs to float64 for merge compatibility
         for col in ["home_pitcher_id", "away_pitcher_id", "game_pk", "game_id"]:
             if col in games_df.columns:
                 games_df[col] = pd.to_numeric(games_df[col], errors="coerce").astype(
@@ -137,7 +143,22 @@ class FeaturePipeline:
             pitcher_gold_df["game_date"]
         ).dt.date
 
-        # ── 1. Pitcher Spine ──────────────────────────────────────────────
+        if lineups_df is not None:
+            lineups_df = lineups_df.copy()
+            lineups_df["game_pk"] = pd.to_numeric(
+                lineups_df["game_pk"], errors="coerce"
+            ).astype(float)
+            lineups_df["game_date"] = pd.to_datetime(lineups_df["game_date"]).dt.date
+
+        if batter_gold_df is not None:
+            batter_gold_df = batter_gold_df.copy()
+
+        return games_df, pitcher_gold_df, lineups_df, batter_gold_df
+
+    def _attach_pitcher_spines(
+        self, games_df: pd.DataFrame, pitcher_gold_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Merge home and away starting pitcher features."""
         df = pd.merge(
             games_df,
             pitcher_gold_df.add_prefix("h_sp_"),
@@ -152,262 +173,165 @@ class FeaturePipeline:
             right_on=["a_sp_player_id", "a_sp_game_date"],
             how="left",
         )
+        return df
 
-        # ── 2. Team Batting Spine ─────────────────────────────────────────
+    def _attach_team_spines(
+        self,
+        df: pd.DataFrame,
+        lineups_df: pd.DataFrame | None,
+        batter_gold_df: pd.DataFrame | None,
+        elo_df: pd.DataFrame | None,
+        pythag_df: pd.DataFrame | None,
+        re24_df: pd.DataFrame | None,
+    ) -> pd.DataFrame:
+        """Attach batting aggregates and team-level metrics."""
+        # Ensure game_pk_int is present for team joins
+        if "game_pk_int" not in df.columns:
+            id_col = "game_id" if "game_id" in df.columns else "game_pk"
+            df["game_pk_int"] = pd.to_numeric(df[id_col], errors="coerce").astype(float)
+
+        # 1. Batting
         if lineups_df is not None and batter_gold_df is not None:
-            batter_gold_df = batter_gold_df.copy()
-
-            # Ensure game_pk is numeric in both
-            if "game_id" in df.columns:
-                df["game_pk_int"] = pd.to_numeric(
-                    df["game_id"], errors="coerce"
-                ).astype(float)
-            elif "game_pk" in df.columns:
-                df["game_pk_int"] = pd.to_numeric(
-                    df["game_pk"], errors="coerce"
-                ).astype(float)
-
-            lineups_df = lineups_df.copy()
-            lineups_df["game_pk"] = pd.to_numeric(
-                lineups_df["game_pk"], errors="coerce"
-            ).astype(float)
-            lineups_df["game_date"] = pd.to_datetime(lineups_df["game_date"]).dt.date
-
-            home_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
-            away_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
-
-            if not home_bat.empty:
-                df = pd.merge(
-                    df,
-                    home_bat,
+            h_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
+            a_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
+            if not h_bat.empty:
+                df = df.merge(
+                    h_bat,
                     left_on="game_pk_int",
                     right_on="game_pk",
                     how="left",
                     suffixes=("", "_hbat"),
-                )
-                df = df.drop(columns=["game_pk_hbat"], errors="ignore")
-            if not away_bat.empty:
-                df = pd.merge(
-                    df,
-                    away_bat,
+                ).drop(columns=["game_pk_hbat"], errors="ignore")
+            if not a_bat.empty:
+                df = df.merge(
+                    a_bat,
                     left_on="game_pk_int",
                     right_on="game_pk",
                     how="left",
                     suffixes=("", "_abat"),
-                )
-                df = df.drop(columns=["game_pk_abat"], errors="ignore")
+                ).drop(columns=["game_pk_abat"], errors="ignore")
 
-            logger.info(f"Team batting features attached. Shape after join: {df.shape}")
-
-        # ── 2b. Team Elo Spine ────────────────────────────────────────────
+        # 2. Elo
         if elo_df is not None and not elo_df.empty:
-            elo = elo_df.copy()
-            elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype(
-                "Int64"
-            )
-            elo["game_date"] = pd.to_datetime(elo["game_date"])
+            df = self._attach_elo_metrics(df, elo_df)
 
-            # One row per (game_pk, is_home)
-            home_elo = elo[elo["is_home"]].rename(
-                columns={
-                    "elo_pre": "home_team_elo_pre",
-                    "elo_post": "home_team_elo_post",
-                }
-            )[["game_pk", "home_team_elo_pre", "home_team_elo_post"]]
-
-            away_elo = elo[~elo["is_home"]].rename(
-                columns={
-                    "elo_pre": "away_team_elo_pre",
-                    "elo_post": "away_team_elo_post",
-                }
-            )[["game_pk", "away_team_elo_pre", "away_team_elo_post"]]
-
-            # Ensure df has game_pk_int from earlier logic
-            if "game_pk_int" not in df.columns:
-                if "game_id" in df.columns:
-                    df["game_pk_int"] = pd.to_numeric(df["game_id"], errors="coerce")
-                elif "game_pk" in df.columns:
-                    df["game_pk_int"] = df["game_pk"]
-
-            df = df.merge(
-                home_elo,
-                left_on="game_pk_int",
-                right_on="game_pk",
-                how="left",
-                suffixes=("", "_homeelo"),
-            ).drop(columns=["game_pk_homeelo"], errors="ignore")
-
-            df = df.merge(
-                away_elo,
-                left_on="game_pk_int",
-                right_on="game_pk",
-                how="left",
-                suffixes=("", "_awayelo"),
-            ).drop(columns=["game_pk_awayelo"], errors="ignore")
-
-            df["elo_diff"] = df["home_team_elo_pre"] - df["away_team_elo_pre"]
-            logger.info(f"Elo features attached. Shape after join: {df.shape}")
-
-        # ── 2c. Pythagorean Expectation Spine ─────────────────────────────
+        # 3. Pythag
         if pythag_df is not None and not pythag_df.empty:
-            pyth = pythag_df.copy()
-            pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype(
-                "Int64"
-            )
+            df = self._attach_pythagorean_metrics(df, pythag_df)
 
-            home_pyth = pyth[pyth["is_home"]].rename(
-                columns={
-                    "pythag_win_pct": "h_pythag_win_pct",
-                    "roll_run_diff": "h_roll_run_diff",
-                    "roll_rs_per_game": "h_roll_rs_per_game",
-                    "roll_ra_per_game": "h_roll_ra_per_game",
-                }
-            )[
-                [
-                    "game_pk",
-                    "h_pythag_win_pct",
-                    "h_roll_run_diff",
-                    "h_roll_rs_per_game",
-                    "h_roll_ra_per_game",
-                ]
-            ]
-
-            away_pyth = pyth[~pyth["is_home"]].rename(
-                columns={
-                    "pythag_win_pct": "a_pythag_win_pct",
-                    "roll_run_diff": "a_roll_run_diff",
-                    "roll_rs_per_game": "a_roll_rs_per_game",
-                    "roll_ra_per_game": "a_roll_ra_per_game",
-                }
-            )[
-                [
-                    "game_pk",
-                    "a_pythag_win_pct",
-                    "a_roll_run_diff",
-                    "a_roll_rs_per_game",
-                    "a_roll_ra_per_game",
-                ]
-            ]
-
-            if "game_pk_int" not in df.columns:
-                if "game_id" in df.columns:
-                    df["game_pk_int"] = pd.to_numeric(df["game_id"], errors="coerce")
-                elif "game_pk" in df.columns:
-                    df["game_pk_int"] = df["game_pk"]
-
-            df = df.merge(
-                home_pyth,
-                left_on="game_pk_int",
-                right_on="game_pk",
-                how="left",
-                suffixes=("", "_hpyth"),
-            ).drop(columns=["game_pk_hpyth"], errors="ignore")
-            df = df.merge(
-                away_pyth,
-                left_on="game_pk_int",
-                right_on="game_pk",
-                how="left",
-                suffixes=("", "_apyth"),
-            ).drop(columns=["game_pk_apyth"], errors="ignore")
-
-            df["pythag_diff"] = df["h_pythag_win_pct"] - df["a_pythag_win_pct"]
-            logger.info(f"Pythagorean features attached. Shape after join: {df.shape}")
-
-        # ── 2d. RE24 Spine ─────────────────────────────────────────────
+        # 4. RE24
         if re24_df is not None and not re24_df.empty:
-            re24 = re24_df.copy()
-            re24["game_date"] = pd.to_datetime(re24["game_date"])
-            if "game_pk" in re24.columns:
-                re24["game_pk"] = pd.to_numeric(
-                    re24["game_pk"], errors="coerce"
-                ).astype("Int64")
+            df = self._attach_re24_metrics(df, re24_df, lineups_df)
 
-            # Pitcher RE24: join directly by pitcher_id + game_date
-            pitcher_re24 = re24[re24["role"] == "PITCHER"][
+        return df
+
+    def _attach_elo_metrics(
+        self, df: pd.DataFrame, elo_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Process and merge Elo metrics."""
+        elo = elo_df.copy()
+        elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype("Int64")
+        home_elo = elo[elo["is_home"]].rename(
+            columns={"elo_pre": "home_team_elo_pre", "elo_post": "home_team_elo_post"}
+        )[["game_pk", "home_team_elo_pre", "home_team_elo_post"]]
+        away_elo = elo[~elo["is_home"]].rename(
+            columns={"elo_pre": "away_team_elo_pre", "elo_post": "away_team_elo_post"}
+        )[["game_pk", "away_team_elo_pre", "away_team_elo_post"]]
+
+        df = df.merge(
+            home_elo, left_on="game_pk_int", right_on="game_pk", how="left"
+        ).drop(columns=["game_pk_y"], errors="ignore")
+        df = df.merge(
+            away_elo, left_on="game_pk_int", right_on="game_pk", how="left"
+        ).drop(columns=["game_pk_y"], errors="ignore")
+        df["elo_diff"] = df["home_team_elo_pre"] - df["away_team_elo_pre"]
+        return df
+
+    def _attach_pythagorean_metrics(
+        self, df: pd.DataFrame, pythag_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Process and merge Pythagorean Sabermetrics."""
+        pyth = pythag_df.copy()
+        pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype(
+            "Int64"
+        )
+        for side, prefix in [("home", "h_"), ("away", "a_")]:
+            side_pyth = pyth[pyth["is_home"] == (side == "home")].rename(
+                columns={
+                    "pythag_win_pct": f"{prefix}pythag_win_pct",
+                    "roll_run_diff": f"{prefix}roll_run_diff",
+                    "roll_rs_per_game": f"{prefix}roll_rs_per_game",
+                    "roll_ra_per_game": f"{prefix}roll_ra_per_game",
+                }
+            )[
+                [
+                    "game_pk",
+                    f"{prefix}pythag_win_pct",
+                    f"{prefix}roll_run_diff",
+                    f"{prefix}roll_rs_per_game",
+                    f"{prefix}roll_ra_per_game",
+                ]
+            ]
+            df = df.merge(
+                side_pyth, left_on="game_pk_int", right_on="game_pk", how="left"
+            ).drop(columns=["game_pk_y"], errors="ignore")
+
+        df["pythag_diff"] = df["h_pythag_win_pct"] - df["a_pythag_win_pct"]
+        return df
+
+    def _attach_re24_metrics(
+        self,
+        df: pd.DataFrame,
+        re24_df: pd.DataFrame,
+        lineups_df: pd.DataFrame | None,
+    ) -> pd.DataFrame:
+        """Process and merge RE24 run expectancy metrics."""
+        re24 = re24_df.copy()
+        re24["game_date"] = pd.to_datetime(re24["game_date"]).dt.date
+        p_re24 = re24[re24["role"] == "PITCHER"][
+            ["player_id", "game_date", "roll_re24"]
+        ]
+
+        # Individual Pitcher RE24
+        for side, prefix in [("home", "h_"), ("away", "a_")]:
+            target_pid = f"{side}_pitcher_id"
+            merged_re24 = p_re24.rename(
+                columns={"roll_re24": f"{prefix}sp_roll_re24", "player_id": "pid"}
+            )
+            df = df.merge(
+                merged_re24,
+                left_on=[target_pid, "game_date"],
+                right_on=["pid", "game_date"],
+                how="left",
+            ).drop(columns=["pid"], errors="ignore")
+
+        # Aggregated Batter RE24
+        if lineups_df is not None:
+            b_re24 = re24[re24["role"] == "BATTER"][
                 ["player_id", "game_date", "roll_re24"]
-            ].copy()
-            pitcher_re24["player_id"] = pd.to_numeric(
-                pitcher_re24["player_id"], errors="coerce"
-            ).astype(float)
-            pitcher_re24["game_date"] = pd.to_datetime(
-                pitcher_re24["game_date"]
-            ).dt.date
-
-            # Home SP RE24
-            h_pre24 = pitcher_re24.rename(
-                columns={"roll_re24": "h_sp_roll_re24", "player_id": "h_sp_pid_re24"}
+            ]
+            lu_re24 = lineups_df.merge(
+                b_re24, on=["player_id", "game_date"], how="left"
             )
-            df = df.merge(
-                h_pre24,
-                left_on=["home_pitcher_id", "game_date"],
-                right_on=["h_sp_pid_re24", "game_date"],
-                how="left",
-            ).drop(columns=["h_sp_pid_re24"], errors="ignore")
-
-            # Away SP RE24
-            a_pre24 = pitcher_re24.rename(
-                columns={"roll_re24": "a_sp_roll_re24", "player_id": "a_sp_pid_re24"}
-            )
-            df = df.merge(
-                a_pre24,
-                left_on=["away_pitcher_id", "game_date"],
-                right_on=["a_sp_pid_re24", "game_date"],
-                how="left",
-            ).drop(columns=["a_sp_pid_re24"], errors="ignore")
-
-            # Batter RE24: aggregate across lineup (mean of 9 starters)
-            if lineups_df is not None and not lineups_df.empty:
-                batter_re24 = re24[re24["role"] == "BATTER"][
-                    ["player_id", "game_date", "roll_re24"]
-                ].copy()
-                batter_re24["player_id"] = pd.to_numeric(
-                    batter_re24["player_id"], errors="coerce"
-                ).astype(float)
-                batter_re24["game_date"] = pd.to_datetime(
-                    batter_re24["game_date"]
-                ).dt.date
-
-                lu = lineups_df.copy()
-                lu["game_date"] = pd.to_datetime(lu["game_date"]).dt.date
-                lu["player_id"] = pd.to_numeric(
-                    lu["player_id"], errors="coerce"
-                ).astype(float)
-                lu["game_pk"] = pd.to_numeric(lu["game_pk"], errors="coerce").astype(
-                    float
+            for side in ["home", "away"]:
+                prefix = f"{side[0]}_bat_roll_re24"
+                side_agg = (
+                    lu_re24[lu_re24["team_side"] == side]
+                    .groupby("game_pk")["roll_re24"]
+                    .mean()
+                    .reset_index()
+                    .rename(columns={"roll_re24": prefix})
                 )
+                df = df.merge(
+                    side_agg, left_on="game_pk_int", right_on="game_pk", how="left"
+                ).drop(columns=["game_pk_y"], errors="ignore")
 
-                lu_re24 = lu.merge(
-                    batter_re24, on=["player_id", "game_date"], how="left"
-                )
+        if "h_sp_roll_re24" in df.columns and "a_sp_roll_re24" in df.columns:
+            df["re24_sp_diff"] = df["h_sp_roll_re24"] - df["a_sp_roll_re24"]
+        return df
 
-                for side, prefix in [
-                    ("home", "h_bat_roll_re24"),
-                    ("away", "a_bat_roll_re24"),
-                ]:
-                    side_agg = (
-                        lu_re24[lu_re24["team_side"] == side]
-                        .groupby("game_pk")["roll_re24"]
-                        .mean()
-                        .reset_index()
-                        .rename(columns={"roll_re24": prefix})
-                    )
-                    if "game_pk_int" in df.columns:
-                        df = df.merge(
-                            side_agg,
-                            left_on="game_pk_int",
-                            right_on="game_pk",
-                            how="left",
-                            suffixes=("", f"_{side}re24"),
-                        )
-                        df = df.drop(columns=[f"game_pk_{side}re24"], errors="ignore")
-
-            # Compute diff
-            if "h_sp_roll_re24" in df.columns and "a_sp_roll_re24" in df.columns:
-                df["re24_sp_diff"] = df["h_sp_roll_re24"] - df["a_sp_roll_re24"]
-
-            logger.info(f"RE24 features attached. Shape after join: {df.shape}")
-
-        # ── 3. Target Label ───────────────────────────────────────────────
+    def _finalize_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+        """Resolve labels, select features, and impute missing values."""
         if "home_score" in df.columns and "away_score" in df.columns:
             df = df.dropna(subset=["home_score", "away_score"])
             df["home_win"] = (df["home_score"] > df["away_score"]).astype(int)
@@ -418,10 +342,9 @@ class FeaturePipeline:
 
         y = df["home_win"]
 
-        # ── 4. Feature Selection ──────────────────────────────────────────
+        # Selection logic
         keep_prefixes = ["h_sp_", "a_sp_", "h_bat_", "a_bat_"]
-        # Non-prefixed features we want to keep explicitly:
-        extra_features = [
+        extra = [
             "home_team_elo_pre",
             "away_team_elo_pre",
             "elo_diff",
@@ -440,38 +363,27 @@ class FeaturePipeline:
             "a_bat_roll_re24",
             "re24_sp_diff",
         ]
-
-        drop_patterns = [
-            "player_id",
-            "_game_date",
-            "season",
-            "role",
-            "computed_at",
-            "id",
-            "game_pk",
-        ]
-
         feature_cols = [
             c
             for c in df.columns
-            if (any(c.startswith(p) for p in keep_prefixes) or c in extra_features)
-            and not any(p in c for p in drop_patterns)
+            if (any(c.startswith(p) for p in keep_prefixes) or c in extra)
+            and not any(
+                p in c
+                for p in [
+                    "player_id",
+                    "_game_date",
+                    "season",
+                    "role",
+                    "computed_at",
+                    "id",
+                    "game_pk",
+                ]
+            )
         ]
 
-        X = df[feature_cols].copy()
-        X = X.select_dtypes(include=["number"])
-
-        # Log missing data
-        missing_ratios = X.isna().mean()
-        high_missing = missing_ratios[missing_ratios > 0.3]
-        if not high_missing.empty:
-            logger.info(f"High missing feature rates (>30%): {high_missing.to_dict()}")
-
-        # Robust imputation
+        X = df[feature_cols].copy().select_dtypes(include=["number"])
         X = X.fillna(X.median()).fillna(0)
-
-        # Drop constant columns
-        X = X.loc[:, (X != X.iloc[0]).any()]
+        X = X.loc[:, (X != X.iloc[0]).any()]  # Drop constants
 
         logger.info(f"Uranium Matrix built: {X.shape[0]} games, {X.shape[1]} features.")
         return X, y

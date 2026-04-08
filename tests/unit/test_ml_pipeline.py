@@ -20,27 +20,33 @@ def test_ml_train_cli(mock_read_sql, dummy_stats, dummy_games):
     # Add varying features (roll_era, roll_avg) to prevent the pipeline from dropping all constant columns
     mock_read_sql.side_effect = [
         dummy_games,
-        pd.DataFrame({
-            "player_id": [1, 2, 2, 1], 
-            "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02"], 
-            "roll_era": [3.0, 4.0, 2.0, 5.0],
-            "season": [2024, 2024, 2024, 2024], 
-            "role": ["PITCHER", "PITCHER", "PITCHER", "PITCHER"]
-        }),
-        pd.DataFrame({
-            "game_pk": [1001, 1002], 
-            "game_date": ["2024-04-01", "2024-04-02"], 
-            "player_id": [1, 2], 
-            "team_side": ["home", "home"], 
-            "batting_order": [1, 1]
-        }),
-        pd.DataFrame({
-            "player_id": [1, 2], 
-            "game_date": ["2024-04-01", "2024-04-02"], 
-            "roll_avg_launch_speed": [90.0, 95.0],
-            "season": [2024, 2024], 
-            "role": ["BATTER", "BATTER"]
-        }),
+        pd.DataFrame(
+            {
+                "player_id": [1, 2, 2, 1],
+                "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02"],
+                "roll_era": [3.0, 4.0, 2.0, 5.0],
+                "season": [2024, 2024, 2024, 2024],
+                "role": ["PITCHER", "PITCHER", "PITCHER", "PITCHER"],
+            }
+        ),
+        pd.DataFrame(
+            {
+                "game_pk": [1001, 1002],
+                "game_date": ["2024-04-01", "2024-04-02"],
+                "player_id": [1, 2],
+                "team_side": ["home", "home"],
+                "batting_order": [1, 1],
+            }
+        ),
+        pd.DataFrame(
+            {
+                "player_id": [1, 2],
+                "game_date": ["2024-04-01", "2024-04-02"],
+                "roll_avg_launch_speed": [90.0, 95.0],
+                "season": [2024, 2024],
+                "role": ["BATTER", "BATTER"],
+            }
+        ),
         pd.DataFrame(),  # Elo (optional)
     ]
 
@@ -75,15 +81,33 @@ def dummy_stats():
             "team": ["NYY", "BOS", "BOS", "NYY", "NYY", "BOS", "BOS", "NYY"],
             "era": [3.5, 4.2, 3.0, 4.0, 3.2, 4.5, 2.8, 4.1],
             "so": [200, 180, 210, 190, 205, 175, 215, 185],
-            "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02", "2024-04-03", "2024-04-03", "2024-04-04", "2024-04-04"],
+            "game_date": [
+                "2024-04-01",
+                "2024-04-01",
+                "2024-04-02",
+                "2024-04-02",
+                "2024-04-03",
+                "2024-04-03",
+                "2024-04-04",
+                "2024-04-04",
+            ],
         }
     )
     batting = pd.DataFrame(
         {
-            "team": ["NYY", "BOS", "BOS", "NYY", "NYY", "BOS", "BOS", "NYY"], 
-            "avg": [0.260, 0.250, 0.270, 0.240, 0.265, 0.245, 0.275, 0.235], 
+            "team": ["NYY", "BOS", "BOS", "NYY", "NYY", "BOS", "BOS", "NYY"],
+            "avg": [0.260, 0.250, 0.270, 0.240, 0.265, 0.245, 0.275, 0.235],
             "hr": [20, 15, 22, 18, 21, 14, 23, 17],
-            "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02", "2024-04-03", "2024-04-03", "2024-04-04", "2024-04-04"],
+            "game_date": [
+                "2024-04-01",
+                "2024-04-01",
+                "2024-04-02",
+                "2024-04-02",
+                "2024-04-03",
+                "2024-04-03",
+                "2024-04-04",
+                "2024-04-04",
+            ],
         }
     )
     return pitching, batting
@@ -117,7 +141,7 @@ def test_feature_pipeline_merging(dummy_stats, dummy_games):
     # and ensure columns are in BATTER_AGG_COLS or PITCHER features
     stats_prefixed = stats.copy()
     stats_prefixed.columns = [
-        f"roll_{c}" if c not in ["player_id", "game_date", "team"] else c 
+        f"roll_{c}" if c not in ["player_id", "game_date", "team"] else c
         for c in stats_prefixed.columns
     ]
     X, y = pipeline.build_uranium_matrix(dummy_games, stats_prefixed)
@@ -182,20 +206,24 @@ def test_ml_train_cli_no_team_column(
 
     # Setup DB mocks
     mock_read_sql.side_effect = [
-        pd.DataFrame({
-            "game_pk": [1001, 1002], 
-            "game_date": ["2024-04-01", "2024-04-02"], 
-            "home_team": ["NYY", "BOS"], 
-            "away_team": ["BOS", "NYY"],
-            "home_score": [5, 2],
-            "away_score": [2, 5]
-        }),
-        pd.DataFrame({
-            "player_id": [1, 2], 
-            "game_date": ["2024-04-01", "2024-04-02"], 
-            "season": [2024, 2024], 
-            "role": ["PITCHER", "PITCHER"]
-        }),
+        pd.DataFrame(
+            {
+                "game_pk": [1001, 1002],
+                "game_date": ["2024-04-01", "2024-04-02"],
+                "home_team": ["NYY", "BOS"],
+                "away_team": ["BOS", "NYY"],
+                "home_score": [5, 2],
+                "away_score": [2, 5],
+            }
+        ),
+        pd.DataFrame(
+            {
+                "player_id": [1, 2],
+                "game_date": ["2024-04-01", "2024-04-02"],
+                "season": [2024, 2024],
+                "role": ["PITCHER", "PITCHER"],
+            }
+        ),
         pd.DataFrame(),
         pd.DataFrame(),
         pd.DataFrame(),
@@ -233,12 +261,14 @@ def test_ml_train_cli_single_team(
     # Setup DB mocks
     mock_read_sql.side_effect = [
         dummy_games,
-        pd.DataFrame({
-            "player_id": [1, 2, 2, 1], 
-            "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02"], 
-            "season": [2024, 2024, 2024, 2024], 
-            "role": ["PITCHER", "PITCHER", "PITCHER", "PITCHER"]
-        }),
+        pd.DataFrame(
+            {
+                "player_id": [1, 2, 2, 1],
+                "game_date": ["2024-04-01", "2024-04-01", "2024-04-02", "2024-04-02"],
+                "season": [2024, 2024, 2024, 2024],
+                "role": ["PITCHER", "PITCHER", "PITCHER", "PITCHER"],
+            }
+        ),
         pd.DataFrame(),
         pd.DataFrame(),
         pd.DataFrame(),
@@ -337,12 +367,26 @@ def test_feature_pipeline_with_statcast():
             {"player_id": 3, "roll_avg_launch_speed": 95.0, "game_date": "2024-04-02"},
         ]
     )
-    lineups = pd.DataFrame([
-        {"game_pk": 1001, "player_id": 1, "team_side": "home", "game_date": "2024-04-01"},
-        {"game_pk": 1002, "player_id": 3, "team_side": "home", "game_date": "2024-04-02"},
-    ])
+    lineups = pd.DataFrame(
+        [
+            {
+                "game_pk": 1001,
+                "player_id": 1,
+                "team_side": "home",
+                "game_date": "2024-04-01",
+            },
+            {
+                "game_pk": 1002,
+                "player_id": 3,
+                "team_side": "home",
+                "game_date": "2024-04-02",
+            },
+        ]
+    )
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_uranium_matrix(games, stats_varied, lineups_df=lineups, batter_gold_df=pitches)
+    X, y = pipeline.build_uranium_matrix(
+        games, stats_varied, lineups_df=lineups, batter_gold_df=pitches
+    )
     # era should remain
     assert "h_sp_era" in X.columns
     # Team batting aggregate adds h_bat_ prefix

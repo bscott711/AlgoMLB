@@ -514,43 +514,44 @@ BALLPARK_METADATA = {
 }
 
 
+def _get_metadata_for_park(park_name: str):
+    """Retrieves metadata from static dictionary, handling synonyms."""
+    data = BALLPARK_METADATA.get(park_name)
+    if data:
+        return data
+    for key, val in BALLPARK_METADATA.items():
+        if park_name in [key, *val.get("synonyms", [])]:
+            return val
+    return None
+
+
+def _apply_park_update(p: BallparkORM, data: dict):
+    """Maps metadata dictionary to BallparkORM fields and computes PM coordinates."""
+    p.lf_wall_height = data["h_lf"]
+    p.lc_wall_height = data["h_lc"]
+    p.cf_wall_height = data["h_cf"]
+    p.rc_wall_height = data["h_rc"]
+    p.rf_wall_height = data["h_rf"]
+    p.hp_lat, p.hp_lon = data["lat"], data["lon"]
+    p.hp_bearing_deg = data["brng"]
+    p.left_center, p.right_center = data["lc"], data["rc"]
+
+    pm_lat, pm_lon = calculate_pm_coords(data["lat"], data["lon"], data["brng"])
+    p.pm_lat, p.pm_lon = pm_lat, pm_lon
+
+
 def backfill():
+    """Main entry point to update all ballpark coordinates and wall dimensions."""
     with SessionLocal() as session:
         parks = session.execute(select(BallparkORM)).scalars().all()
         count = 0
         for p in parks:
-            data = BALLPARK_METADATA.get(p.ballpark)
-            if not data:
-                # Attempt synonym match
-                for key, val in BALLPARK_METADATA.items():
-                    if p.ballpark in [key, val.get("synonyms", [])]:
-                        data = val
-                        break
-
+            data = _get_metadata_for_park(p.ballpark)
             if data:
-                p.left_center = data["lc"]
-                p.right_center = data["rc"]
-                p.lf_wall_height = data["h_lf"]
-                p.lc_wall_height = data["h_lc"]
-                p.cf_wall_height = data["h_cf"]
-                p.rc_wall_height = data["h_rc"]
-                p.rf_wall_height = data["h_rf"]
-                p.hp_lat = data["lat"]
-                p.hp_lon = data["lon"]
-                p.hp_bearing_deg = data["brng"]
-
-                # Calculate PM
-                pm_lat, pm_lon = calculate_pm_coords(
-                    data["lat"], data["lon"], data["brng"]
-                )
-                p.pm_lat = pm_lat
-                p.pm_lon = pm_lon
+                _apply_park_update(p, data)
                 count += 1
-
         session.commit()
-        print(
-            f"✅ Successfully backfilled {count} ballparks with precise GPS and wall heights."
-        )
+        print(f"✅ Successfully backfilled {count} ballparks.")
 
 
 if __name__ == "__main__":

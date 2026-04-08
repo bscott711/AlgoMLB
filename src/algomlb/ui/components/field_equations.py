@@ -8,39 +8,27 @@ def arizona_diamondbacks(theta_deg):
     at a given angle "theta" in degrees for the Arizona Diamondbacks.
     """
     theta = np.radians(theta_deg)
-
-    if 0.0 <= theta_deg < 4.9:
-        return -389.4197 / (np.sin(theta) - (1.1624468 * np.cos(theta)))
-    elif 4.9 <= theta_deg < 6.6:
-        return 423.5471 / (np.sin(theta) + (1.085346 * np.cos(theta)))
-    elif 6.6 <= theta_deg < 31.7:
-        return 6211.3885 / (np.sin(theta) + (17.49789 * np.cos(theta)))
-    elif 31.7 <= theta_deg < 32.9:
-        return 427.9667 / (np.sin(theta) + (0.630552 * np.cos(theta)))
-    elif 32.9 <= theta_deg < 34.0:
-        return 1197.8397 / (np.sin(theta) + (2.9286229 * np.cos(theta)))
-    elif 34.0 <= theta_deg < 38.9:
-        return 559.10919 / (np.sin(theta) + (1.0073058 * np.cos(theta)))
-    elif 38.9 <= theta_deg < 39.1:
-        return -91.557622 / (np.sin(theta) - (1.10398598 * np.cos(theta)))
-    elif 39.1 <= theta_deg < 50.5:
-        return 571.92441 / (np.sin(theta) + (1.0070058 * np.cos(theta)))
-    elif 50.5 <= theta_deg < 50.8:
-        return 114.59269 / (np.sin(theta) - (0.76826977 * np.cos(theta)))
-    elif 50.8 <= theta_deg < 55.7:
-        return 557.962 / (np.sin(theta) + (1.0031979 * np.cos(theta)))
-    elif 55.7 <= theta_deg < 56.7:
-        return 403.8808 / (np.sin(theta) + (0.3213439 * np.cos(theta)))
-    elif 56.7 <= theta_deg < 57.7:
-        return 755.17044 / (np.sin(theta) + (1.924966 * np.cos(theta)))
-    elif 57.7 <= theta_deg < 82.5:
-        return 353.793768 / (np.sin(theta) + (0.06108017 * np.cos(theta)))
-    elif 82.5 <= theta_deg < 84.2:
-        return 395.0241 / (np.sin(theta) + (0.9533913 * np.cos(theta)))
-    elif 84.2 <= theta_deg < 90.0:
-        return 327 / (np.sin(theta) - (0.9060869 * np.cos(theta)))
-    else:
-        return None
+    boundaries = [
+        (4.9, lambda t: -389.4197 / (np.sin(t) - (1.1624468 * np.cos(t)))),
+        (6.6, lambda t: 423.5471 / (np.sin(t) + (1.085346 * np.cos(t)))),
+        (31.7, lambda t: 6211.3885 / (np.sin(t) + (17.49789 * np.cos(t)))),
+        (32.9, lambda t: 427.9667 / (np.sin(t) + (0.630552 * np.cos(t)))),
+        (34.0, lambda t: 1197.8397 / (np.sin(t) + (2.9286229 * np.cos(t)))),
+        (38.9, lambda t: 559.10919 / (np.sin(t) + (1.0073058 * np.cos(t)))),
+        (39.1, lambda t: -91.557622 / (np.sin(t) - (1.10398598 * np.cos(t)))),
+        (50.5, lambda t: 571.92441 / (np.sin(t) + (1.0070058 * np.cos(t)))),
+        (50.8, lambda t: 114.59269 / (np.sin(t) - (0.76826977 * np.cos(t)))),
+        (55.7, lambda t: 557.962 / (np.sin(t) + (1.0031979 * np.cos(t)))),
+        (56.7, lambda t: 403.8808 / (np.sin(t) + (0.3213439 * np.cos(t)))),
+        (57.7, lambda t: 755.17044 / (np.sin(t) + (1.924966 * np.cos(t)))),
+        (82.5, lambda t: 353.793768 / (np.sin(t) + (0.06108017 * np.cos(t)))),
+        (84.2, lambda t: 395.0241 / (np.sin(t) + (0.9533913 * np.cos(t)))),
+        (90.1, lambda t: 327 / (np.sin(theta) - (0.9060869 * np.cos(theta)))),
+    ]
+    for limit, func in boundaries:
+        if theta_deg < limit:
+            return func(theta)
+    return None
 
 
 def athletics(theta_deg):
@@ -534,49 +522,33 @@ def los_angeles_dodgers(theta_deg):
     at a given angle "theta" in degrees for the Los Angeles Dodgers.
     """
     theta = np.radians(theta_deg)
-
-    if 0 <= theta_deg < 4.2:
-        return -443.8081 / (np.sin(theta) - (1.344873 * np.cos(theta)))
-    elif 4.2 <= theta_deg < 7.8:
-        return -829.5118 / (np.sin(theta) - (2.44985 * np.cos(theta)))
-    elif 7.8 <= theta_deg < 9.5:
-        return -10942.3745 / (np.sin(theta) - (30.646819 * np.cos(theta)))
-    elif 9.5 <= theta_deg < 25.1:
-        return 1719.756 / (np.sin(theta) + (4.622957 * np.cos(theta)))
-    elif 25.1 <= theta_deg < 31.1:
-        return 1115.073 / (np.sin(theta) + (2.83277 * np.cos(theta)))
-    elif 31.1 <= theta_deg < 42.6:
-        return 928.868 / (np.sin(theta) + (2.258998 * np.cos(theta)))
-    elif 42.6 <= theta_deg < 44.0:
-        return 742.26267 / (np.sin(theta) + (1.620443 * np.cos(theta)))
-    elif 44 <= theta_deg < 46.3:
-        return 562.6864 / (np.sin(theta) + (0.9947777 * np.cos(theta)))
-    elif 46.3 <= theta_deg < 49.2:
-        return 472.8006 / (np.sin(theta) + (0.66870534 * np.cos(theta)))
-    elif 49.2 <= theta_deg < 55.3:
-        return 423.6147 / (np.sin(theta) + (0.478618 * np.cos(theta)))
-    elif 55.3 <= theta_deg < 59:
-        return 395.11776 / (np.sin(theta) + (0.349269 * np.cos(theta)))
-    elif 59 <= theta_deg < 63.1:
-        return 392.2193 / (np.sin(theta) + (0.3344991 * np.cos(theta)))
-    elif 63.1 <= theta_deg < 69.2:
-        return 381.7462 / (np.sin(theta) + (0.2729345 * np.cos(theta)))
-    elif 69.2 <= theta_deg < 74.7:
-        return 372.8431 / (np.sin(theta) + (0.2051737 * np.cos(theta)))
-    elif 74.7 <= theta_deg < 80.5:
-        return 368.8506 / (np.sin(theta) + (0.163833 * np.cos(theta)))
-    elif 80.5 <= theta_deg < 82.1:
-        return 362.2344 / (np.sin(theta) + (0.053704 * np.cos(theta)))
-    elif 82.1 <= theta_deg < 83.3:
-        return 353.007 / (np.sin(theta) - (0.131245 * np.cos(theta)))
-    elif 83.3 <= theta_deg < 85.6:
-        return 334.774 / (np.sin(theta) - (0.564136 * np.cos(theta)))
-    elif 85.6 <= theta_deg < 87.2:
-        return 333.006 / (np.sin(theta) - (0.629807 * np.cos(theta)))
-    elif 87.2 <= theta_deg < 88.4:
-        return 328.317 / (np.sin(theta) - (0.90885 * np.cos(theta)))
-    elif 88.4 <= theta_deg < 90:
-        return 330 / (np.sin(theta) - (0.729958 * np.cos(theta)))
+    boundaries = [
+        (4.2, lambda t: -443.8081 / (np.sin(t) - (1.344873 * np.cos(t)))),
+        (7.8, lambda t: -829.5118 / (np.sin(t) - (2.44985 * np.cos(t)))),
+        (9.5, lambda t: -10942.3745 / (np.sin(t) - (30.646819 * np.cos(t)))),
+        (25.1, lambda t: 1719.756 / (np.sin(t) + (4.622957 * np.cos(t)))),
+        (31.1, lambda t: 1115.073 / (np.sin(t) + (2.83277 * np.cos(t)))),
+        (42.6, lambda t: 928.868 / (np.sin(t) + (2.258998 * np.cos(t)))),
+        (44.0, lambda t: 742.26267 / (np.sin(t) + (1.620443 * np.cos(t)))),
+        (46.3, lambda t: 562.6864 / (np.sin(t) + (0.9947777 * np.cos(t)))),
+        (49.2, lambda t: 472.8006 / (np.sin(t) + (0.66870534 * np.cos(t)))),
+        (55.3, lambda t: 423.6147 / (np.sin(t) + (0.478618 * np.cos(t)))),
+        (59.0, lambda t: 395.11776 / (np.sin(t) + (0.349269 * np.cos(t)))),
+        (63.1, lambda t: 392.2193 / (np.sin(t) + (0.3344991 * np.cos(t)))),
+        (69.2, lambda t: 381.7462 / (np.sin(t) + (0.2729345 * np.cos(t)))),
+        (74.7, lambda t: 372.8431 / (np.sin(t) + (0.2051737 * np.cos(t)))),
+        (80.5, lambda t: 368.8506 / (np.sin(t) + (0.163833 * np.cos(t)))),
+        (82.1, lambda t: 362.2344 / (np.sin(t) + (0.053704 * np.cos(t)))),
+        (83.3, lambda t: 353.007 / (np.sin(t) - (0.131245 * np.cos(t)))),
+        (85.6, lambda t: 334.774 / (np.sin(t) - (0.564136 * np.cos(t)))),
+        (87.2, lambda t: 333.006 / (np.sin(t) - (0.629807 * np.cos(t)))),
+        (88.4, lambda t: 328.317 / (np.sin(t) - (0.90885 * np.cos(t)))),
+        (90.1, lambda t: 330 / (np.sin(theta) - (0.729958 * np.cos(theta)))),
+    ]
+    for limit, func in boundaries:
+        if theta_deg < limit:
+            return func(theta)
+    return None
 
 
 def miami_marlins(theta_deg):
@@ -1189,30 +1161,27 @@ STADIUM_EQUATIONS = {
 }
 
 
+def _get_fallback_points(fallback_dims):
+    """Generates a basic 91-point arc if specific stadium equations are missing."""
+    if not fallback_dims:
+        return []
+    lf, lc, cf, rc, rf = fallback_dims
+    # Standard field arc estimation
+    return [(cf, float(a)) for a in range(-45, 46)]
+
+
 def get_stadium_points(name, fallback_dims=None):
-    """
-    Returns a list of 91 points (r, theta_deg) for the stadium.
-    """
-
+    """Returns a list of 91 points (r, theta_deg) for the stadium."""
     func = STADIUM_EQUATIONS.get(name)
+    if not func:
+        return _get_fallback_points(fallback_dims)
+
     points = []
-
-    if func:
-        for angle in range(0, 91):
-            theta_deg = float(angle)
-            r = func(theta_deg)
-            if r is None and angle == 90:
-                r = func(89.9)  # Near boundary fallback
-
-            if r is not None:
-                # Mapping: theta_deg=0 (RF) -> 45, theta_deg=90 (LF) -> -45
-                points.append((r, 45 - theta_deg))
-    else:
-        # Fallback to simple circle or 5-point spline
-        if fallback_dims:
-            lf, lc, cf, rc, rf = fallback_dims
-            # Dummy spline interpolation logic
-            for angle in range(-45, 46):
-                points.append((cf, float(angle)))
-
+    for angle in range(0, 91):
+        theta_deg = float(angle)
+        r = func(theta_deg)
+        if r is None and angle == 90:
+            r = func(89.9)
+        if r is not None:
+            points.append((r, 45 - theta_deg))
     return points

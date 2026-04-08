@@ -1,5 +1,5 @@
 import datetime
-from typing import Callable, Mapping, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 from sqlalchemy.orm import Session, sessionmaker
 from zoneinfo import ZoneInfo
 
@@ -115,67 +115,84 @@ class OpenMeteoIngester:
         ]
         return self.fetch_weather_batch(year, locations, start_date, end_date)
 
+    def _get_api_config(
+        self, year: int, start_date: Optional[str], end_date: Optional[str]
+    ):
+        """URL, Model, and Date Clamping logic for Open-Meteo API eras."""
+        if year >= 2026:
+            url, models = "https://api.open-meteo.com/v1/forecast", "best_match"
+        elif year >= 2022:
+            url, models = (
+                "https://historical-forecast-api.open-meteo.com/v1/forecast",
+                "best_match",
+            )
+        else:
+            url, models = "https://archive-api.open-meteo.com/v1/archive", "era5"
+
+        s_dt = datetime.datetime.strptime(
+            start_date or f"{year}-03-20", "%Y-%m-%d"
+        ).date()
+        e_dt = datetime.datetime.strptime(
+            end_date or f"{year}-11-05", "%Y-%m-%d"
+        ).date()
+
+        if year == datetime.date.today().year:
+            max_f = datetime.date.today() + datetime.timedelta(days=15)
+            e_dt = min(e_dt, max_f)
+            s_dt = min(s_dt, max_f)
+
+        return url, models, s_dt.strftime("%Y-%m-%d"), e_dt.strftime("%Y-%m-%d")
+
+    def _parse_hourly_response(
+        self, res, ballpark_id: int, stadium_code: str
+    ) -> Optional[pd.DataFrame]:
+        """Maps raw Hourly response vectors to a structured DataFrame."""
+        h = res.Hourly()
+        if not h:
+            return None
+        vars = self._get_hourly_vars(h)
+        if not vars:
+            return None
+
+        df = pd.DataFrame(
+            {
+                "ballpark_id": ballpark_id,
+                "stadium_code": stadium_code,
+                "datetime_utc": pd.date_range(
+                    start=pd.to_datetime(h.Time(), unit="s", utc=True),
+                    end=pd.to_datetime(h.TimeEnd(), unit="s", utc=True),
+                    freq=pd.Timedelta(seconds=h.Interval()),
+                    inclusive="left",
+                ),
+                "temp": vars[0].ValuesAsNumpy(),
+                "wind_speed": vars[1].ValuesAsNumpy(),
+                "wind_dir": vars[2].ValuesAsNumpy(),
+                "precip": vars[3].ValuesAsNumpy(),
+                "humidity": vars[4].ValuesAsNumpy(),
+                "pressure": vars[5].ValuesAsNumpy(),
+                "cloud_cover": vars[6].ValuesAsNumpy(),
+            }
+        )
+        df.ffill(inplace=True)
+        df.fillna(0.0, inplace=True)
+        return df
+
     def fetch_weather_batch(
         self,
         year: int,
-        locations: Sequence[
-            Mapping[str, object]
-        ],  # [{"id": id, "lat": lat, "lon": lon, "code": code}]
+        locations: Sequence[Mapping[str, Any]],
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> pd.DataFrame:
         """Downloads weather for specific locations. Optimized for batching."""
-        if year >= 2026:
-            url = "https://api.open-meteo.com/v1/forecast"
-            models = "best_match"
-        elif year >= 2022:
-            url = "https://historical-forecast-api.open-meteo.com/v1/forecast"
-            models = "best_match"
-        else:
-            url = "https://archive-api.open-meteo.com/v1/archive"
-            models = "era5"
-
-        s_date_str = start_date or f"{year}-03-20"
-        e_date_str = end_date or (
-            f"{year}-11-05"
-            if year < datetime.date.today().year
-            else datetime.date.today().strftime("%Y-%m-%d")
-        )
-
-        # Safety Clamping for current/future dates (Open-Meteo forecast limit is ~15 days)
-        today = datetime.date.today()
-        s_date_obj = datetime.datetime.strptime(s_date_str, "%Y-%m-%d").date()
-        e_date_obj = datetime.datetime.strptime(e_date_str, "%Y-%m-%d").date()
-
-        if year == today.year:
-            # Forecast API only allows up to 15 days in the future
-            max_forecast = today + datetime.timedelta(days=15)
-            if e_date_obj > max_forecast:
-                logger.info(
-                    f"📍 Clamping end_date to {max_forecast} (Open-Meteo forecast limit)"
-                )
-                e_date_obj = max_forecast
-
-            # Ensure start_date isn't in the future
-            if s_date_obj > max_forecast:
-                s_date_obj = today
-
-        s_date = s_date_obj.strftime("%Y-%m-%d")
-        e_date = e_date_obj.strftime("%Y-%m-%d")
-
+        url, models, s_date, e_date = self._get_api_config(year, start_date, end_date)
         all_data = []
-        batch_size = 5
 
-        for i in range(0, len(locations), batch_size):
-            batch = locations[i : i + batch_size]
-            batch_ids = [b["id"] for b in batch]
-            batch_lats = [b["lat"] for b in batch]
-            batch_lons = [b["lon"] for b in batch]
-            batch_codes = [b["code"] for b in batch]
-
+        for i in range(0, len(locations), 5):
+            batch = locations[i : i + 5]
             params = {
-                "latitude": batch_lats,
-                "longitude": batch_lons,
+                "latitude": [b["lat"] for b in batch],
+                "longitude": [b["lon"] for b in batch],
                 "start_date": s_date,
                 "end_date": e_date,
                 "hourly": [
@@ -193,39 +210,17 @@ class OpenMeteoIngester:
                 "models": models,
             }
 
-            logger.info(f"📡 Downloading {year} weather for batch: {batch_codes}...")
+            logger.info(
+                f"📡 Downloading {year} weather batch: {[b['code'] for b in batch]}..."
+            )
             responses = self.om.weather_api(url, params=params)
 
             for j, res in enumerate(responses):
-                h = res.Hourly()
-                if not h:
-                    continue
-                vars = self._get_hourly_vars(h)
-                if not vars:
-                    continue
-
-                df = pd.DataFrame(
-                    {
-                        "ballpark_id": batch_ids[j],
-                        "stadium_code": batch_codes[j],
-                        "datetime_utc": pd.date_range(
-                            start=pd.to_datetime(h.Time(), unit="s", utc=True),
-                            end=pd.to_datetime(h.TimeEnd(), unit="s", utc=True),
-                            freq=pd.Timedelta(seconds=h.Interval()),
-                            inclusive="left",
-                        ),
-                        "temp": vars[0].ValuesAsNumpy(),
-                        "wind_speed": vars[1].ValuesAsNumpy(),
-                        "wind_dir": vars[2].ValuesAsNumpy(),
-                        "precip": vars[3].ValuesAsNumpy(),
-                        "humidity": vars[4].ValuesAsNumpy(),
-                        "pressure": vars[5].ValuesAsNumpy(),
-                        "cloud_cover": vars[6].ValuesAsNumpy(),
-                    }
+                df = self._parse_hourly_response(
+                    res, int(batch[j]["id"]), str(batch[j]["code"])
                 )
-                df.ffill(inplace=True)
-                df.fillna(0.0, inplace=True)
-                all_data.append(df)
+                if df is not None:
+                    all_data.append(df)
 
             import time
 
