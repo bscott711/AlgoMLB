@@ -1,6 +1,6 @@
 # Module Specification: algomlb.ml
 
-The `ml` module is the intelligence core of AlgoMLB. It transforms raw ingestion data into actionable features and machine learning models through a multi-tiered pipeline (Quant → Silver → Rolling).
+The `ml` module is the intelligence core of AlgoMLB. It transforms raw ingestion data into actionable features and machine learning models through a multi-tiered pipeline (Quant → Silver → Rolling → Uranium).
 
 ## 1. The Multi-Tiered Feature Pipeline
 
@@ -21,6 +21,14 @@ Computes the final **feature set** (Gold Layer) used for inference.
 - **EMA & Trends**: Calculates Exponential Moving Averages (EMA 3G, 7G) for xwOBA, bat speed, and attack angles to capture momentum.
 - **Volatility**: Tracks the standard deviation of performance (e.g., `std_launch_angle_15g`) to measure consistency.
 - **Fatigue Indices**: Computes burden metrics based on pitch counts and days since last appearance.
+- **Gold Layer Grain**: Outputs are at the **player-day** level.
+
+### Tier 4: The Uranium Layer (`features.py`)
+The ultimate stage where player-level features are transformed into a **game-level training matrix**.
+- **Team Aggregation**: Collates the 9 starting batters from the boxscore/lineup and averages their Gold Layer features to produce a team-level offensive profile.
+- **Matchup Spine**: Joins Home/Away starting pitcher Gold features and those for the relief corps, along with team-level metrics (Elo, Pythag, RE24), onto a single game row.
+- **Matrix Finalization**: Selects model-ready features, performs final imputation (median-fill), and drops constant columns to prepare the `X` matrix for Uranium XGBoost models.
+- **Uranium Layer Grain**: Outputs are at the **game** level, ready for training or inference.
 
 ---
 
