@@ -11,6 +11,7 @@ from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 from algomlb.ingestion.statcast_ingester import StatcastIngester
 from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 from algomlb.ingestion.gumbo_ingester import GumboIngester
+from algomlb.ingestion.lineup_ingester import LineupIngester
 
 
 class IngestionOrchestrator:
@@ -26,6 +27,7 @@ class IngestionOrchestrator:
         openmeteo_ingester: OpenMeteoIngester,
         statcast_ingester: StatcastIngester,
         umpire_ingester: UmpireScorecardIngester,
+        lineup_ingester: LineupIngester | None = None,
         gumbo_ingester: GumboIngester | None = None,
     ):
         self.repo = repo
@@ -36,6 +38,7 @@ class IngestionOrchestrator:
         self.openmeteo_ingester = openmeteo_ingester
         self.statcast_ingester = statcast_ingester
         self.umpire_ingester = umpire_ingester
+        self.lineup_ingester = lineup_ingester
         self.gumbo_ingester = gumbo_ingester
 
     def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
@@ -158,3 +161,18 @@ class IngestionOrchestrator:
             return 0
 
         return self.gumbo_ingester.ingest_games(game_pks)
+
+    def run_lineup_ingestion(
+        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> int:
+        """Fetch and persist starting lineups for a date range."""
+        if self.lineup_ingester is None:
+            return 0
+
+        today = datetime.date.today()
+        if start_date is None:
+            start_date = today - datetime.timedelta(days=1)
+        if end_date is None:
+            end_date = start_date
+
+        return self.lineup_ingester.backfill_range(start_date, end_date)

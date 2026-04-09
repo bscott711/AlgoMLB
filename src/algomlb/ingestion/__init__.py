@@ -8,6 +8,7 @@ from algomlb.ingestion.openmeteo_ingester import OpenMeteoIngester
 from algomlb.ingestion.statcast_ingester import StatcastIngester
 from algomlb.ingestion.umpire_ingester import UmpireScorecardIngester
 from algomlb.ingestion.gumbo_ingester import GumboIngester
+from algomlb.ingestion.lineup_ingester import LineupIngester
 
 __all__ = [
     "BaseAPIClient",
@@ -20,4 +21,5 @@ __all__ = [
     "StatcastIngester",
     "UmpireScorecardIngester",
     "GumboIngester",
+    "LineupIngester",
 ]

@@ -259,9 +259,45 @@ sync-season year:
 	uv run algomlb process rolling --start {{year}}-03-01 --end {{year}}-11-15
 	@echo "✅ Season {{year}} Sync Complete!"
 
-# Synchronize full historical range (2019-2025)
-sync-full-history:
-	@for year in 2026 2025 2024 2023 2022 2021 2020 2019; do \
-		just sync-season $year; \
-	done
 	@echo "🏆 Full History Sync Complete!"
+
+# Run the comprehensive daily synchronisation
+sync-daily:
+	@echo "🔄 Running comprehensive Daily Sync..."
+	uv run algomlb sync daily
+
+# ==========================================
+# 9. SCHEDULER (OPC Automation)
+# ==========================================
+
+# Install the systemd user-level scheduler for daily ingestion
+install-scheduler:
+	@echo "⚙️ Installing AlgoMLB Daily Sync Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/algomlb-sync.service ~/.config/systemd/user/
+	cp scripts/algomlb-sync.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable algomlb-sync.timer
+	systemctl --user start algomlb-sync.timer
+	@echo "✅ Scheduler installed and started! Use 'just check-scheduler' to verify."
+
+# Uninstall the systemd user-level scheduler
+uninstall-scheduler:
+	@echo "🛑 Uninstalling AlgoMLB Daily Sync Scheduler..."
+	systemctl --user stop algomlb-sync.timer || true
+	systemctl --user disable algomlb-sync.timer || true
+	rm -f ~/.config/systemd/user/algomlb-sync.service
+	rm -f ~/.config/systemd/user/algomlb-sync.timer
+	systemctl --user daemon-reload
+	@echo "✅ Scheduler uninstalled."
+
+# Check the status of the daily sync scheduler
+check-scheduler:
+	@echo "📡 Checking AlgoMLB Scheduler Status..."
+	@systemctl --user status algomlb-sync.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers algomlb-sync.timer --no-pager
+	@echo ""
+	@echo "📝 Latest Logs:"
+	@journalctl --user -u algomlb-sync.service -n 50 --no-pager

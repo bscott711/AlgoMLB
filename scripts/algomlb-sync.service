@@ -1,0 +1,15 @@
+[Unit]
+Description=AlgoMLB Daily Data Ingestion and Processing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/opc/AlgoMLB
+# Use absolute paths for just and shell components
+ExecStart=/usr/bin/bash -c "export PATH=$PATH:$HOME/.cargo/bin:$HOME/.local/bin && just sync-daily"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -13,6 +13,7 @@ from algomlb.ingestion import (
     UmpireScorecardIngester,
     HistoricalDataLoader,
     GumboIngester,
+    LineupIngester,
 )
 
 app = typer.Typer(help="Synchronize all data layers (Ingest + Process).")
@@ -33,9 +34,12 @@ def daily(
     2. Ingest Statcast (raw pitch data)
     3. Ingest Weather (Open-Meteo)
     4. Ingest Transactions
-    5. Ingest Umpires (Scrape)
-    6. Process Silver Layer (Incremental)
-    7. Process Gold Layer (Rolling Features)
+    5. Ingest Transactions
+    6. Ingest Umpires (Scrape)
+    7. Ingest Starting Lineups
+    8. Ingest Live Odds
+    9. Process Silver Layer (Incremental)
+    10. Process Gold Layer (Rolling Features)
     """
     # 1. Setup Dates
     if target_date:
@@ -62,6 +66,7 @@ def daily(
             openmeteo_ingester=OpenMeteoIngester(session_factory),
             statcast_ingester=StatcastIngester(repo=repo),
             umpire_ingester=UmpireScorecardIngester(session),
+            lineup_ingester=LineupIngester(session),
             gumbo_ingester=GumboIngester(session),
         )
 
@@ -85,9 +90,18 @@ def daily(
         logger.info("💸 Syncing Transactions (Trailing 7d)")
         orchestrator.run_transaction_ingestion()
 
-        # G. Ingest Umpires (Scrape)
-        logger.info("⚖️ Syncing Umpires (Scrape)")
-        orchestrator.run_umpire_ingestion()
+        # G. Ingest Umpires (Current + Previous Season for transition)
+        logger.info("⚖️ Syncing Umpires (Current Season)")
+        cur_year = today.year
+        orchestrator.run_umpire_ingestion(seasons=[cur_year - 1, cur_year])
+        
+        # H. Ingest Lineups (trailing window)
+        logger.info(f"⚾ Syncing Lineups: {start_trailing} to {today}")
+        orchestrator.run_lineup_ingestion(start_date=start_trailing, end_date=today)
+        
+        # I. Ingest Live Odds
+        logger.info("💸 Syncing Live Odds")
+        orchestrator.run_odds_ingestion()
 
         session.commit()
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily schedule for AlgoMLB Data Ingestion
+Requires=algomlb-sync.service
+
+[Timer]
+# Run every day at 08:30 UTC (Approx 04:30 AM ET)
+# This allows West Coast games to complete and canonical API records to stabilize.
+OnCalendar=*-*-* 08:30:00
+# Spread the load to avoid hitting APIs at the exact same second
+RandomizedDelaySec=600
+# Keep the schedule persistent across reboots
+Persistent=true
+
+[Install]
+WantedBy=timers.target
