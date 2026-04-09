@@ -16,11 +16,11 @@ The root container for all sub-configuration groups. It orchestrates the loading
 
 ### Configuration Sources
 Settings are loaded in the following order of priority (highest priority first):
-1.  **Initialization Settings**: Passed directly to the `Settings()` constructor.
-2.  **Environment Variables**: Prefixed with `ALGOMLB__` (e.g., `ALGOMLB__DATABASE__URL`). Nested fields use a double underscore `__`.
-3.  **`.env` File**: Standard environment variable file.
-4.  **`config.yaml`**: Hierarchical YAML configuration file.
-5.  **Default Values**: Defined in the Pydantic models.
+1. **Initialization Settings**: Passed directly to the `Settings()` constructor.
+2. **Environment Variables**: Prefixed with `ALGOMLB__` (e.g., `ALGOMLB__DATABASE__URL`). Nested fields use a double underscore `__`.
+3. **`.env` File**: Standard environment variable file.
+4. **`config.yaml`**: Hierarchical YAML configuration file.
+5. **Default Values**: Defined in the Pydantic models.
 
 ## Sub-Configuration Details
 

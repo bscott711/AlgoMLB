@@ -65,9 +65,9 @@ Schema changes are managed via Alembic.
 - **State**: `alembic_version` table in the database tracks the current head.
 
 ### Strategy
-1.  Generate migration: `just db.migrate "description"`
-2.  Apply migration: `just db.upgrade`
-3.  Downgrade (if needed): `just db.downgrade -1`
+1. Generate migration: `just db.migrate "description"`
+2. Apply migration: `just db.upgrade`
+3. Downgrade (if needed): `just db.downgrade -1`
 
 ## Engineering Notes
 - **Upsert-First**: All saving methods in the repository should use UPSERT logic (Postgres `ON CONFLICT DO UPDATE`) to ensure idempotency.

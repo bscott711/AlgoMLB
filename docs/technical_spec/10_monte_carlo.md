@@ -4,7 +4,7 @@ The `monte_carlo` sub-module is the central inference layer of the `ml` tier. It
 
 ## 1. Architectural Integration
 
-The Monte Carlo engine adheres to the strict unidirectional Import Ladder. 
+The Monte Carlo engine adheres to the strict unidirectional Import Ladder.
 
 * **Upstream Dependencies**: Consumes `domain` models for state tracking, `db.repository` functions for persistence, and outputs from both `rolling_service.py` (Gold Layer) and `features.py` (Uranium Layer).
 * **Downstream Consumers**: Outputs are consumed by the `ui` (for Streamlit probability visualizations), the `cli` (for batch inference tasks), and the final prop-specific calibration heads.
@@ -56,15 +56,15 @@ Before starting trials, the engine must load the following materialized pregame 
 
 ### The Simulation Loop
 The `run_trials(trials: int = 10000)` method executes the following state machine for each game simulation:
-1.  **Initialize**: Setup lineups, starters, bullpen queues, `GameState`, and `PitcherState` using the Uranium Matchup Spine as the base context.
-2.  **Inning Transition**: Identify the active pitcher for the top/bottom of the inning.
-3.  **Pre-PA Update**: Update `PitcherState` utilizing current pitch count bucket, TTO state, days rest baseline, Gold Layer fatigue indices, weather effects, and manager tolerance.
-4.  **Probability Generation**: Calculate specific PA outcome probabilities based on the multinomial PA Outcome Model, feeding it the Gold Layer batter/pitcher features.
-5.  **PA Sampling**: Sample exactly one canonical outcome (strikeout, walk, hbp, single, double, triple, home_run, out_in_play).
-6.  **Pitch Sampling**: Sample the pitches consumed during the PA from the `pitch_count_per_pa_dist` table.
-7.  **State Update**: Advance `GameState` (outs, runners, score) and `PitcherState` (counts, individual stat accumulation).
-8.  **Hook Evaluation**: Determine if the manager removes the pitcher before the next batter based on `manager_hook_profiles` and game leverage.
-9.  **Bullpen Transition**: If a hook is triggered, select a relief arm from `bullpen_availability`.
+1. **Initialize**: Setup lineups, starters, bullpen queues, `GameState`, and `PitcherState` using the Uranium Matchup Spine as the base context.
+2. **Inning Transition**: Identify the active pitcher for the top/bottom of the inning.
+3. **Pre-PA Update**: Update `PitcherState` utilizing current pitch count bucket, TTO state, days rest baseline, Gold Layer fatigue indices, weather effects, and manager tolerance.
+4. **Probability Generation**: Calculate specific PA outcome probabilities based on the multinomial PA Outcome Model, feeding it the Gold Layer batter/pitcher features.
+5. **PA Sampling**: Sample exactly one canonical outcome (strikeout, walk, hbp, single, double, triple, home_run, out_in_play).
+6. **Pitch Sampling**: Sample the pitches consumed during the PA from the `pitch_count_per_pa_dist` table.
+7. **State Update**: Advance `GameState` (outs, runners, score) and `PitcherState` (counts, individual stat accumulation).
+8. **Hook Evaluation**: Determine if the manager removes the pitcher before the next batter based on `manager_hook_profiles` and game leverage.
+9. **Bullpen Transition**: If a hook is triggered, select a relief arm from `bullpen_availability`.
 10. **Termination**: Loop through 9 innings, continuing to extra innings if required by the target market.
 
 ---
@@ -72,7 +72,7 @@ The `run_trials(trials: int = 10000)` method executes the following state machin
 ## 4. Sub-System Logic
 
 ### `BullpenManager`
-The simulator must explicitly model bullpen transitions rather than using league-average noise. 
+The simulator must explicitly model bullpen transitions rather than using league-average noise.
 * **Input**: Game score, inning, calculated leverage index, and `bullpen_availability`.
 * **Logic**: Assigns available pitchers to role buckets (`closer`, `setup`, `high_lev`, `mid_lev`, `long_rel`).
 * **Execution**: Pops the highest-suitability pitcher from the respective bucket based on the game's current leverage and lead/deficit size.

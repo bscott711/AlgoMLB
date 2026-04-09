@@ -8,6 +8,8 @@ The CLI is built using **Typer**, providing a modular, sub-command-based interfa
 
 ### Main Entry Point (`main.py`)
 Root CLI definition that aggregates all sub-modules.
+
+
 - Usage: `algomlb [subcommand]`
 
 ### Sub-Modules
@@ -39,13 +41,13 @@ The UI is a **Streamlit** application designed for interactive analysis and syst
 - **Components**: Reusable UI elements (e.g., Team Selectors, Stat Cards).
 
 ### Key Views
-1.  **Player Performance Lab**:
+1. **Player Performance Lab**:
     - **Spray Charts**: High-fidelity field geometry using polar coordinates.
     - **Sticky selection**: Persists player context across team/season changes.
-2.  **Database Health View**:
+2. **Database Health View**:
     - Visualization of the `SchemaInspector` reports.
     - Identification of missing Statcast or Gumbo data gaps.
-3.  **Market Pulse**:
+3. **Market Pulse**:
     - Real-time comparison of model predictions against live moneyline odds.
 
 ## Engineering Notes

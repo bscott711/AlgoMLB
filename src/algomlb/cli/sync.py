@@ -94,11 +94,11 @@ def daily(
         logger.info("⚖️ Syncing Umpires (Current Season)")
         cur_year = today.year
         orchestrator.run_umpire_ingestion(seasons=[cur_year - 1, cur_year])
-        
+
         # H. Ingest Lineups (trailing window)
         logger.info(f"⚾ Syncing Lineups: {start_trailing} to {today}")
         orchestrator.run_lineup_ingestion(start_date=start_trailing, end_date=today)
-        
+
         # I. Ingest Live Odds
         logger.info("💸 Syncing Live Odds")
         orchestrator.run_odds_ingestion()

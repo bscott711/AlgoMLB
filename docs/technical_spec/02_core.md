@@ -21,7 +21,8 @@ AlgoMLB uses `loguru` for high-performance, flexible logging. The system is conf
 - **Retention**: Kept for 14 days and compressed (.gz).
 - **Concurrency**: Asynchronous (`enqueue=True`) to remain thread and process safe.
 
-### Usage
+### Logging Usage
+
 ```python
 from algomlb.core.logger import logger
 
@@ -47,7 +48,8 @@ A Pydantic model that encapsulates the result of any significant operation.
 ### `emit_agent_result(result: AgentResult)`
 Formats the result as JSON and writes it to `stdout`, followed by a flush. This ensures the output is captured immediately by parent processes.
 
-### Usage
+### Agent Result Usage
+
 ```python
 from algomlb.core.agent_io import AgentResult, emit_agent_result
 

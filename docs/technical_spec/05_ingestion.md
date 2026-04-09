@@ -5,7 +5,9 @@ The `ingestion` module is a sophisticated data acquisition engine. It orchestrat
 ## 1. Architectural Foundations
 
 ### Infrastructure (`http_client.py`)
+
 All API-based ingesters inherit from `BaseAPIClient`, which provides:
+
 - **Resilient Requests**: Standardized `_request()` method using `httpx`.
 - **Retry Logic**: Exponential backoff via `tenacity` (min 2s, max 10s, 3 attempts).
 - **Circuit Breaker**: A token-bucket implementation that "opens" after 5 failures to protect external resources and the system's reputation.

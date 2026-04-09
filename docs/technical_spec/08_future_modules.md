@@ -7,7 +7,8 @@ The following modules represent the roadmap for the AlgoMLB project. They are cu
 **Current State**: Stub
 **Objective**: Transform ML model outputs into actionable betting decisions.
 
-### Proposed Responsibilities:
+### Strategy Responsibilities
+
 - **Bankroll Management**: Implementation of Kelly Criterion and fractional betting logic.
 - **Probability Arbitrage**: Identifying discrepancies between model fair-value and market prices.
 - **Backtesting Engine**: Simulating historical PnL based on model checkpoints and historical closing odds.
@@ -19,7 +20,8 @@ The following modules represent the roadmap for the AlgoMLB project. They are cu
 **Current State**: Stub
 **Objective**: Automate the interaction with market liquidity.
 
-### Proposed Responsibilities:
+### Execution Responsibilities
+
 - **Bookmaker Integration**: Wrapper for betting exchange APIs (e.g., Circa, FanDuel).
 - **Order Management**: Tracking pending, confirmed, and settled bets in a persistent ledger.
 - **Safety Valves**: Kill-switch logic to halt execution if model performance deviates from expected variance.
@@ -31,7 +33,8 @@ The following modules represent the roadmap for the AlgoMLB project. They are cu
 **Current State**: Stub
 **Objective**: Automated reporting and community distribution.
 
-### Proposed Responsibilities:
+### Social Responsibilities
+
 - **Discord/Slack Bots**: Real-time alerts for "Model Value" detections.
 - **Progress Reports**: Daily PnL and system health updates via automated social posts.
 - **Feeds**: Standardized JSON/RSS exports for downstream consumers.

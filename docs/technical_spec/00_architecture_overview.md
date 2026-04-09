@@ -6,10 +6,10 @@ AlgoMLB is a professional-grade machine learning and analytics platform for Majo
 
 The project adheres to several core engineering principles:
 
-1.  **Strict Layering**: A unidirectional "Import Ladder" prevents circular dependencies and ensures a stable dependency graph.
-2.  **Type Safety**: Pydantic is used extensively for data validation atEvery boundary (API, DB, and internal logic).
-3.  **Auditability**: Structured JSONL logging and an `AgentResult` protocol ensure that both humans and automated agents can monitor system health.
-4.  **Resilience**: Comprehensive handling of null values (NaN/None) and edge cases is built into the domain and UI layers.
+1. **Strict Layering**: A unidirectional "Import Ladder" prevents circular dependencies and ensures a stable dependency graph.
+2. **Type Safety**: Pydantic is used extensively for data validation atEvery boundary (API, DB, and internal logic).
+3. **Auditability**: Structured JSONL logging and an `AgentResult` protocol ensure that both humans and automated agents can monitor system health.
+4. **Resilience**: Comprehensive handling of null values (NaN/None) and edge cases is built into the domain and UI layers.
 
 ## The Import Ladder
 
@@ -46,8 +46,8 @@ To ensure long-term maintainability, imports must only flow downwards. A module 
 
 ## Data Flow
 
-1.  **Ingestion**: Orchestrators fetch raw data from external APIs.
-2.  **Normalization**: Data is validated against `domain` models.
-3.  **Persistence**: The `repository` maps domain models to ORM models and saves them to the database.
-4.  **Processing**: The ML layer reads from the DB to compute rolling features, quant metrics, and model predictions.
-5.  **Consumption**: The CLI or UI displays the processed insights to the user.
+1. **Ingestion**: Orchestrators fetch raw data from external APIs.
+2. **Normalization**: Data is validated against `domain` models.
+3. **Persistence**: The `repository` maps domain models to ORM models and saves them to the database.
+4. **Processing**: The ML layer reads from the DB to compute rolling features, quant metrics, and model predictions.
+5. **Consumption**: The CLI or UI displays the processed insights to the user.
