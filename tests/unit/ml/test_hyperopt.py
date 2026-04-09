@@ -11,6 +11,7 @@ from algomlb.ml.hyperopt import (
     build_fold_data,
     optimize_model,
     load_optimized_params,
+    _split_fold_output,
 )
 
 
@@ -106,3 +107,60 @@ def test_load_optimized_params_success(tmp_path):
         mock_path.return_value = params_file
         params = load_optimized_params("v99")
         assert params["n_estimators"] == 999
+
+
+def test_load_ml_data_year_validation():
+    # Test line 96: for test_idx in range(1, len(all_years)):
+    # If len is 1, loop is skipped, returns []
+    folds = build_fold_data(
+        [2023],
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(),
+        pd.DataFrame(),
+    )
+    assert folds == []
+
+
+def test_optimize_model_success(mock_fold_data):
+    with (
+        patch("optuna.create_study") as mock_create,
+        patch("algomlb.ml.hyperopt.walk_forward_objective"),
+    ):
+        mock_study = mock_create.return_value
+        mock_study.best_params = {"n_estimators": 100}
+        mock_study.best_trial = MagicMock()
+        mock_study.best_value = 0.5
+
+        best_params, study = optimize_model(mock_fold_data, n_trials=1)
+        assert best_params["n_estimators"] == 100
+        assert mock_study.optimize.called
+
+
+def test_optimize_model_with_custom_name(mock_fold_data):
+    with (
+        patch("optuna.create_study") as mock_create,
+        patch("algomlb.ml.hyperopt.walk_forward_objective"),
+    ):
+        mock_study = mock_create.return_value
+        mock_study.best_value = 0.5
+        mock_study.best_params = {}
+        mock_study.best_trial = MagicMock()
+
+        optimize_model(mock_fold_data, n_trials=1, study_name="test_study")
+        mock_create.assert_called()
+        args, kwargs = mock_create.call_args
+        assert kwargs["study_name"] == "test_study"
+
+
+def test_split_fold_output_empty():
+    _yr = [2022, 2022]
+    X = pd.DataFrame({"f": [1, 2]}, index=[0, 1])
+    y = pd.Series([0, 1])
+    fold_games = pd.DataFrame({"game_date": ["2022-01-01", "2022-01-02"]}, index=[0, 1])
+    # Test line 203: X_test empty if no year 2023
+    res = _split_fold_output(X, y, fold_games, [2022], 2023)
+    assert res is None

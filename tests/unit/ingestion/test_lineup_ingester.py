@@ -10,24 +10,52 @@ def mock_session():
 
 
 @pytest.fixture
-def boxscore_json():
-    return {
+def ingester(mock_session):
+    return LineupIngester(mock_session)
+
+
+def test_fetch_boxscore_success(ingester):
+    with patch("httpx.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"teams": {}}
+        mock_get.return_value = mock_resp
+
+        data = ingester._fetch_boxscore(123)
+        assert data == {"teams": {}}
+        mock_get.assert_called_with(
+            "https://statsapi.mlb.com/api/v1/game/123/boxscore",
+            timeout=30.0,
+            follow_redirects=True,
+        )
+
+
+def test_fetch_boxscore_fail(ingester):
+    with patch("httpx.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_get.return_value = mock_resp
+
+        assert ingester._fetch_boxscore(123) is None
+
+        mock_get.side_effect = Exception("network error")
+        assert ingester._fetch_boxscore(123) is None
+
+
+def test_parse_starters(ingester):
+    boxscore = {
         "teams": {
             "home": {
                 "players": {
                     "ID1": {
                         "battingOrder": "100",
-                        "person": {"id": 1, "fullName": "Player 1"},
+                        "person": {"id": 1, "fullName": "P1"},
                         "position": {"abbreviation": "SS"},
                     },
-                    "ID2": {
-                        "battingOrder": "101",
-                        "person": {"id": 2, "fullName": "Sub 1"},
-                        "position": {"abbreviation": "PH"},
-                    },
+                    "ID2": {"battingOrder": "101", "person": {"id": 2}},  # Sub
                     "ID3": {
                         "battingOrder": "200",
-                        "person": {"id": 3, "fullName": "Player 2"},
+                        "person": {"id": 3, "fullName": "P3"},
                         "position": {"abbreviation": "2B"},
                     },
                 }
@@ -36,62 +64,61 @@ def boxscore_json():
                 "players": {
                     "ID4": {
                         "battingOrder": "100",
-                        "person": {"id": 4, "fullName": "Player 3"},
+                        "person": {"id": 4, "fullName": "P4"},
+                        "position": {"abbreviation": "CF"},
                     },
                 }
             },
         }
     }
-
-
-def test_parse_starters(mock_session, boxscore_json):
-    ingester = LineupIngester(mock_session)
-    game_pk = 123
     game_date = datetime.date(2023, 4, 1)
+    records = ingester._parse_starters(boxscore, 123, game_date)
 
-    records = ingester._parse_starters(boxscore_json, game_pk, game_date)
-
-    # 2 starters for home (100, 200), 1 for away (100). Sub (101) skipped.
-    assert len(records) == 3
-
-    home_slots = [r["batting_order"] for r in records if r["team_side"] == "home"]
-    assert sorted(home_slots) == [1, 2]
-
-    player1 = next(r for r in records if r["player_id"] == 1)
-    assert player1["player_name"] == "Player 1"
-    assert player1["position"] == "SS"
+    assert len(records) == 3  # P1, P3, P4
+    assert records[0]["player_id"] == 1
+    assert records[0]["batting_order"] == 1
+    assert records[1]["batting_order"] == 2
+    assert records[2]["team_side"] == "away"
 
 
-def test_ingest_game_success(mock_session, boxscore_json):
-    ingester = LineupIngester(mock_session)
+def test_ingest_game_success(ingester):
+    boxscore = {
+        "teams": {
+            "home": {
+                "players": {
+                    "ID1": {
+                        "battingOrder": "100",
+                        "person": {"id": 1, "fullName": "P1"},
+                        "position": {"abbreviation": "SS"},
+                    }
+                }
+            },
+            "away": {"players": {}},
+        }
+    }
+    with patch.object(ingester, "_fetch_boxscore", return_value=boxscore):
+        n = ingester.ingest_game(123, datetime.date(2023, 4, 1))
+        assert n == 1
+        assert ingester.session.execute.called
+        assert ingester.session.commit.called
 
-    with (
-        patch.object(ingester, "_fetch_boxscore", return_value=boxscore_json),
-        patch("algomlb.ingestion.lineup_ingester.insert"),
-    ):
-        count = ingester.ingest_game(123, datetime.date(2023, 4, 1))
-        assert count == 3
-        assert mock_session.execute.called
-        assert mock_session.commit.called
 
-
-def test_ingest_game_failed_fetch(mock_session):
-    ingester = LineupIngester(mock_session)
+def test_ingest_game_empty(ingester):
     with patch.object(ingester, "_fetch_boxscore", return_value=None):
+        assert ingester.ingest_game(123, datetime.date(2023, 4, 1)) == 0
+    with patch.object(ingester, "_fetch_boxscore", return_value={"teams": {}}):
         assert ingester.ingest_game(123, datetime.date(2023, 4, 1)) == 0
 
 
-def test_backfill_range_logic(mock_session):
-    ingester = LineupIngester(mock_session)
-    # Mock database returning 2 games to process
-    mock_session.execute.return_value.fetchall.return_value = [
-        (101, datetime.date(2023, 4, 1)),
-        (102, datetime.date(2023, 4, 2)),
+def test_backfill_range(ingester):
+    ingester.session.execute.return_value.fetchall.return_value = [
+        (123, datetime.date(2023, 4, 1)),
+        (124, datetime.date(2023, 4, 2)),
     ]
-
     with patch.object(ingester, "ingest_game", return_value=9) as mock_ingest:
-        total = ingester.backfill_range(
-            datetime.date(2023, 4, 1), datetime.date(2023, 4, 2), throttle_ms=0
-        )
-        assert total == 18
-        assert mock_ingest.call_count == 2
+        with patch("time.sleep"):  # Skip throttling
+            total = ingester.backfill_range(
+                datetime.date(2023, 4, 1), datetime.date(2023, 4, 2), throttle_ms=0
+            )
+            assert total == 18
+            assert mock_ingest.call_count == 2
