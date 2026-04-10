@@ -53,8 +53,8 @@ def test_bullpen_leverage():
 
 def test_engine_reproducibility():
     """Verify the Monte Carlo engine is completely deterministic given a seed."""
-    engine_1 = SimulationEngine(pa_model=None, bullpen_manager=None, seed=42)
-    engine_2 = SimulationEngine(pa_model=None, bullpen_manager=None, seed=42)
+    engine_1 = SimulationEngine(pa_model=None, bullpen_manager=None, seed=42)  # type: ignore
+    engine_2 = SimulationEngine(pa_model=None, bullpen_manager=None, seed=42)  # type: ignore
 
     results_1 = engine_1.run_trials(trials=100)
     results_2 = engine_2.run_trials(trials=100)

@@ -9,7 +9,6 @@ The CLI is built using **Typer**, providing a modular, sub-command-based interfa
 ### Main Entry Point (`main.py`)
 Root CLI definition that aggregates all sub-modules.
 
-
 - Usage: `algomlb [subcommand]`
 
 ### Sub-Modules

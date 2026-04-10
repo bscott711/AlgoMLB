@@ -1,0 +1,44 @@
+/home/opc/AlgoMLB/src/algomlb/cli/ingest.py
+  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:50:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
+    Type "GumboIngester" is not assignable to type "LineupIngester | None"
+      "GumboIngester" is not assignable to "LineupIngester"
+      "GumboIngester" is not assignable to "None" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:96:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
+    Type "GumboIngester" is not assignable to type "LineupIngester | None"
+      "GumboIngester" is not assignable to "LineupIngester"
+      "GumboIngester" is not assignable to "None" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:364:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
+    Type "GumboIngester" is not assignable to type "LineupIngester | None"
+      "GumboIngester" is not assignable to "LineupIngester"
+      "GumboIngester" is not assignable to "None" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:414:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
+    Type "GumboIngester" is not assignable to type "LineupIngester | None"
+      "GumboIngester" is not assignable to "LineupIngester"
+      "GumboIngester" is not assignable to "None" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:515:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
+    Type "GumboIngester" is not assignable to type "LineupIngester | None"
+      "GumboIngester" is not assignable to "LineupIngester"
+      "GumboIngester" is not assignable to "None" (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py
+  /home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py:46:52 - error: Argument of type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" cannot be assigned to parameter "iterable" of type "Iterable[_T@enumerate]" in function "__new__"
+    Type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" is not assignable to type "Iterable[Any]"
+      "None" is incompatible with protocol "Iterable[Any]"
+        "__iter__" is not present (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py:46:52 - error: Argument of type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" cannot be assigned to parameter "iterable" of type "Iterable[_T@enumerate]" in function "__new__"
+    Type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" is not assignable to type "Iterable[_T@enumerate]"
+      "None" is incompatible with protocol "Iterable[_T@enumerate]"
+        "__iter__" is not present (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py
+  /home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py:44:31 - error: Cannot access attribute "predict_proba" for class "IsotonicRegression"
+    Attribute "predict_proba" is unknown (reportAttributeAccessIssue)
+  /home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py:70:39 - error: Argument of type "np_1darray[Any] | ExtensionArray | Categorical" cannot be assigned to parameter "y_true" of type "ndarray[_AnyShape, dtype[Any]]" in function "calculate_ece"
+    Type "np_1darray[Any] | ExtensionArray | Categorical" is not assignable to type "ndarray[_AnyShape, dtype[Any]]"
+      "ExtensionArray" is not assignable to "ndarray[_AnyShape, dtype[Any]]" (reportArgumentType)
+/home/opc/AlgoMLB/tests/ml/test_component_models.py
+  /home/opc/AlgoMLB/tests/ml/test_component_models.py:48:46 - error: No parameter named "bat_speed" (reportCallIssue)
+/home/opc/AlgoMLB/tests/ml/test_monte_carlo.py
+  /home/opc/AlgoMLB/tests/ml/test_monte_carlo.py:56:64 - error: Argument of type "None" cannot be assigned to parameter "bullpen_manager" of type "BullpenManager" in function "__init__"
+    "None" is not assignable to "BullpenManager" (reportArgumentType)
+  /home/opc/AlgoMLB/tests/ml/test_monte_carlo.py:57:64 - error: Argument of type "None" cannot be assigned to parameter "bullpen_manager" of type "BullpenManager" in function "__init__"
+    "None" is not assignable to "BullpenManager" (reportArgumentType)
+12 errors, 0 warnings, 0 informations

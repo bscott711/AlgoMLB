@@ -64,9 +64,9 @@ verify: format lint check-types check-deps contracts check-complexity test-unit
 test-unit:
 	@echo "🧪 Running strict unit tests..."
 	@# 1. Run core tests in parallel (excluding UI/bridge tests to avoid race conditions)
-	uv run pytest tests/unit --cov=src --cov-report=term-missing --ignore=tests/unit/test_ui_views.py --ignore=tests/unit/test_final_coverage_bridge.py -n auto
+	PYTHONPATH=src uv run pytest tests/unit --cov=src --cov-report=term-missing --ignore=tests/unit/test_ui_views.py --ignore=tests/unit/test_final_coverage_bridge.py -n auto
 	@# 2. Run UI and bridge tests sequentially to ensure deterministic 100% coverage
-	uv run pytest tests/unit/test_ui_views.py tests/unit/test_final_coverage_bridge.py --cov=src --cov-append --cov-fail-under=100
+	PYTHONPATH=src uv run pytest tests/unit/test_ui_views.py tests/unit/test_final_coverage_bridge.py tests/unit/test_absolute_final.py --cov=src --cov-append --cov-fail-under=100
 
 # Run full end-to-end pipeline tests (slow, expensive)
 test-e2e:

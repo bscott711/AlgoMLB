@@ -47,7 +47,7 @@ def odds(ctx: typer.Context):
             openmeteo_ingester,
             StatcastIngester(repo=repo),
             UmpireScorecardIngester(session),
-            GumboIngester(session),
+            gumbo_ingester=GumboIngester(session),
         )
 
         logger.info("Starting live odds ingestion...")
@@ -93,7 +93,7 @@ def schedule(
             openmeteo_ingester,
             StatcastIngester(repo=repo),
             UmpireScorecardIngester(session),
-            GumboIngester(session),
+            gumbo_ingester=GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -361,7 +361,7 @@ def transactions(
             openmeteo_ingester,
             StatcastIngester(repo=repo),
             UmpireScorecardIngester(session),
-            GumboIngester(session),
+            gumbo_ingester=GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -411,7 +411,7 @@ def weather(
             openmeteo_ingester,
             StatcastIngester(repo=repo),
             UmpireScorecardIngester(session),
-            GumboIngester(session),
+            gumbo_ingester=GumboIngester(session),
         )
 
         s_date = datetime.datetime.strptime(start, "%Y-%m-%d").date() if start else None
@@ -512,7 +512,7 @@ def gumbo_feed(
             OpenMeteoIngester(session_factory),
             StatcastIngester(repo),
             UmpireScorecardIngester(session),
-            ingester,
+            gumbo_ingester=ingester,
         )
         count = o.run_gumbo_ingestion(start_date=s_date, end_date=e_date)
         logger.success(f"GUMBO: {count} pitch timestamps ingested.")

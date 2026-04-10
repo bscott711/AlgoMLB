@@ -45,7 +45,7 @@ def test_pa_outcome_model_probs_sum_to_one():
     model = PAOutcomeModel(n_estimators=2, max_depth=2)
     model.train(X, y)
 
-    batter = BatterPreGameState(batter_id=1, bat_speed=72.0)
+    batter = BatterPreGameState(batter_id=1, bat_speed=72.0)  # type: ignore
     pitcher = PitcherPreGameState(pitcher_id=2)
 
     probs = model.predict_matchup(batter, pitcher, context={})

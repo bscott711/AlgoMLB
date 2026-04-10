@@ -42,9 +42,8 @@ class PAOutcomeModel:
         self.label_encoder.fit(self.CANONICAL_OUTCOMES)
 
         # Store the mapping explicitly so the MC engine knows index 0 = 'double', etc.
-        self.class_mapping_ = {
-            idx: label for idx, label in enumerate(self.label_encoder.classes_)
-        }
+        classes = self.label_encoder.classes_
+        self.class_mapping_ = {idx: label for idx, label in enumerate(classes)}  # type: ignore
 
         default_params = {
             "objective": "multi:softprob",

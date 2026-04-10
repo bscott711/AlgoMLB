@@ -40,37 +40,47 @@ class GameState(BaseModel):
         runs = 0
         if event in ["strikeout", "out_in_play"]:
             self.outs += 1
-        elif event == "home_run":
-            runs = sum(self.bases) + 1
-            self.clear_bases()
-        elif event == "triple":
-            runs = sum(self.bases)
-            self.bases = [False, False, True]
-        elif event == "double":
-            # Correcting the list addition logic from the blueprint to actual list updates
-            # Blueprint: runs = self.bases[1] + self.bases[2]
-            runs = (1 if self.bases[1] else 0) + (1 if self.bases[2] else 0)
-            self.bases[2] = self.bases[0]  # Runner on 1st goes to 3rd
-            self.bases[1] = True  # Batter to 2nd
-            self.bases[0] = False
-        elif event == "single":
-            runs = 1 if self.bases[2] else 0
-            self.bases[2] = self.bases[1]
-            self.bases[1] = self.bases[0]
-            self.bases[0] = True
         elif event in ["walk", "hbp"]:
-            # Forced advancement logic
-            if self.bases[0]:
-                if self.bases[1]:
-                    if self.bases[2]:
-                        runs = 1
-                    self.bases[2] = True
-                self.bases[1] = True
-            self.bases[0] = True
+            runs = self._handle_walk_hbp()
+        else:
+            runs = self._handle_hit(event)
 
         if self.top_half:
             self.away_score += runs
         else:
             self.home_score += runs
 
+        return runs
+
+    def _handle_walk_hbp(self) -> int:
+        """Logic for forced advancement (Walk/HBP)."""
+        runs = 0
+        if self.bases[0]:
+            if self.bases[1]:
+                if self.bases[2]:
+                    runs = 1
+                self.bases[2] = True
+            self.bases[1] = True
+        self.bases[0] = True
+        return runs
+
+    def _handle_hit(self, event: str) -> int:
+        """Logic for home runs, triples, doubles, and singles."""
+        runs = 0
+        if event == "home_run":
+            runs = sum(self.bases) + 1
+            self.clear_bases()
+        elif event == "triple":
+            runs = sum(self.bases)
+            self.bases = [False, False, True]
+        elif event == "double":
+            runs = (1 if self.bases[1] else 0) + (1 if self.bases[2] else 0)
+            self.bases[2] = self.bases[0]  # Runner on 1st goes to 3rd
+            self.bases[1] = True
+            self.bases[0] = False
+        elif event == "single":
+            runs = 1 if self.bases[2] else 0
+            self.bases[2] = self.bases[1]
+            self.bases[1] = self.bases[0]
+            self.bases[0] = True
         return runs

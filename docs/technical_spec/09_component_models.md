@@ -10,7 +10,6 @@ This is the primary classification engine of the platform. It predicts the exact
 
 ### A. Data Preparation & Target Engineering
 
-
 * **Input Grain (`X`)**: `batter-pitcher-game-state`. This is constructed by joining the Tier 3 "Gold Layer" player-day features (batter skills, pitcher readiness, fatigue) with the Tier 4 "Uranium Layer" game matrix (park factors, weather density ratios, Elo context).
 * **Target Grain (`y`)**: The model must map Retrosheet/Statcast raw `events` into exactly **eight canonical classes**. No other classes are permitted.
     1. `strikeout`

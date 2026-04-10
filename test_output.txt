@@ -1,0 +1,199 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.2, pluggy-1.6.0 -- /home/opc/AlgoMLB/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/opc/AlgoMLB
+configfile: pyproject.toml
+plugins: cov-7.1.0, asyncio-1.3.0, xdist-3.8.0, anyio-4.13.0, respx-0.22.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/unit/test_absolute_final.py::test_absolute_last_mile_coverage FAILED [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_absolute_last_mile_coverage _______________________
+
+    def test_absolute_last_mile_coverage():
+        # 1. Field Equations Fallbacks (962, 1078, 146, 422, 612)
+        from algomlb.ui.components.field_equations import (
+            tampa_bay_rays,
+            texas_rangers,
+            athletics,
+            houston_astros,
+            milwaukee_brewers,
+        )
+    
+        tampa_bay_rays(np.nan)
+        texas_rangers(np.nan)
+        athletics(np.nan)
+        houston_astros(67.8)
+        milwaukee_brewers(16.6)
+    
+        # 2. Hooks TYPE_CHECKING (18)
+        from algomlb.ml import hooks
+    
+        with patch("typing.TYPE_CHECKING", True):
+            importlib.reload(hooks)
+    
+        # 3. Rolling Service AttributeError (172-173)
+        from algomlb.ml.rolling_service import RollingService
+    
+        service = RollingService(MagicMock(), MagicMock())
+        data_empty = MagicMock(spec=[])
+        try:
+            service._map_features_to_orm(MagicMock(), data_empty)
+        except Exception:
+            pass
+    
+        # 4. Registry Branch (140)
+        from algomlb.ml.registry import build_manager_registry
+    
+        # Mocking data fetch to return non-empty so we enter loop, but mapping to fail so we hit 140
+        with (
+            patch(
+                "algomlb.ml.registry._fetch_registry_data",
+                return_value=(pd.DataFrame({"x": [1]}), pd.DataFrame({"x": [1]})),
+            ),
+            patch("algomlb.ml.registry._map_and_merge_games", return_value=pd.DataFrame()),
+        ):
+            try:
+                build_manager_registry(MagicMock(), 2024, 2024)
+            except Exception:
+                pass
+    
+        # 5. Silver Processor Branch (85)
+        from algomlb.ml.silver_processor import summarize_to_silver
+    
+        try:
+            summarize_to_silver(pd.DataFrame({"pitch_type": ["FF"]}))
+        except Exception:
+            pass
+    
+        # 6. Bullpen Select Arm Branch (49, 59)
+        from algomlb.ml.monte_carlo.bullpen import BullpenManager
+    
+>       pen = pd.DataFrame(
+            {
+                "role": ["starter", "mid_rel"],
+                "pitcher_id": [1, 2],
+                "team_id": [1],
+                "availability_score": [0.5, 0.5],
+            }
+        )
+
+BullpenManager = <class 'algomlb.ml.monte_carlo.bullpen.BullpenManager'>
+RollingService = <class 'algomlb.ml.rolling_service.RollingService'>
+athletics  = <function athletics at 0xffff66fcfce0>
+build_manager_registry = <function build_manager_registry at 0xffff48c81760>
+data_empty = <MagicMock id='281471902848432'>
+hooks      = <module 'algomlb.ml.hooks' from '/home/opc/AlgoMLB/src/algomlb/ml/hooks.py'>
+houston_astros = <function houston_astros at 0xffff66fec360>
+milwaukee_brewers = <function milwaukee_brewers at 0xffff66fec680>
+service    = <algomlb.ml.rolling_service.RollingService object at 0xffff48c895e0>
+summarize_to_silver = <function summarize_to_silver at 0xffff480a1940>
+tampa_bay_rays = <function tampa_bay_rays at 0xffff66feccc0>
+texas_rangers = <function texas_rangers at 0xffff66fecd60>
+
+tests/unit/test_absolute_final.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.12/site-packages/pandas/core/frame.py:782: in __init__
+    mgr = dict_to_mgr(data, index, columns, dtype=dtype, copy=copy, typ=manager)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        allow_mgr  = False
+        columns    = None
+        copy       = True
+        data       = {'availability_score': [0.5, 0.5],
+ 'pitcher_id': [1, 2],
+ 'role': ['starter', 'mid_rel'],
+ 'team_id': [1]}
+        data_dtype = None
+        dtype      = None
+        index      = None
+        is_pandas_object = False
+        manager    = 'block'
+        original_dtype = None
+        self       = <[AttributeError("'DataFrame' object has no attribute '_mgr'") raised in repr()] DataFrame object at 0xffff48ce9e50>
+.venv/lib/python3.12/site-packages/pandas/core/internals/construction.py:503: in dict_to_mgr
+    return arrays_to_mgr(arrays, columns, index, dtype=dtype, typ=typ, consolidate=copy)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        arrays     = [['starter', 'mid_rel'], [1, 2], [1], [0.5, 0.5]]
+        columns    = Index(['role', 'pitcher_id', 'team_id', 'availability_score'], dtype='object')
+        copy       = True
+        data       = {'availability_score': [0.5, 0.5],
+ 'pitcher_id': [1, 2],
+ 'role': ['starter', 'mid_rel'],
+ 'team_id': [1]}
+        dtype      = None
+        index      = None
+        keys       = ['role', 'pitcher_id', 'team_id', 'availability_score']
+        typ        = 'block'
+.venv/lib/python3.12/site-packages/pandas/core/internals/construction.py:114: in arrays_to_mgr
+    index = _extract_index(arrays)
+            ^^^^^^^^^^^^^^^^^^^^^^
+        arrays     = [['starter', 'mid_rel'], [1, 2], [1], [0.5, 0.5]]
+        columns    = Index(['role', 'pitcher_id', 'team_id', 'availability_score'], dtype='object')
+        consolidate = True
+        dtype      = None
+        index      = None
+        typ        = 'block'
+        verify_integrity = True
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+data = [['starter', 'mid_rel'], [1, 2], [1], [0.5, 0.5]]
+
+    def _extract_index(data) -> Index:
+        """
+        Try to infer an Index from the passed data, raise ValueError on failure.
+        """
+        index: Index
+        if len(data) == 0:
+            return default_index(0)
+    
+        raw_lengths = []
+        indexes: list[list[Hashable] | Index] = []
+    
+        have_raw_arrays = False
+        have_series = False
+        have_dicts = False
+    
+        for val in data:
+            if isinstance(val, ABCSeries):
+                have_series = True
+                indexes.append(val.index)
+            elif isinstance(val, dict):
+                have_dicts = True
+                indexes.append(list(val.keys()))
+            elif is_list_like(val) and getattr(val, "ndim", 1) == 1:
+                have_raw_arrays = True
+                raw_lengths.append(len(val))
+            elif isinstance(val, np.ndarray) and val.ndim > 1:
+                raise ValueError("Per-column arrays must each be 1-dimensional")
+    
+        if not indexes and not raw_lengths:
+            raise ValueError("If using all scalar values, you must pass an index")
+    
+        if have_series:
+            index = union_indexes(indexes)
+        elif have_dicts:
+            index = union_indexes(indexes, sort=False)
+    
+        if have_raw_arrays:
+            lengths = list(set(raw_lengths))
+            if len(lengths) > 1:
+>               raise ValueError("All arrays must be of the same length")
+E               ValueError: All arrays must be of the same length
+
+data       = [['starter', 'mid_rel'], [1, 2], [1], [0.5, 0.5]]
+have_dicts = False
+have_raw_arrays = True
+have_series = False
+indexes    = []
+lengths    = [1, 2]
+raw_lengths = [2, 2, 1, 2]
+val        = [0.5, 0.5]
+
+.venv/lib/python3.12/site-packages/pandas/core/internals/construction.py:677: ValueError
+----------------------------- Captured stderr call -----------------------------
+[32m00:20:32[0m | [1mINFO    [0m | [36malgomlb.ml.registry[0m:[36m132[0m — [1mBuilding Manager Registry for 2024...[0m
+=========================== short test summary info ============================
+FAILED tests/unit/test_absolute_final.py::test_absolute_last_mile_coverage - ValueError: All arrays must be of the same length
+============================== 1 failed in 2.17s ===============================

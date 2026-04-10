@@ -7,7 +7,6 @@ The `ml` module is the intelligence core of AlgoMLB. It transforms raw ingestion
 ### Tier 1: The Quant Layer (`quant_service.py`)
 Operating at the **pitch level**, this layer produces standardized performance metrics.
 
-
 - **Pitch Movement Z-Scores**: Standardizes `pfx_x`, `pfx_z`, and `release_speed` into z-scores grouped by `(pitcher, pitch_type)` using a trailing baseline window (typically 365 days).
 - **Coordinate Transforms**: Normalizes Statcast `hc_x/hc_y` to a Cartesian system where home plate is at `(0,0)`, and computes the `spray_angle_deg`.
 - **xBA/xwOBA Calibration**: Rescales raw Statcast probabilities to the season mean/std to account for league-wide offensive environments.

@@ -9,11 +9,13 @@ AlgoMLB uses `loguru` for high-performance, flexible logging. The system is conf
 ### Sinks
 
 #### A. Human-Friendly Console (stderr)
+
 - **Level**: Configurable via `ALGOMLB_LOG_LEVEL` (default: `INFO`).
 - **Format**: Colorized string highlighting time, level, module name, and message.
 - **Filtering**: Automatically excludes internal "agent mode" output to keep the console clean.
 
 #### B. Machine-Friendly File (JSONL)
+
 - **Path**: `logs/algomlb.log` (or `ALGOMLB_LOG_DIR`).
 - **Level**: Always `DEBUG`.
 - **Serialization**: Every log entry is written as a single line of JSON.
