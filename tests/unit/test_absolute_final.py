@@ -120,21 +120,23 @@ def test_absolute_last_mile_coverage():
         except Exception:
             pass
 
-    # 10. CLI ML Walk Forward loop (442, 454)
-    from algomlb.cli.ml import walk_forward
+    # 10. CLI ML Backtest loop
+    from algomlb.cli.ml import backtest
 
     mock_games = pd.DataFrame(
         {
             "game_pk": [1, 2],
             "year": [2023, 2024],
             "game_date": ["2023-01-01", "2024-01-01"],
+            "home_score": [0, 0],
+            "away_score": [0, 0],
         }
     )
     mock_data = {
         "games": mock_games,
         "lineups": pd.DataFrame(columns=["game_pk"]),
-        "pitcher_gold": pd.DataFrame(columns=["season", "player_id"]),
-        "batter_gold": pd.DataFrame(columns=["season", "player_id"]),
+        "pitcher_gold": pd.DataFrame(columns=["season", "player_id", "game_date"]),
+        "batter_gold": pd.DataFrame(columns=["season", "player_id", "game_date"]),
         "elo": pd.DataFrame(),
         "pythag": pd.DataFrame(),
         "re24": pd.DataFrame(),
@@ -149,11 +151,11 @@ def test_absolute_last_mile_coverage():
                 pd.Series([1], index=[0]),
             ),
         ),
-        patch("algomlb.cli.ml.MLBModel"),
-        patch("algomlb.cli.ml._evaluate_and_report"),
+        patch("algomlb.cli.ml.OOFAccumulator"),
+        # patch("algomlb.cli.ml.MLBModel"), # Removed MLBModel from backtest
     ):
         try:
-            walk_forward(MagicMock(), start_year=2023, end_year=2024)
+            backtest(MagicMock(), target="home_win", version="v1.0")
         except Exception:
             pass
 

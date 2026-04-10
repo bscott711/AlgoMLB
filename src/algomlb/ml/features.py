@@ -44,19 +44,17 @@ class FeaturePipeline:
         if side_lineups.empty:
             return pd.DataFrame()
 
-        # Ensure date and ID types match
-        side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"]).dt.date
-        side_lineups["game_pk"] = pd.to_numeric(
-            side_lineups["game_pk"], errors="coerce"
-        ).astype(float)
-        batter_gold_df["game_date"] = pd.to_datetime(
-            batter_gold_df["game_date"]
-        ).dt.date
+        # Ensure date and ID types match strictly for merging
+        side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"])
+        for col in ["game_pk", "player_id"]:
+            if col in side_lineups.columns:
+                side_lineups[col] = pd.to_numeric(
+                    side_lineups[col], errors="coerce"
+                ).astype(float)
+
+        batter_gold_df["game_date"] = pd.to_datetime(batter_gold_df["game_date"])
         batter_gold_df["player_id"] = pd.to_numeric(
             batter_gold_df["player_id"], errors="coerce"
-        ).astype(float)
-        side_lineups["player_id"] = pd.to_numeric(
-            side_lineups["player_id"], errors="coerce"
         ).astype(float)
 
         # Join each starter to their Gold BATTER record for that game_date
@@ -90,6 +88,7 @@ class FeaturePipeline:
         elo_df: pd.DataFrame | None = None,
         pythag_df: pd.DataFrame | None = None,
         re24_df: pd.DataFrame | None = None,
+        target_override: str | None = None,
     ) -> tuple[pd.DataFrame, pd.Series]:
         """
         Merge Gold Layer features onto historical games using a modular pipeline.
@@ -104,6 +103,12 @@ class FeaturePipeline:
                 games_df, pitcher_gold_df, lineups_df, batter_gold_df
             )
         )
+        if elo_df is not None:
+            elo_df = self._align_types(elo_df.copy())
+        if pythag_df is not None:
+            pythag_df = self._align_types(pythag_df.copy())
+        if re24_df is not None:
+            re24_df = self._align_types(re24_df.copy())
 
         # 2. Pitcher Matchup Spine
         df = self._attach_pitcher_spines(games_df, pitcher_gold_df)
@@ -114,46 +119,43 @@ class FeaturePipeline:
         )
 
         # 4. Finalize features and labels
-        return self._finalize_features(df)
+        return self._finalize_features(df, target_override=target_override)
 
     def _prepare_data_for_merge(
-        self,
-        games_df: pd.DataFrame,
-        pitcher_gold_df: pd.DataFrame,
-        lineups_df: pd.DataFrame | None = None,
-        batter_gold_df: pd.DataFrame | None = None,
-    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, pd.DataFrame | None]:
-        """Normalize IDs and dates across dataframes."""
-        games_df = games_df.copy()
-        pitcher_gold_df = pitcher_gold_df.copy()
-
-        # Force IDs to float64 for merge compatibility
-        for col in ["home_pitcher_id", "away_pitcher_id", "game_pk", "game_id"]:
-            if col in games_df.columns:
-                games_df[col] = pd.to_numeric(games_df[col], errors="coerce").astype(
-                    float
-                )
-
-        pitcher_gold_df["player_id"] = pd.to_numeric(
-            pitcher_gold_df["player_id"], errors="coerce"
-        ).astype(float)
-
-        games_df["game_date"] = pd.to_datetime(games_df["game_date"]).dt.date
-        pitcher_gold_df["game_date"] = pd.to_datetime(
-            pitcher_gold_df["game_date"]
-        ).dt.date
+        self, games_df, pitcher_gold_df, lineups_df=None, batter_gold_df=None
+    ):
+        """Standardizes types across dataframes to ensure robust merges."""
+        games_df = self._align_types(games_df.copy())
+        pitcher_gold_df = self._align_types(pitcher_gold_df.copy())
 
         if lineups_df is not None:
-            lineups_df = lineups_df.copy()
-            lineups_df["game_pk"] = pd.to_numeric(
-                lineups_df["game_pk"], errors="coerce"
-            ).astype(float)
-            lineups_df["game_date"] = pd.to_datetime(lineups_df["game_date"]).dt.date
+            lineups_df = self._align_types(lineups_df.copy())
 
         if batter_gold_df is not None:
-            batter_gold_df = batter_gold_df.copy()
+            batter_gold_df = self._align_types(batter_gold_df.copy())
 
         return games_df, pitcher_gold_df, lineups_df, batter_gold_df
+
+    def _align_types(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Helper to homogenize ID and Date columns for reliable joining."""
+        ID_COLS = [
+            "home_pitcher_id",
+            "away_pitcher_id",
+            "player_id",
+            "game_pk",
+            "game_id",
+            "game_pk_int",
+            "team_id",
+        ]
+
+        if "game_date" in df.columns:
+            df["game_date"] = pd.to_datetime(df["game_date"])
+
+        for col in ID_COLS:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+
+        return df
 
     def _attach_pitcher_spines(
         self, games_df: pd.DataFrame, pitcher_gold_df: pd.DataFrame
@@ -347,17 +349,24 @@ class FeaturePipeline:
             df["re24_sp_diff"] = df["h_sp_roll_re24"] - df["a_sp_roll_re24"]
         return df
 
-    def _finalize_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    def _finalize_features(
+        self, df: pd.DataFrame, target_override: str | None = None
+    ) -> tuple[pd.DataFrame, pd.Series]:
         """Resolve labels, select features, and impute missing values."""
         if "home_score" in df.columns and "away_score" in df.columns:
             df = df.dropna(subset=["home_score", "away_score"])
             df["home_win"] = (df["home_score"] > df["away_score"]).astype(int)
+            df["total_runs_actual"] = df["home_score"] + df["away_score"]
 
-        if "home_win" not in df.columns:
-            logger.error("No target label 'home_win' could be resolved.")
+        if target_override and target_override in df.columns:
+            y = df[target_override]
+        elif "home_win" in df.columns:
+            y = df["home_win"]
+        else:
+            logger.error(
+                f"No target label '{target_override or 'home_win'}' could be resolved."
+            )
             return pd.DataFrame(), pd.Series()
-
-        y = df["home_win"]
 
         # Selection logic
         keep_prefixes = ["h_sp_", "a_sp_", "h_bat_", "a_bat_"]

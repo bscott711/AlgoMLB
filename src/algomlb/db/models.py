@@ -1386,21 +1386,23 @@ class TeamEloHistoryORM(Base):
 class UraniumEvalHistoryORM(Base):
     """
     Walk-forward evaluation summary for Uranium models.
-    One row per (model_version, test_year).
+    One row per (model_target, model_version, fold_date).
     """
 
     __tablename__ = "uranium_eval_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    test_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    train_start_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    train_end_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    n_games: Mapped[int] = mapped_column(Integer, nullable=False)
-    accuracy: Mapped[float] = mapped_column(Float, nullable=False)
-    auc: Mapped[float] = mapped_column(Float, nullable=False)
-    log_loss_val: Mapped[float] = mapped_column(Float, nullable=False)
-    brier: Mapped[float] = mapped_column(Float, nullable=False)
+    fold_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+
+    n_samples: Mapped[int] = mapped_column(Integer, nullable=False)
+    accuracy: Mapped[Optional[float]] = mapped_column(Float)
+    auc: Mapped[Optional[float]] = mapped_column(Float)
+    log_loss_val: Mapped[Optional[float]] = mapped_column(Float)
+    brier: Mapped[Optional[float]] = mapped_column(Float)
+    ece: Mapped[Optional[float]] = mapped_column(Float)
+
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1409,30 +1411,34 @@ class UraniumEvalHistoryORM(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "model_target",
             "model_version",
-            "test_year",
-            name="uq_uranium_eval_model_year",
+            "fold_date",
+            name="uq_uranium_eval_target_version_fold",
         ),
     )
 
 
-class UraniumCalibrationBinORM(Base):
+class UraniumCalibrationBinsORM(Base):
     """
     Binned calibration results for Uranium reliability curves.
-    Typically 20 bins per (model_version, test_year).
+    Typically 20 bins per (model_target, model_version, fold_date).
     """
 
     __tablename__ = "uranium_calibration_bins"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    test_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    fold_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+
     bin_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    bin_lower: Mapped[float] = mapped_column(Float, nullable=False)
-    bin_upper: Mapped[float] = mapped_column(Float, nullable=False)
-    pred_mean: Mapped[float] = mapped_column(Float, nullable=False)
-    obs_rate: Mapped[float] = mapped_column(Float, nullable=False)
-    n_samples: Mapped[int] = mapped_column(Integer, nullable=False)
+    bin_start: Mapped[float] = mapped_column(Float, nullable=False)
+    bin_end: Mapped[float] = mapped_column(Float, nullable=False)
+    predicted_prob_mean: Mapped[float] = mapped_column(Float, nullable=False)
+    actual_prob_mean: Mapped[float] = mapped_column(Float, nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1441,10 +1447,11 @@ class UraniumCalibrationBinORM(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "model_target",
             "model_version",
-            "test_year",
+            "fold_date",
             "bin_index",
-            name="uq_uranium_calibration_bin",
+            name="uq_uranium_calibration_bin_target_version_fold",
         ),
     )
 
@@ -1452,21 +1459,19 @@ class UraniumCalibrationBinORM(Base):
 class UraniumShapGlobalORM(Base):
     """
     Global SHAP feature importance for Uranium models.
-    Aggregated over a dataset label (e.g., 'test_2024').
+    Tracks feature impact trends across temporal folds.
     """
 
     __tablename__ = "uranium_shap_global"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    dataset_label: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        index=True,
-    )
+    fold_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+
     feature_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     mean_abs_shap: Mapped[float] = mapped_column(Float, nullable=False)
-    mean_shap: Mapped[float] = mapped_column(Float, nullable=False)
+
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -1475,9 +1480,10 @@ class UraniumShapGlobalORM(Base):
 
     __table_args__ = (
         UniqueConstraint(
+            "model_target",
             "model_version",
-            "dataset_label",
+            "fold_date",
             "feature_name",
-            name="uq_uranium_shap_global_row",
+            name="uq_uranium_shap_global_target_version_fold",
         ),
     )

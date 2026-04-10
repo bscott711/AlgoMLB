@@ -208,7 +208,13 @@ def test_build_uranium_matrix_exhaustive(pipeline):
         ]
     )
 
-    # Full Pipeline execution
+    # Full Pipeline execution (ensure mocks are pre-aligned)
+    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
+    pitcher_gold["game_date"] = pd.to_datetime(pitcher_gold["game_date"])
+    lineups["game_date"] = pd.to_datetime(lineups["game_date"])
+    batter_gold["game_date"] = pd.to_datetime(batter_gold["game_date"])
+    re24_df["game_date"] = pd.to_datetime(re24_df["game_date"])
+
     X, y = pipeline.build_uranium_matrix(
         games_df, pitcher_gold, lineups, batter_gold, elo_df, pythag_df, re24_df
     )

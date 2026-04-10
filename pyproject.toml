@@ -70,6 +70,7 @@ dev = [
     "types-pyyaml",
     "types-requests",
     "vulture",
+    "notebooklm-py[browser]>=0.3.4",
 ]
 
 [tool.importlinter]

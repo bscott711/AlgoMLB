@@ -301,3 +301,44 @@ check-scheduler:
 	@echo ""
 	@echo "📝 Latest Logs:"
 	@journalctl --user -u algomlb-sync.service -n 50 --no-pager
+
+# ==========================================
+# 10. NOTEBOOKLM RESEARCH (AI Analysis)
+# ==========================================
+
+# Run any notebooklm command (e.g., just lm auth check)
+lm *args:
+	uv run notebooklm {{args}}
+
+# Authenticate by pasting storage_state.json content (from local machine)
+lm-auth json_content:
+	@mkdir -p ~/.notebooklm
+	@echo '{{json_content}}' > ~/.notebooklm/storage_state.json
+	@echo "✅ Authentication state saved to ~/.notebooklm/storage_state.json"
+
+# Quick research: Ask a question to the current notebook
+lm-ask query:
+	uv run notebooklm ask "{{query}}"
+
+# Generate artifacts (e.g., just lm-gen audio "make it snappy")
+lm-gen type prompt="":
+	uv run notebooklm generate {{type}} "{{prompt}}" --wait
+
+# Shortcut to list available notebooks
+lm-ls:
+	uv run notebooklm list
+
+# Ingest all repository layers into NotebookLM
+lm-ingest-all: lm-ingest-src lm-ingest-tests lm-ingest-scripts
+
+# Ingest core source code
+lm-ingest-src:
+	uv run python scripts/notebooklm_ingest.py src --title "Repo: src"
+
+# Ingest test suite
+lm-ingest-tests:
+	uv run python scripts/notebooklm_ingest.py tests --title "Repo: tests"
+
+# Ingest utility scripts
+lm-ingest-scripts:
+	uv run python scripts/notebooklm_ingest.py scripts --title "Repo: scripts"

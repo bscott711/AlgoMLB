@@ -39,15 +39,13 @@ def test_compute_calibration_bins_empty():
 
 
 def test_compute_per_game_eval():
-    games_df = pd.DataFrame(
-        {
-            "game_pk": [1, 2],
-            "game_date": ["2023-01-01", "2023-01-02"],
-            "home_team": ["NYY", "BOS"],
-            "away_team": ["BOS", "NYY"],
-        },
-        index=[0, 1],
-    )
+    games_df = pd.DataFrame({
+            "game_pk": [1, 2], 
+            "game_date": pd.to_datetime(["2024-04-01", "2024-04-02"]),
+            "home_pitcher_id": [10.0, 11.0],
+            "away_pitcher_id": [12.0, 13.0],
+            "home_win": [1, 0]
+        })
     y_true = pd.Series([1, 0], index=[0, 1])
     y_prob = np.array([0.9, 0.4])
 
@@ -77,7 +75,7 @@ def test_persist_eval_results():
 
     with (
         patch("algomlb.db.models.UraniumEvalHistoryORM"),
-        patch("algomlb.db.models.UraniumCalibrationBinORM"),
+        patch("algomlb.db.models.UraniumCalibrationBinsORM"),
         patch("algomlb.ml.eval.pg_insert") as mock_insert,
     ):
         # Setup mock statement chain

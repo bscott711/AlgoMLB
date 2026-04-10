@@ -70,6 +70,7 @@ dev = [
     { name = "import-linter" },
     { name = "jitsu" },
     { name = "mdformat" },
+    { name = "notebooklm-py", extra = ["browser"] },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
     { name = "pymarkdownlnt" },
@@ -129,6 +130,7 @@ dev = [
     { name = "import-linter" },
     { name = "jitsu", git = "https://github.com/bscott711/jitsu.git" },
     { name = "mdformat" },
+    { name = "notebooklm-py", extras = ["browser"], specifier = ">=0.3.4" },
     { name = "pandas-stubs" },
     { name = "pre-commit" },
     { name = "pymarkdownlnt" },
@@ -1704,6 +1706,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/24/bf/d1bda4f6168e0b2e9e5958945e01910052158313224ada5ce1fb2e1113b8/nodeenv-1.10.0.tar.gz", hash = "sha256:996c191ad80897d076bdfba80a41994c2b47c68e224c542b48feba42ba00f8bb", size = 55611, upload-time = "2025-12-20T14:08:54.006Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/88/b2/d0896bdcdc8d28a7fc5717c305f1a861c26e18c05047949fb371034d98bd/nodeenv-1.10.0-py2.py3-none-any.whl", hash = "sha256:5bb13e3eed2923615535339b3c620e76779af4cb4c6a90deccc9e36b274d3827", size = 23438, upload-time = "2025-12-20T14:08:52.782Z" },
+]
+
+[[package]]
+name = "notebooklm-py"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "httpx" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/89/0d/b6fc53016dcfc4305f89d157a29ed09bc471f65b9b83c2affe66694db7bb/notebooklm_py-0.3.4.tar.gz", hash = "sha256:dc72f89b1eb4c0efbad8641a0ec83da2e631c5a926e029a93a258b0032b503c4", size = 8007875, upload-time = "2026-03-12T03:03:57.969Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/1f/73b1bb084dddb3e9b6387db2779496d90c2c34dc4685f1f2c81f07880d0d/notebooklm_py-0.3.4-py3-none-any.whl", hash = "sha256:da54004f546d6409c01b474d18d031afc13a02254e2cb383dd6ee3e0974f5b47", size = 168780, upload-time = "2026-03-12T03:03:56.003Z" },
+]
+
+[package.optional-dependencies]
+browser = [
+    { name = "playwright" },
 ]
 
 [[package]]

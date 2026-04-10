@@ -134,7 +134,10 @@ def persist_eval_results(
 ) -> None:
     """Upsert eval metrics and calibration bins into PostgreSQL."""
     eng = engine or get_engine()
-    from algomlb.db.models import UraniumCalibrationBinORM, UraniumEvalHistoryORM
+    from algomlb.db.models import (
+        UraniumEvalHistoryORM,
+        UraniumCalibrationBinsORM,
+    )
 
     # ── Eval history row ──────────────────────────────────────────────
     eval_row = {
@@ -173,7 +176,7 @@ def persist_eval_results(
 
     with eng.begin() as conn:
         for rec in records:
-            stmt = pg_insert(UraniumCalibrationBinORM).values([rec])
+            stmt = pg_insert(UraniumCalibrationBinsORM).values([rec])
             upsert = stmt.on_conflict_do_update(
                 index_elements=["model_version", "test_year", "bin_index"],
                 set_={
