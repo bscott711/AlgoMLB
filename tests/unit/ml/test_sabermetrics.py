@@ -13,7 +13,7 @@ def test_compute_pythagorean_features():
     games = pd.DataFrame(
         [
             {
-                "game_pk": i,
+                "game_id": i,
                 "game_date": f"2023-04-{i:02d}",
                 "home_team": "ANA",
                 "away_team": "HOU",
@@ -27,11 +27,11 @@ def test_compute_pythagorean_features():
 
     # First 5 games should have 0.5 (insufficient history)
     # The 6th game should have history from 1-5
-    ana_6 = result[(result["team_id"] == "ANA") & (result["game_pk"] == 6)].iloc[0]
+    ana_6 = result[(result["team_id"] == "ANA") & (result["game_id"] == 6)].iloc[0]
     assert ana_6["pythag_win_pct"] > 0.99  # Dominant wins
     assert ana_6["roll_run_diff"] == 10.0
 
-    hou_6 = result[(result["team_id"] == "HOU") & (result["game_pk"] == 6)].iloc[0]
+    hou_6 = result[(result["team_id"] == "HOU") & (result["game_id"] == 6)].iloc[0]
     assert hou_6["pythag_win_pct"] < 0.01
 
 

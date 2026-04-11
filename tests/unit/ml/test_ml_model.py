@@ -14,7 +14,7 @@ def test_model_train_no_calibrate():
     model = MLBModel()
     X = pd.DataFrame({"f1": [1, 2, 3], "f2": [4, 5, 6]})
     y = pd.Series([0, 1, 0])
-    model.train(X, y, calibrate=False)
+    model.fit(X, y, calibrate=False)
     assert model.calibrated_clf is None
     # Check that it predicts something
     probs = model.predict_proba(X)
@@ -26,7 +26,7 @@ def test_model_train_calibrate():
     # Small data triggers 2-fold CV
     X = pd.DataFrame({"f1": range(5), "f2": range(5, 10)})
     y = pd.Series([0, 1, 0, 1, 0])
-    model.train(X, y, calibrate=True)
+    model.fit(X, y, calibrate=True)
     assert model.calibrated_clf is not None
     probs = model.predict_proba(X)
     assert probs.shape == (5, 2)
@@ -36,7 +36,7 @@ def test_get_base_xgb_estimator():
     model = MLBModel()
     X = pd.DataFrame({"f1": range(5)})
     y = pd.Series([0, 1, 0, 1, 0])
-    model.train(X, y, calibrate=True)
+    model.fit(X, y, calibrate=True)
 
     base = model.get_base_xgb_estimator()
     # Should be the XGBClassifier instance
@@ -49,7 +49,7 @@ def test_get_feature_importance():
     model = MLBModel()
     X = pd.DataFrame({"f1": [1, 2], "f2": [3, 4]})
     y = pd.Series([0, 1])
-    model.train(X, y, calibrate=False)
+    model.fit(X, y, calibrate=False)
 
     importance = model.get_feature_importance()
     assert len(importance) == 2
@@ -67,7 +67,7 @@ def test_save_load(tmp_path):
     model = MLBModel(n_estimators=10)
     X = pd.DataFrame({"f1": [1, 2], "f2": [3, 4]})
     y = pd.Series([0, 1])
-    model.train(X, y, calibrate=False)
+    model.fit(X, y, calibrate=False)
 
     file_path = tmp_path / "model.joblib"
     model.save(file_path)

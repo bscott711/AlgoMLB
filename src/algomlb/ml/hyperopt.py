@@ -25,7 +25,7 @@ def _run_fold(
 ) -> float:
     """Train an XGBoost model with *params* and return test log-loss."""
     model = MLBModel(**params)
-    model.train(
+    model.fit(
         X_train, y_train, calibrate=False
     )  # no calibration during optuna search — faster
     y_prob = model.predict_proba(X_test)[:, 1]

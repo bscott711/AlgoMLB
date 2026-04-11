@@ -34,7 +34,7 @@ def test_run_fold():
             pd.DataFrame(), pd.Series(), pd.DataFrame(), pd.Series([1, 0]), {}
         )
         assert isinstance(score, float)
-        assert mock_model.train.called
+        assert mock_model.fit.called
 
 
 def test_walk_forward_objective_success(mock_fold_data):
@@ -61,7 +61,7 @@ def test_walk_forward_objective_pruning(mock_fold_data):
 def test_build_fold_data_empty_logic():
     # Test skipping fold if X is empty (Line 129)
     games_df = pd.DataFrame(
-        {"game_pk": [1], "year": [2023], "game_date": ["2023-01-01"]}
+        {"game_id": [1], "year": [2023], "game_date": ["2023-01-01"]}
     )
     years = [2022, 2023]
 
