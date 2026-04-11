@@ -300,29 +300,39 @@ class FeaturePipeline:
         re24_df: pd.DataFrame,
         lineups_df: pd.DataFrame | None,
     ) -> pd.DataFrame:
-        """Process and merge RE24 run expectancy metrics."""
-        re24 = re24_df.copy()
-        re24["game_date"] = pd.to_datetime(re24["game_date"]).dt.date
-        p_re24 = re24[re24["role"] == "PITCHER"][
+        """Joins RE24 metrics to the main dataframe."""
+        if re24_df.empty:
+            return df
+
+        # Ensure type alignment for the join
+        re24_df = re24_df.copy()
+        re24_df["game_date"] = pd.to_datetime(re24_df["game_date"])
+        df["game_date"] = pd.to_datetime(df["game_date"])
+
+        p_re24 = re24_df[re24_df["role"] == "PITCHER"][
             ["player_id", "game_date", "roll_re24"]
         ]
 
-        # Individual Pitcher RE24
-        for side, prefix in [("home", "h_"), ("away", "a_")]:
-            target_pid = f"{side}_pitcher_id"
-            merged_re24 = p_re24.rename(
-                columns={"roll_re24": f"{prefix}sp_roll_re24", "player_id": "pid"}
-            )
-            df = df.merge(
-                merged_re24,
-                left_on=[target_pid, "game_date"],
-                right_on=["pid", "game_date"],
-                how="left",
-            ).drop(columns=["pid"], errors="ignore")
+        # Home Pitcher
+        df = df.merge(
+            p_re24.rename(
+                columns={"player_id": "home_pitcher_id", "roll_re24": "h_sp_roll_re24"}
+            ),
+            on=["home_pitcher_id", "game_date"],
+            how="left",
+        )
+        # Away Pitcher
+        df = df.merge(
+            p_re24.rename(
+                columns={"player_id": "away_pitcher_id", "roll_re24": "a_sp_roll_re24"}
+            ),
+            on=["away_pitcher_id", "game_date"],
+            how="left",
+        )
 
         # Aggregated Batter RE24
         if lineups_df is not None:
-            b_re24 = re24[re24["role"] == "BATTER"][
+            b_re24 = re24_df[re24_df["role"] == "BATTER"][
                 ["player_id", "game_date", "roll_re24"]
             ]
             lu_re24 = lineups_df.merge(
@@ -385,9 +395,9 @@ class FeaturePipeline:
             "a_roll_ra_per_game",
             "h_sp_roll_re24",
             "a_sp_roll_re24",
+            "re24_sp_diff",
             "h_bat_roll_re24",
             "a_bat_roll_re24",
-            "re24_sp_diff",
         ]
         feature_cols = [
             c

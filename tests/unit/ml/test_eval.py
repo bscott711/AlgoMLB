@@ -39,13 +39,15 @@ def test_compute_calibration_bins_empty():
 
 
 def test_compute_per_game_eval():
-    games_df = pd.DataFrame({
-            "game_pk": [1, 2], 
+    games_df = pd.DataFrame(
+        {
+            "game_pk": [1, 2],
             "game_date": pd.to_datetime(["2024-04-01", "2024-04-02"]),
             "home_pitcher_id": [10.0, 11.0],
             "away_pitcher_id": [12.0, 13.0],
-            "home_win": [1, 0]
-        })
+            "home_win": [1, 0],
+        }
+    )
     y_true = pd.Series([1, 0], index=[0, 1])
     y_prob = np.array([0.9, 0.4])
 

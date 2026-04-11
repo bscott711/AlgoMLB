@@ -13,14 +13,14 @@ def test_aggregate_team_batting_full(pipeline):
     lineups = pd.DataFrame(
         [
             {
-                "game_pk": 101,
-                "game_date": "2023-04-01",
+                "game_pk": 101.0,
+                "game_date": pd.to_datetime("2023-04-01"),
                 "team_side": "home",
                 "player_id": 1.0,
             },
             {
-                "game_pk": 101,
-                "game_date": "2023-04-01",
+                "game_pk": 101.0,
+                "game_date": pd.to_datetime("2023-04-01"),
                 "team_side": "away",
                 "player_id": 2.0,
             },
@@ -28,8 +28,16 @@ def test_aggregate_team_batting_full(pipeline):
     )
     batter_gold = pd.DataFrame(
         [
-            {"game_date": "2023-04-01", "player_id": 1.0, "roll_pas": 10},
-            {"game_date": "2023-04-01", "player_id": 2.0, "roll_pas": 20},
+            {
+                "game_date": pd.to_datetime("2023-04-01"),
+                "player_id": 1.0,
+                "roll_pas": 10,
+            },
+            {
+                "game_date": pd.to_datetime("2023-04-01"),
+                "player_id": 2.0,
+                "roll_pas": 20,
+            },
         ]
     )
 
@@ -49,25 +57,42 @@ def test_aggregate_team_batting_full(pipeline):
 def test_build_uranium_matrix_exhaustive(pipeline):
     pitcher_gold = pd.DataFrame(
         [
-            {"player_id": 1.0, "game_date": "2023-04-01", "some_stat": 1.0},
-            {"player_id": 2.0, "game_date": "2023-04-01", "some_stat": 0.5},
-            {"player_id": 1.0, "game_date": "2023-04-02", "some_stat": 2.0},
-            {"player_id": 2.0, "game_date": "2023-04-02", "some_stat": 0.8},
+            {
+                "player_id": 1.0,
+                "game_date": pd.to_datetime("2023-04-01"),
+                "some_stat": 1.0,
+            },
+            {
+                "player_id": 2.0,
+                "game_date": pd.to_datetime("2023-04-01"),
+                "some_stat": 0.5,
+            },
+            {
+                "player_id": 1.0,
+                "game_date": pd.to_datetime("2023-04-02"),
+                "some_stat": 2.0,
+            },
+            {
+                "player_id": 2.0,
+                "game_date": pd.to_datetime("2023-04-02"),
+                "some_stat": 0.8,
+            },
         ]
     )
+    # Use datetime64[ns] to match pipeline requirement
     games_df = pd.DataFrame(
         [
             {
-                "game_pk": 101,
-                "game_date": "2023-04-01",
+                "game_pk": 101.0,
+                "game_date": pd.to_datetime("2023-04-01"),
                 "home_pitcher_id": 1.0,
                 "away_pitcher_id": 2.0,
                 "home_score": 5,
                 "away_score": 3,
             },
             {
-                "game_pk": 102,
-                "game_date": "2023-04-02",
+                "game_pk": 102.0,
+                "game_date": pd.to_datetime("2023-04-02"),
                 "home_pitcher_id": 1.0,
                 "away_pitcher_id": 2.0,
                 "home_score": 2,
@@ -78,26 +103,26 @@ def test_build_uranium_matrix_exhaustive(pipeline):
     lineups = pd.DataFrame(
         [
             {
-                "game_pk": 101,
-                "game_date": "2023-04-01",
+                "game_pk": 101.0,
+                "game_date": pd.to_datetime("2023-04-01"),
                 "team_side": "home",
                 "player_id": 3.0,
             },
             {
-                "game_pk": 101,
-                "game_date": "2023-04-01",
+                "game_pk": 101.0,
+                "game_date": pd.to_datetime("2023-04-01"),
                 "team_side": "away",
                 "player_id": 4.0,
             },
             {
-                "game_pk": 102,
-                "game_date": "2023-04-02",
+                "game_pk": 102.0,
+                "game_date": pd.to_datetime("2023-04-02"),
                 "team_side": "home",
                 "player_id": 3.0,
             },
             {
-                "game_pk": 102,
-                "game_date": "2023-04-02",
+                "game_pk": 102.0,
+                "game_date": pd.to_datetime("2023-04-02"),
                 "team_side": "away",
                 "player_id": 4.0,
             },
@@ -105,24 +130,40 @@ def test_build_uranium_matrix_exhaustive(pipeline):
     )
     batter_gold = pd.DataFrame(
         [
-            {"game_date": "2023-04-01", "player_id": 3.0, "roll_pas": 100},
-            {"game_date": "2023-04-01", "player_id": 4.0, "roll_pas": 150},
-            {"game_date": "2023-04-02", "player_id": 3.0, "roll_pas": 200},
-            {"game_date": "2023-04-02", "player_id": 4.0, "roll_pas": 250},
+            {
+                "game_date": pd.to_datetime("2023-04-01"),
+                "player_id": 3.0,
+                "roll_pas": 100,
+            },
+            {
+                "game_date": pd.to_datetime("2023-04-01"),
+                "player_id": 4.0,
+                "roll_pas": 150,
+            },
+            {
+                "game_date": pd.to_datetime("2023-04-02"),
+                "player_id": 3.0,
+                "roll_pas": 200,
+            },
+            {
+                "game_date": pd.to_datetime("2023-04-02"),
+                "player_id": 4.0,
+                "roll_pas": 250,
+            },
         ]
     )
     elo_df = pd.DataFrame(
         [
-            {"game_pk": 101, "is_home": True, "elo_pre": 1500, "elo_post": 1510},
-            {"game_pk": 101, "is_home": False, "elo_pre": 1450, "elo_post": 1440},
-            {"game_pk": 102, "is_home": True, "elo_pre": 1510, "elo_post": 1500},
-            {"game_pk": 102, "is_home": False, "elo_pre": 1440, "elo_post": 1450},
+            {"game_pk": 101.0, "is_home": True, "elo_pre": 1500, "elo_post": 1510},
+            {"game_pk": 101.0, "is_home": False, "elo_pre": 1450, "elo_post": 1440},
+            {"game_pk": 102.0, "is_home": True, "elo_pre": 1510, "elo_post": 1500},
+            {"game_pk": 102.0, "is_home": False, "elo_pre": 1440, "elo_post": 1450},
         ]
     )
     pythag_df = pd.DataFrame(
         [
             {
-                "game_pk": 101,
+                "game_pk": 101.0,
                 "is_home": True,
                 "pythag_win_pct": 0.6,
                 "roll_run_diff": 1,
@@ -130,7 +171,7 @@ def test_build_uranium_matrix_exhaustive(pipeline):
                 "roll_ra_per_game": 4,
             },
             {
-                "game_pk": 101,
+                "game_pk": 101.0,
                 "is_home": False,
                 "pythag_win_pct": 0.4,
                 "roll_run_diff": -1,
@@ -138,7 +179,7 @@ def test_build_uranium_matrix_exhaustive(pipeline):
                 "roll_ra_per_game": 5,
             },
             {
-                "game_pk": 102,
+                "game_pk": 102.0,
                 "is_home": True,
                 "pythag_win_pct": 0.5,
                 "roll_run_diff": 0,
@@ -146,7 +187,7 @@ def test_build_uranium_matrix_exhaustive(pipeline):
                 "roll_ra_per_game": 4,
             },
             {
-                "game_pk": 102,
+                "game_pk": 102.0,
                 "is_home": False,
                 "pythag_win_pct": 0.5,
                 "roll_run_diff": 0,
@@ -159,13 +200,13 @@ def test_build_uranium_matrix_exhaustive(pipeline):
         [
             {
                 "player_id": 1.0,
-                "game_date": "2023-04-01",
+                "game_date": pd.to_datetime("2023-04-01"),
                 "role": "PITCHER",
                 "roll_re24": 5.0,
             },
             {
                 "player_id": 2.0,
-                "game_date": "2023-04-01",
+                "game_date": pd.to_datetime("2023-04-01"),
                 "role": "PITCHER",
                 "roll_re24": 3.0,
             },
@@ -195,25 +236,24 @@ def test_build_uranium_matrix_exhaustive(pipeline):
             },
             {
                 "player_id": 3.0,
-                "game_date": "2023-04-02",
+                "game_date": pd.to_datetime("2023-04-02"),
                 "role": "BATTER",
                 "roll_re24": 0.8,
             },
             {
                 "player_id": 4.0,
-                "game_date": "2023-04-02",
+                "game_date": pd.to_datetime("2023-04-02"),
                 "role": "BATTER",
                 "roll_re24": 0.9,
             },
         ]
     )
-
-    # Full Pipeline execution (ensure mocks are pre-aligned)
-    games_df["game_date"] = pd.to_datetime(games_df["game_date"])
-    pitcher_gold["game_date"] = pd.to_datetime(pitcher_gold["game_date"])
-    lineups["game_date"] = pd.to_datetime(lineups["game_date"])
-    batter_gold["game_date"] = pd.to_datetime(batter_gold["game_date"])
-    re24_df["game_date"] = pd.to_datetime(re24_df["game_date"])
+    # Alignment: Force primitives
+    for df in [games_df, pitcher_gold, lineups, batter_gold, re24_df]:
+        df["game_date"] = pd.to_datetime(df["game_date"])
+        for col in ["player_id", "game_pk", "home_pitcher_id", "away_pitcher_id"]:
+            if col in df.columns:
+                df[col] = df[col].astype(float)
 
     X, y = pipeline.build_uranium_matrix(
         games_df, pitcher_gold, lineups, batter_gold, elo_df, pythag_df, re24_df
@@ -225,6 +265,8 @@ def test_build_uranium_matrix_exhaustive(pipeline):
     assert "a_bat_roll_pas" in X.columns
     assert "elo_diff" in X.columns
     assert "pythag_diff" in X.columns
+    assert "h_sp_roll_re24" in X.columns
+    assert "a_sp_roll_re24" in X.columns
     assert "re24_sp_diff" in X.columns
     assert "h_bat_roll_re24" in X.columns
     assert "a_bat_roll_re24" in X.columns

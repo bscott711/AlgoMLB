@@ -194,3 +194,19 @@ def persist_eval_results(
         f"Acc={metrics['accuracy']:.4f} AUC={metrics['auc']:.4f} "
         f"Brier={metrics['brier']:.4f}, {len(records)} calibration bins."
     )
+
+
+def fetch_eval_history(
+    target: str,
+    model_version: str,
+    engine: Engine,
+) -> pd.DataFrame:
+    """Fetch all eval history records for a specific model version."""
+    from algomlb.db.models import UraniumEvalHistoryORM
+    from sqlalchemy import select
+
+    with engine.connect() as conn:
+        stmt = select(UraniumEvalHistoryORM).where(
+            UraniumEvalHistoryORM.model_version == model_version
+        )
+        return pd.read_sql(stmt, conn)

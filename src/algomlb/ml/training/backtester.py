@@ -149,9 +149,9 @@ class OOFAccumulator:
             X_train, y_train = train_df[self.features], train_df[self.target]
             X_test = test_df[self.features]
 
-            # Initialize and fit model
+            # Initialize and train model
             model = self.model_class(**model_kwargs)
-            model.fit(X_train, y_train)
+            model.train(X_train, y_train)
 
             # Predict probabilities
             y_prob = model.predict_proba(X_test)

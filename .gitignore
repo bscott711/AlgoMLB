@@ -104,3 +104,7 @@ data/
 coverage_full.txt
 deptry_help.txt
 data.zip
+
+# Model output logs and databases
+models/*.log
+models/*.db
