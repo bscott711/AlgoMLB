@@ -151,7 +151,7 @@ class OOFAccumulator:
 
             # Initialize and train model
             model = self.model_class(**model_kwargs)
-            model.train(X_train, y_train)
+            model.fit(X_train, y_train)
 
             # Predict probabilities
             y_prob = model.predict_proba(X_test)
