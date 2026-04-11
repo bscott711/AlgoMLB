@@ -8,7 +8,6 @@ from algomlb.db.models import (
     BallparkORM,
     BankrollLedgerORM,
     GameResultORM,
-    HistoricalDataORM,
     HistoricalOddsORM,
     LiveOddsORM,
     PitchEventORM,
@@ -204,10 +203,6 @@ class DatabaseRepository:
             self.session.execute(stmt)
         self.session.commit()
 
-    def save_historical_data(self, data: List[HistoricalDataORM]) -> None:
-        """Bulk save historical data manually."""
-        self.session.add_all(data)
-        self.session.commit()
 
     def get_bankroll_balance(self) -> float:
         """Calculate the current cumulative PnL."""

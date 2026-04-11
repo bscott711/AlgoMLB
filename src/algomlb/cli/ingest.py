@@ -164,27 +164,15 @@ def historical(
 
         records_processed = 0
 
-        # Handle Yearly Aggregate Stats
-        if start_year and end_year:
-            logger.info(f"Starting historical ingestion for {start_year}-{end_year}...")
-            records_processed += orchestrator.run_historical_ingestion(
-                start_year, end_year
-            )
+        records_processed = 0
 
         # Handle Pitch-Level Statcast Data
         if start and end:
             logger.info(f"Fetching pitch-level Statcast data from {start} to {end}...")
             s_df = historical_loader.fetch_statcast(start, end)
             records_processed += len(s_df)
-        elif statcast and start_year:
-            # Fallback backward compatibility for statcast month pull
-            start_date = f"{start_year}-04-01"
-            end_date = f"{start_year}-04-30"
-            logger.info(
-                f"Fetching Statcast data for {start_year} (defaults to April)..."
-            )
-            s_df = historical_loader.fetch_statcast(start_date, end_date)
-            records_processed += len(s_df)
+        else:
+            logger.warning("Historical aggregate stats are deprecated. Use 'ingest statcast' for pitch-level data.")
 
         logger.success(
             f"Successfully processed {records_processed} historical records."

@@ -526,16 +526,6 @@ class RetrosheetEventORM(Base):
     pbp: Mapped[Optional[str]] = mapped_column(String(10))
 
 
-class HistoricalDataORM(Base):
-    """Aggregated season/daily player statistics from pybaseball/FanGraphs."""
-
-    __tablename__ = "historical_data"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    metric_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    metric_value: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 class PlayerRollingFeaturesORM(Base):

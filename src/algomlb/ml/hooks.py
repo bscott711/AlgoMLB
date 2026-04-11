@@ -14,13 +14,12 @@ import numpy as np
 import pandas as pd
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    pass
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
-
 from algomlb.core.logger import logger
-from algomlb.db.models import ManagerHookEventORM, ManagerHookProfileORM
+from algomlb.db.models import ManagerHookEventORM, ManagerHookProfileORM, GameResultORM, TeamManagerORM
+from sqlalchemy import select
 
 
 # ── Hook event extraction ────────────────────────────────────────────────
@@ -226,17 +225,12 @@ def compute_hook_profiles(hook_df: pd.DataFrame) -> pd.DataFrame:
         mgr_name = group["manager_name"].iloc[0]
         n_starts = len(group)
 
-        avg_pc = group["pitch_count"].mean()
-        med_pc = group["pitch_count"].median()
-
-        # Approx innings from outs (inning * 3 + outs is an overcount, use PA-based)
-        avg_inn = group["inning"].mean()  # crude but useful
-
-        before_3rd = group["hook_before_3rd_tto"].sum() / n_starts
-        with_lead = (group["score_diff"] > 0).sum() / n_starts
-        with_deficit = (group["score_diff"] < 0).sum() / n_starts
-        quick_hook = (group["pitch_count"] < 80).sum() / n_starts
-        long_hook = (group["pitch_count"] >= 100).sum() / n_starts
+        avg_pc = group["pitches_thrown"].mean()
+        avg_inn = group["inning"].mean()
+        
+        before_3rd = group["pull_before_3rd_tto_pct"].mean() if "pull_before_3rd_tto_pct" in group.columns else (group["tto_at_hook"] < 3).mean()
+        with_lead = (group["score_diff_at_hook"] > 0).mean()
+        over_90 = (group["pitches_thrown"] > 90).mean()
 
         profiles.append(
             {
@@ -246,13 +240,13 @@ def compute_hook_profiles(hook_df: pd.DataFrame) -> pd.DataFrame:
                 "total_hooks": n_starts,
                 "total_sp_starts": n_starts,
                 "avg_sp_pitch_count": round(float(avg_pc), 1),
-                "median_sp_pitch_count": round(float(med_pc), 1),
-                "avg_sp_innings": round(float(avg_inn), 2),
+                "avg_ip_per_start": round(float(avg_inn), 2),
+                "avg_hook_inning": round(float(avg_inn), 1),
                 "pull_before_3rd_tto_pct": round(float(before_3rd), 4),
                 "pull_with_lead_pct": round(float(with_lead), 4),
-                "pull_with_deficit_pct": round(float(with_deficit), 4),
-                "quick_hook_under_80_pitches_pct": round(float(quick_hook), 4),
-                "long_hook_over_100_pitches_pct": round(float(long_hook), 4),
+                "pull_when_over_90_pitches_pct": round(float(over_90), 4),
+                "quick_hook_high_leverage_pct": 0.0,
+                "bullpen_protective_pct": 0.0,
             }
         )
 
@@ -262,33 +256,129 @@ def compute_hook_profiles(hook_df: pd.DataFrame) -> pd.DataFrame:
 # ── Persistence ──────────────────────────────────────────────────────────
 
 
-def persist_hook_events(engine: Engine, hook_df: pd.DataFrame) -> int:
-    """Upsert hook events into manager_hook_events. Returns count."""
+def persist_hook_events(engine: Engine, hook_df: pd.DataFrame) -> pd.DataFrame:
+    """Upsert hook events into manager_hook_events. Returns the transformed DataFrame."""
     if hook_df.empty:
+        return pd.DataFrame()
+
+    # 2. Transform Rows
+    retro_to_mlb = {
+        'ANA': 108, 'ARI': 109, 'ATL': 144, 'BAL': 110, 'BOS': 111,
+        'CHA': 145, 'CHN': 112, 'CIN': 113, 'CLE': 114, 'COL': 115,
+        'DET': 116, 'HOU': 117, 'KCA': 118, 'LAN': 119, 'MIA': 146,
+        'MIL': 158, 'MIN': 142, 'NYA': 147, 'NYN': 121, 'OAK': 133,
+        'PHI': 143, 'PIT': 134, 'SDN': 135, 'SEA': 136, 'SFN': 137,
+        'SLN': 138, 'TBA': 139, 'TEX': 140, 'TOR': 141, 'WAS': 120
+    }
+
+    season = int(hook_df["season"].iloc[0])
+    with Session(engine) as session:
+        # Map games: (date, home_team_id) -> (game_pk, away_team_id)
+        games_stmt = select(GameResultORM).where(GameResultORM.game_date.between(
+            hook_df["game_date"].min(), hook_df["game_date"].max()
+        ))
+        games = session.execute(games_stmt).scalars().all()
+        game_map = {(g.game_date, g.home_team_id, g.doubleheader_num): (g.id, g.away_team_id) for g in games}
+        # Also handle game_num variations
+        for g in games:
+            if g.doubleheader_num == 0:
+                game_map[(g.game_date, g.home_team_id, 1)] = (g.id, g.away_team_id)
+
+    # 2. Transform Rows
+    orms_data = []
+    for _, row in hook_df.iterrows():
+        try:
+            # Parse Retrosheet game_id
+            # ANA201904010
+            ghabbr = row["game_id"][:3]
+            gdate_str = row["game_id"][3:11]
+            gnum_str = row["game_id"][11:]
+            
+            h_team_id = retro_to_mlb.get(ghabbr)
+            if not h_team_id: continue
+            
+            gdate = row["game_date"]
+            # Map retrosheet game num (0, 1, 2) to MLB (0, 1, 2)
+            # This is heuristic but usually works
+            gnum = int(gnum_str)
+            
+            gkey = (gdate, h_team_id, gnum)
+            ginfo = game_map.get(gkey)
+            if not ginfo:
+                # Retry with gnum=0 if it was 1
+                if gnum == 1:
+                    ginfo = game_map.get((gdate, h_team_id, 0))
+                if not ginfo: continue
+            
+            game_pk, opponent_id_fallback = ginfo
+            
+            pit_team_id = retro_to_mlb.get(row["team_abbr"])
+            if not pit_team_id: continue
+            
+            # Determine opponent
+            with Session(engine) as session:
+                # In pitcher stint, we need the opponent
+                # If pit_team_id is home, opponent is away (and vice-versa)
+                # But we can just use the game info
+                h_id = h_team_id
+                a_id = opponent_id_fallback
+                opponent_id = a_id if pit_team_id == h_id else h_id
+
+            orms_data.append({
+                "game_pk": int(game_pk),
+                "game_date": gdate,
+                "season": int(row["season"]),
+                "team_id": int(pit_team_id),
+                "opponent_id": int(opponent_id),
+                "manager_id": int(row["manager_id"]) if row["manager_id"] else 0,
+                "manager_name": str(row["manager_name"]),
+                "pitcher_id": str(row["pitcher_id"]),
+                "is_starter": bool(row["is_starter"]),
+                "inning": int(row["inning"]),
+                "outs_at_hook": int(row["outs_at_hook"]),
+                "pitches_thrown": int(row["pitch_count"]),
+                "tto_at_hook": int(row["tto"]),
+                "score_diff_at_hook": int(row["score_diff"]),
+                "base_state_at_hook": int(row["runners_on"]),
+                "leverage_index_at_hook": 1.0,
+                "manager_tenure_day": 0,
+                "days_since_manager_change": 0,
+                "hook_reason": "Stat-Based" if row["is_starter"] else "Relief",
+                "removed_before_next_batter": True
+            })
+        except Exception as e:
+            continue
+
+    if not orms_data:
+        logger.warning(f"No valid ORM mappings found for {season} hook events.")
         return 0
 
-    # To ensure compatibility with PostgreSQL nullable integer columns,
-    # we convert to object and explicitly set NaPs to None.
-    hook_df["manager_id"] = hook_df["manager_id"].astype(object)
-    hook_df.loc[hook_df["manager_id"].isna(), "manager_id"] = None
-    rows = hook_df.to_dict("records")
-    chunk_size = 2000
+    # 3. Bulk Upsert
+    # Filter only columns that exist in the ORM
+    orm_cols = {c.name for c in ManagerHookEventORM.__table__.columns}
     total = 0
+    chunk_size = 1000
     with engine.begin() as conn:
-        for i in range(0, len(rows), chunk_size):
-            chunk = rows[i : i + chunk_size]
-            stmt = pg_insert(ManagerHookEventORM).values(chunk)
+        for i in range(0, len(orms_data), chunk_size):
+            chunk = orms_data[i : i + chunk_size]
+            db_chunk = [
+                {k: v for k, v in r.items() if k in orm_cols}
+                for r in chunk
+            ]
+            stmt = pg_insert(ManagerHookEventORM).values(db_chunk)
             upsert = stmt.on_conflict_do_update(
-                index_elements=["game_id", "pitcher_id"],
+                index_elements=["game_pk", "pitcher_id"],
                 set_={
                     col: stmt.excluded[col]
-                    for col in hook_df.columns
-                    if col not in ("game_id", "pitcher_id")
+                    for col in db_chunk[0].keys()
+                    if col not in ("game_pk", "pitcher_id")
                 },
             )
             conn.execute(upsert)
             total += len(chunk)
-    return total
+    
+    logger.info(f"  Successfully persisted {total} hook events to the database.")
+    return pd.DataFrame(orms_data)
 
 
 def persist_hook_profiles(engine: Engine, profile_df: pd.DataFrame) -> int:
@@ -330,9 +420,9 @@ def backfill_hook_events(
         if hook_df.empty:
             continue
 
-        n_events = persist_hook_events(engine, hook_df)
-        logger.info(f"  Persisted {n_events} hook events for {season}")
-        all_hooks.append(hook_df)
+        transformed_df = persist_hook_events(engine, hook_df)
+        if not transformed_df.empty:
+            all_hooks.append(transformed_df)
 
     if all_hooks:
         all_df = pd.concat(all_hooks, ignore_index=True)

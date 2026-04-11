@@ -239,6 +239,16 @@ process-silver-today:
 process-silver-incremental:
     uv run algomlb process silver --incremental
 
+# Process pitch-level quant features for a range
+process-quant start="" end="":
+    @echo "🤖 Processing Quant Features..."
+    PYTHONPATH=src uv run python scripts/backfill_quant_features.py {{ if start != "" { "--start " + start } else { "" } }} {{ if end != "" { "--end " + end } else { "" } }}
+
+# Process manager hook behaviors from Retrosheet
+process-hooks:
+    @echo "🎣 Processing Manager Hooks..."
+    PYTHONPATH=src uv run python scripts/backfill_manager_hooks.py
+
 # ==========================================
 # 8. THE MASTER SYNC (Sync Everything)
 # ==========================================

@@ -41,14 +41,6 @@ class IngestionOrchestrator:
         self.lineup_ingester = lineup_ingester
         self.gumbo_ingester = gumbo_ingester
 
-    def run_historical_ingestion(self, start_year: int, end_year: int) -> int:
-        """Fetch and persist historical pitching and batting stats."""
-        # This will trigger the persistence logic in the loader
-        p_df = self.historical_loader.fetch_pitching_stats(start_year, end_year)
-        b_df = self.historical_loader.fetch_team_batting(start_year, end_year)
-        # For simplicity, returning the total count of rows processed
-        return len(p_df) + len(b_df)
-
     def run_odds_ingestion(self) -> int:
         """Fetch live odds and persist them to the database."""
         odds_list = self.odds_client.fetch_live_odds()

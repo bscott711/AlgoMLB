@@ -61,12 +61,6 @@ def emit_agent_result(result: AgentResult) -> None:
 
 
 # ── Compatibility Layer for Unit Tests ────────────────────────────────────
-class HistoricalDataLoader:
-    """Legacy compatibility stub for testing."""
-
-    @staticmethod
-    def load_historical_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
-        return _load_ml_data(engine, years_str)
 
 
 def run_decoupler_pipeline(*args, **kwargs) -> Dict[str, Any]:

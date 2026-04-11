@@ -6,7 +6,7 @@ import pandas as pd
 from loguru import logger
 
 from algomlb.db.repository import DatabaseRepository
-from algomlb.db.models import HistoricalDataORM, PitchEventORM
+from algomlb.db.models import PitchEventORM
 
 # Suppress pybaseball pandas datetime FutureWarnings
 warnings.filterwarnings("ignore", category=FutureWarning, module=".*pybaseball.*")
@@ -45,82 +45,7 @@ class HistoricalDataLoader:
                         "Source might be sparse or malformed."
                     )
 
-    def _persist_stats(self, df: pd.DataFrame, metric_subset: list[str]) -> None:
-        """Convert DF rows to HistoricalDataORM and save."""
-        import datetime
 
-        today = datetime.date.today()
-        orms = []
-
-        # Use index as a player identifier proxy if 'mlb_id' or 'id' not present
-        pid_col = "id" if "id" in df.columns else "playerid"
-
-        for _, row in df.iterrows():
-            if pid_col not in row or pd.isna(row[pid_col]):
-                continue
-            player_id = int(row[pid_col])
-            for metric in metric_subset:
-                if metric in row and not pd.isna(row[metric]):
-                    orms.append(
-                        HistoricalDataORM(
-                            player_id=player_id,
-                            date=today,
-                            metric_name=metric,
-                            metric_value=float(row[metric]),
-                        )
-                    )
-        if orms:
-            self.repo.save_historical_data(orms)
-
-    def fetch_pitching_stats(
-        self, start_year: int, end_year: int, persist: bool = True
-    ) -> pd.DataFrame:
-        """Fetch pitching stats for a year range, using Parquet cache if available."""
-        cache_path = self.cache_dir / f"pitching_{start_year}_{end_year}.parquet"
-
-        if cache_path.exists():
-            df = pd.read_parquet(cache_path)
-        else:
-            import pybaseball
-            from pybaseball import cache
-
-            cache.enable()
-            df = pybaseball.pitching_stats(start_year, end_year)
-            df = self._clean_columns(df)
-            df.to_parquet(cache_path)
-
-        if persist:
-            # Validate completeness of key ERA estimators to detect poisoned FanGraphs scrapes
-            self._validate_completeness(df, ["era", "fip"])
-            # Persist key metrics identified in Tier 1 (ERA estimators)
-            self._persist_stats(df, ["era", "fip", "xfip", "siera"])
-
-        return df
-
-    def fetch_team_batting(
-        self, start_year: int, end_year: int, persist: bool = True
-    ) -> pd.DataFrame:
-        """Fetch team batting stats for a year range, using Parquet cache if available."""
-        cache_path = self.cache_dir / f"team_batting_{start_year}_{end_year}.parquet"
-
-        if cache_path.exists():
-            df = pd.read_parquet(cache_path)
-        else:
-            import pybaseball
-            from pybaseball import cache
-
-            cache.enable()
-            df = pybaseball.team_batting(start_year, end_year)
-            df = self._clean_columns(df)
-            df.to_parquet(cache_path)
-
-        if persist:
-            # Validate completeness for hitting metrics
-            self._validate_completeness(df, ["woba", "wrc+"])
-            # Persist key metrics for hitting (wOBA, wRC+)
-            self._persist_stats(df, ["woba", "wrc+"])
-
-        return df
 
     def _row_to_pitch_event(
         self, row: pd.Series, game_date: datetime.date
