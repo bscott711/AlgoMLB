@@ -373,3 +373,44 @@ class DatabaseRepository:
 
         self.session.commit()
         return total_upserted
+
+    def update_game_enrichment(self, updates: List[dict]) -> int:
+        """
+        Bulk update environmental and fatigue columns in game_results.
+        Each dict must contain 'game_id' and the fields to update.
+        """
+        from sqlalchemy import bindparam, update
+
+        # Use the Core table object to bypass ORM bulk update requirements for primary keys
+        table = GameResultORM.__table__
+        stmt = (
+            update(table)
+            .where(table.c.game_id == bindparam("b_game_id"))
+            .values(
+                temperature=bindparam("temperature", None),
+                wind_speed=bindparam("wind_speed", None),
+                humidity=bindparam("humidity", None),
+                home_rest_days=bindparam("home_rest_days", None),
+                away_rest_days=bindparam("away_rest_days", None),
+                home_travel_distance_km=bindparam("home_travel_distance_km", None),
+                away_travel_distance_km=bindparam("away_travel_distance_km", None),
+            )
+        )
+
+        params = []
+        for d in updates:
+            p = {
+                "b_game_id": d["game_id"],
+                "temperature": d.get("temperature"),
+                "wind_speed": d.get("wind_speed"),
+                "humidity": d.get("humidity"),
+                "home_rest_days": d.get("home_rest_days"),
+                "away_rest_days": d.get("away_rest_days"),
+                "home_travel_distance_km": d.get("home_travel_distance_km"),
+                "away_travel_distance_km": d.get("away_travel_distance_km"),
+            }
+            params.append(p)
+
+        result = self.session.execute(stmt, params)
+        self.session.commit()
+        return result.rowcount

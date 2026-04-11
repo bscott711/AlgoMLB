@@ -251,7 +251,7 @@ def optimize_model(
 # ── Param loader ─────────────────────────────────────────────────────────
 
 
-def load_optimized_params(model_version: str = "v0.1") -> dict[str, Any]:
+def load_optimized_params(target: str, model_version: str = "v1.0") -> dict[str, Any]:
     """
     Load Optuna-optimised hyperparameters from the JSON artifact.
 
@@ -261,7 +261,7 @@ def load_optimized_params(model_version: str = "v0.1") -> dict[str, Any]:
     import json
     from pathlib import Path
 
-    params_path = Path(f".data/models/optuna_best_params_{model_version}.json")
+    params_path = Path(f".data/models/optuna_best_params_{target}_{model_version}.json")
 
     if params_path.exists():
         logger.info(f"Loading optimised parameters from {params_path}")

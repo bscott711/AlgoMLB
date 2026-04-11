@@ -238,6 +238,16 @@ def tune(
 
     logger.success(f"Tuning complete for {target}. Best Params: {best_params}")
 
+    # Persistence: Save best params to JSON for backtester/explain
+    import json
+    from pathlib import Path
+    out_dir = Path(".data/models")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"optuna_best_params_{target}_{version}.json"
+    with out_path.open("w") as f:
+        json.dump(best_params, f, indent=4)
+    logger.success(f"Optimized parameters persisted to {out_path}")
+
     if ctx.obj and ctx.obj.get("agent_mode", False):
         emit_agent_result(
             AgentResult(
@@ -295,7 +305,7 @@ def backtest(
     combined_df = cast(pd.DataFrame, pd.concat([X, y.to_frame(name=target)], axis=1))
     combined_df = combined_df.reset_index()
 
-    params = load_optimized_params(version)
+    params = load_optimized_params(target, version)
     accumulator = OOFAccumulator(
         model_class=MLBModel, features=X.columns.tolist(), target=target
     )
@@ -384,7 +394,7 @@ def explain(
         re24_df=data["re24"],
     )
 
-    params = load_optimized_params(version)
+    params = load_optimized_params(target, version)
     model = MLBModel(**params)
     model.fit(X, y)
 

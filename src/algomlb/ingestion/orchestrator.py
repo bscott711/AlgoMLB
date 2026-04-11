@@ -176,3 +176,31 @@ class IngestionOrchestrator:
             end_date = start_date
 
         return self.lineup_ingester.backfill_range(start_date, end_date)
+
+    def run_fatigue_enrichment(
+        self, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> int:
+        """Calculate and persist rest days and travel distance for a date range."""
+        from algomlb.db.models import GameResultORM
+        from algomlb.execution.fatigue import FatigueCalculator
+        from sqlalchemy import select
+
+        calc = FatigueCalculator(self.repo.session)
+
+        today = datetime.date.today()
+        if start_date is None:
+            start_date = today - datetime.timedelta(days=1)
+        if end_date is None:
+            end_date = start_date
+
+        stmt = (
+            select(GameResultORM.game_id)
+            .where(
+                (GameResultORM.game_date >= start_date)
+                & (GameResultORM.game_date <= end_date)
+            )
+            .order_by(GameResultORM.game_date, GameResultORM.game_datetime)
+        )
+
+        game_ids = self.repo.session.execute(stmt).scalars().all()
+        return calc.enrich_batch(game_ids)

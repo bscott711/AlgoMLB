@@ -306,10 +306,18 @@ class OpenMeteoIngester:
         """Helper to bulk persist weather records."""
         with self.session_factory() as session:
             inserted = 0
-            for g, bp in games:
-                orm = self._map_game_to_weather(year, g, bp, lookup)
+            for detached_g, bp in games:
+                orm = self._map_game_to_weather(year, detached_g, bp, lookup)
                 if orm:
                     session.merge(orm)
+
+                    # Update GameResult record with T0 weather actuals
+                    g = session.get(GameResultORM, detached_g.game_id)
+                    if g:
+                        g.temperature = orm.temp_t0_f
+                        g.wind_speed = orm.wind_speed_t0
+                        g.humidity = orm.humidity_t0
+
                     inserted += 1
                     if inserted % 200 == 0:
                         session.commit()

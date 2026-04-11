@@ -445,12 +445,18 @@ class FeaturePipeline:
 
         X = df[feature_cols].copy().select_dtypes(include=["number"])
         X = X.fillna(X.median()).fillna(0)
-        X = X.loc[:, (X != X.iloc[0]).any()]  # Drop constants
+        
+        # Drop constants safely
+        if not X.empty and len(X) > 1:
+            variability = X.nunique()
+            constant_cols = variability[variability <= 1].index
+            X = X.drop(columns=constant_cols)
 
         # Attach spine as Index for diagnostic/splitting resilience
         index_cols = [c for c in ["game_date", "game_pk", "game_id"] if c in df.columns]
-        if index_cols:
-            X.index = pd.MultiIndex.from_frame(df[index_cols])
+        if index_cols and not X.empty:
+            # Ensure index alignment by using the filtered df
+            X.index = pd.MultiIndex.from_frame(df.loc[X.index, index_cols])
 
         logger.info(f"Uranium Matrix built: {X.shape[0]} games, {X.shape[1]} features.")
         return X, y
