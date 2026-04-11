@@ -47,7 +47,8 @@ def compute_pythagorean_features(
     team_logs: dict[str, list[dict]] = defaultdict(list)
 
     for _, g in games.iterrows():
-        game_pk = int(g["game_pk"])
+        # Fallback to game_id if game_pk is missing
+        game_id = g["game_id"] if "game_id" in g.index else g.get("game_pk")
         game_date = g["game_date"]
         hs = float(g["home_score"])
         aws = float(g["away_score"])
@@ -55,10 +56,10 @@ def compute_pythagorean_features(
         away = str(g["away_team"])
 
         team_logs[home].append(
-            dict(game_pk=game_pk, game_date=game_date, rs=hs, ra=aws, is_home=True)
+            dict(game_id=game_id, game_date=game_date, rs=hs, ra=aws, is_home=True)
         )
         team_logs[away].append(
-            dict(game_pk=game_pk, game_date=game_date, rs=aws, ra=hs, is_home=False)
+            dict(game_id=game_id, game_date=game_date, rs=aws, ra=hs, is_home=False)
         )
 
     rows: list[dict] = []
@@ -91,7 +92,7 @@ def compute_pythagorean_features(
 
             rows.append(
                 dict(
-                    game_pk=entry["game_pk"],
+                    game_id=entry["game_id"],
                     game_date=entry["game_date"],
                     team_id=team_id,
                     is_home=entry["is_home"],

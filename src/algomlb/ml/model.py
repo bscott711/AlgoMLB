@@ -40,7 +40,7 @@ class MLBModel:
         )
         self.calibrated_clf = None
 
-    def train(self, X: pd.DataFrame, y: pd.Series, calibrate: bool = True) -> None:
+    def fit(self, X: pd.DataFrame, y: pd.Series, calibrate: bool = True) -> None:
         """
         Fit the classifier and optionally apply Isotonic Calibration.
         Note: True temporal splitting should be handled by the caller or pipeline.

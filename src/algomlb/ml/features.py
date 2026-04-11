@@ -37,25 +37,23 @@ class FeaturePipeline:
         side: str,
     ) -> pd.DataFrame:
         """
-        For each game, join the 9 starters (for 'home' or 'away') to their
-        batter Gold features and return a single row of aggregated team batting.
+        For each game, join the 9 starters to their batter Gold features.
         """
         side_lineups = lineups_df[lineups_df["team_side"] == side].copy()
         if side_lineups.empty:
             return pd.DataFrame()
 
-        # Ensure date and ID types match strictly for merging
+        # Normalize
         side_lineups["game_date"] = pd.to_datetime(side_lineups["game_date"])
-        for col in ["game_pk", "player_id"]:
-            if col in side_lineups.columns:
-                side_lineups[col] = pd.to_numeric(
-                    side_lineups[col], errors="coerce"
-                ).astype(float)
+        side_lineups["player_id"] = pd.to_numeric(side_lineups["player_id"], errors="coerce").astype(float)
+        
+        # Determine the best join key from lineups
+        spine_col = "game_pk" if "game_pk" in side_lineups.columns else ("game_id" if "game_id" in side_lineups.columns else None)
+        if spine_col is None:
+            return pd.DataFrame()
 
         batter_gold_df["game_date"] = pd.to_datetime(batter_gold_df["game_date"])
-        batter_gold_df["player_id"] = pd.to_numeric(
-            batter_gold_df["player_id"], errors="coerce"
-        ).astype(float)
+        batter_gold_df["player_id"] = pd.to_numeric(batter_gold_df["player_id"], errors="coerce").astype(float)
 
         # Join each starter to their Gold BATTER record for that game_date
         merged = pd.merge(
@@ -63,19 +61,20 @@ class FeaturePipeline:
             batter_gold_df,
             on=["player_id", "game_date"],
             how="left",
+            suffixes=("", "_gold")
         )
 
-        # Determine which aggregation columns actually exist
         available_cols = [c for c in self.BATTER_AGG_COLS if c in merged.columns]
         if not available_cols:
-            logger.warning(f"No batter Gold columns found for {side} side aggregation.")
             return pd.DataFrame()
 
         # Aggregate: mean across the 9 starters per game
         prefix = "h_bat_" if side == "home" else "a_bat_"
-        team_agg = merged.groupby("game_pk")[available_cols].mean().reset_index()
-        # Rename with prefix
-        team_agg = team_agg.rename(columns={c: f"{prefix}{c}" for c in available_cols})
+        team_agg = merged.groupby(spine_col)[available_cols].mean().reset_index()
+        
+        # Rename and ensure the spine column is named 'game_pk' for downstream merges
+        team_agg = team_agg.rename(columns={spine_col: "game_pk"})
+        team_agg = team_agg.rename(columns={c: f"{prefix}{c}" for c in available_cols if c != spine_col})
 
         return team_agg
 
@@ -146,6 +145,7 @@ class FeaturePipeline:
             "game_id",
             "game_pk_int",
             "team_id",
+            "id",
         ]
 
         if "game_date" in df.columns:
@@ -154,6 +154,13 @@ class FeaturePipeline:
         for col in ID_COLS:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+
+        # Standardize the spine column name for joins if it exists under common aliases
+        if "game_pk" not in df.columns:
+            for alias in ["game_id", "id"]:
+                if alias in df.columns:
+                    df["game_pk"] = df[alias]
+                    break
 
         return df
 
@@ -231,8 +238,8 @@ class FeaturePipeline:
         self, df: pd.DataFrame, elo_df: pd.DataFrame
     ) -> pd.DataFrame:
         """Process and merge Elo metrics."""
-        elo = elo_df.copy()
-        elo["game_pk"] = pd.to_numeric(elo["game_pk"], errors="coerce").astype("Int64")
+        elo = self._align_types(elo_df.copy())
+        
         home_elo = elo[elo["is_home"]].rename(
             columns={"elo_pre": "home_team_elo_pre", "elo_post": "home_team_elo_post"}
         )[["game_pk", "home_team_elo_pre", "home_team_elo_post"]]
@@ -240,9 +247,11 @@ class FeaturePipeline:
             columns={"elo_pre": "away_team_elo_pre", "elo_post": "away_team_elo_post"}
         )[["game_pk", "away_team_elo_pre", "away_team_elo_post"]]
 
+        join_key = "game_pk_int" if "game_pk_int" in df.columns else "game_pk"
+
         df = df.merge(
             home_elo,
-            left_on="game_pk_int",
+            left_on=join_key,
             right_on="game_pk",
             how="left",
             suffixes=("", "_h_elo"),
@@ -250,7 +259,7 @@ class FeaturePipeline:
 
         df = df.merge(
             away_elo,
-            left_on="game_pk_int",
+            left_on=join_key,
             right_on="game_pk",
             how="left",
             suffixes=("", "_a_elo"),
@@ -262,10 +271,10 @@ class FeaturePipeline:
         self, df: pd.DataFrame, pythag_df: pd.DataFrame
     ) -> pd.DataFrame:
         """Process and merge Pythagorean Sabermetrics."""
-        pyth = pythag_df.copy()
-        pyth["game_pk"] = pd.to_numeric(pyth["game_pk"], errors="coerce").astype(
-            "Int64"
-        )
+        pyth = self._align_types(pythag_df.copy())
+        
+        join_key = "game_pk_int" if "game_pk_int" in df.columns else "game_pk"
+
         for side, prefix in [("home", "h_"), ("away", "a_")]:
             side_pyth = pyth[pyth["is_home"] == (side == "home")].rename(
                 columns={
@@ -285,11 +294,11 @@ class FeaturePipeline:
             ]
             df = df.merge(
                 side_pyth,
-                left_on="game_pk_int",
+                left_on=join_key,
                 right_on="game_pk",
                 how="left",
                 suffixes=("", f"_{side}_pyth"),
-            ).drop(columns=[f"game_pk_{side}_pyth", "game_pk"], errors="ignore")
+            ).drop(columns=[f"game_pk_{side}_pyth", f"game_pk_{prefix}pyth", "game_pk"], errors="ignore")
 
         df["pythag_diff"] = df["h_pythag_win_pct"] - df["a_pythag_win_pct"]
         return df
@@ -335,9 +344,13 @@ class FeaturePipeline:
             b_re24 = re24_df[re24_df["role"] == "BATTER"][
                 ["player_id", "game_date", "roll_re24"]
             ]
-            lu_re24 = lineups_df.merge(
+            # Ensure lu_re24 has standardized game_pk
+            lu_re24 = self._align_types(lineups_df.merge(
                 b_re24, on=["player_id", "game_date"], how="left"
-            )
+            ))
+            
+            join_key = "game_pk_int" if "game_pk_int" in df.columns else "game_pk"
+
             for side in ["home", "away"]:
                 prefix = f"{side[0]}_bat_roll_re24"
                 side_agg = (
@@ -349,7 +362,7 @@ class FeaturePipeline:
                 )
                 df = df.merge(
                     side_agg,
-                    left_on="game_pk_int",
+                    left_on=join_key,
                     right_on="game_pk",
                     how="left",
                     suffixes=("", f"_{side}_re24_agg"),
@@ -420,6 +433,11 @@ class FeaturePipeline:
         X = df[feature_cols].copy().select_dtypes(include=["number"])
         X = X.fillna(X.median()).fillna(0)
         X = X.loc[:, (X != X.iloc[0]).any()]  # Drop constants
+
+        # Attach spine as Index for diagnostic/splitting resilience
+        index_cols = [c for c in ["game_date", "game_pk", "game_id"] if c in df.columns]
+        if index_cols:
+            X.index = pd.MultiIndex.from_frame(df[index_cols])
 
         logger.info(f"Uranium Matrix built: {X.shape[0]} games, {X.shape[1]} features.")
         return X, y

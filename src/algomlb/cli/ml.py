@@ -88,7 +88,7 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
     games_df["game_date"] = pd.to_datetime(games_df["game_date"])
 
     pitcher_gold = pd.read_sql(
-        f"SELECT * FROM pitcher_rolling_features WHERE season IN ({years_str})",
+        f"SELECT * FROM player_rolling_features WHERE role = 'PITCHER' AND season IN ({years_str})",
         engine,
     )
     lineups = pd.read_sql(
@@ -226,6 +226,7 @@ def tune(
     study_name = f"{target}_{version}"
     y_frame = y.to_frame(name=target)
     combined_df = cast(pd.DataFrame, pd.concat([X, y_frame], axis=1))
+    combined_df = combined_df.reset_index()
 
     study = run_optuna_study(
         combined_df, X.columns.tolist(), target, n_trials=trials, study_name=study_name
@@ -287,6 +288,7 @@ def backtest(
 
     # Combined DF for backtester
     combined_df = cast(pd.DataFrame, pd.concat([X, y.to_frame(name=target)], axis=1))
+    combined_df = combined_df.reset_index()
 
     params = load_optimized_params(version)
     accumulator = OOFAccumulator(
@@ -344,16 +346,9 @@ def backtest(
                 data={
                     "target": target,
                     "metrics": metrics,
-                    "game_date": [
-                        str(d) for d in oof_df.index.get_level_values("game_date")
-                    ]
-                    if hasattr(oof_df.index, "names")
-                    and "game_date" in oof_df.index.names
-                    else (
-                        oof_df["game_date"].dt.strftime("%Y-%m-%d").tolist()
-                        if "game_date" in oof_df.columns
-                        else []
-                    ),
+                    "game_date": oof_df["game_date"].dt.strftime("%Y-%m-%d").tolist()
+                    if "game_date" in oof_df.columns
+                    else [],
                 },
             )
         )
@@ -384,7 +379,7 @@ def explain(
 
     params = load_optimized_params(version)
     model = MLBModel(**params)
-    model.train(X, y)
+    model.fit(X, y)
 
     _shap_values, shap_df = compute_global_shap(model, X)
     shap_df = cast(pd.DataFrame, shap_df)
