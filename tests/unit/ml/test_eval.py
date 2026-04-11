@@ -25,8 +25,8 @@ def test_compute_calibration_bins():
     # 2 bins: [0, 0.5), [0.5, 1.0]
     df = compute_calibration_bins(y_true, y_prob, n_bins=2)
     assert len(df) == 2
-    assert df.loc[0, "n_samples"] == 2  # 0.1, 0.15
-    assert df.loc[1, "n_samples"] == 3  # 0.5, 0.8, 0.85
+    assert df.loc[0, "sample_count"] == 2  # 0.1, 0.15
+    assert df.loc[1, "sample_count"] == 3  # 0.5, 0.8, 0.85
 
 
 def test_compute_calibration_bins_empty():
@@ -34,8 +34,8 @@ def test_compute_calibration_bins_empty():
     y_prob = np.array([0.9])
     df = compute_calibration_bins(y_true, y_prob, n_bins=2)
     # Bin 0 ([0, 0.5)) is empty
-    assert df.loc[0, "n_samples"] == 0
-    assert df.loc[0, "obs_rate"] == 0.0
+    assert df.loc[0, "sample_count"] == 0
+    assert df.loc[0, "actual_prob_mean"] == 0.0
 
 
 def test_compute_per_game_eval():
@@ -60,17 +60,19 @@ def test_compute_per_game_eval():
 
 
 def test_persist_eval_results():
+    import datetime
+
     mock_engine = MagicMock()
     metrics = {"accuracy": 0.8, "auc": 0.85, "log_loss": 0.4, "brier": 0.15}
     cal_bins = pd.DataFrame(
         [
             {
                 "bin_index": 0,
-                "bin_lower": 0.0,
-                "bin_upper": 0.1,
-                "pred_mean": 0.05,
-                "obs_rate": 0.04,
-                "n_samples": 10,
+                "bin_start": 0.0,
+                "bin_end": 0.1,
+                "predicted_prob_mean": 0.05,
+                "actual_prob_mean": 0.04,
+                "sample_count": 10,
             }
         ]
     )
@@ -87,7 +89,15 @@ def test_persist_eval_results():
         mock_stmt.on_conflict_do_update.return_value = mock_stmt
 
         persist_eval_results(
-            mock_engine, "v1", 2023, 2019, 2022, 100, metrics, cal_bins
+            mock_engine,
+            "pa_outcome",
+            "v1",
+            datetime.date(2023, 1, 1),
+            2019,
+            2022,
+            100,
+            metrics,
+            cal_bins,
         )
         assert mock_engine.begin.called
         assert mock_insert.called

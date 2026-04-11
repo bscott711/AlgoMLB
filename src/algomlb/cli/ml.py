@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, cast
 
+import datetime
 import pandas as pd
 import numpy as np
 import typer
@@ -143,7 +144,8 @@ def _evaluate_and_report(
     model: MLBModel,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    test_year: int,
+    target: str,
+    fold_date: datetime.date,
     engine: Any,
     model_version: str,
     start_year: int,
@@ -180,11 +182,12 @@ def _evaluate_and_report(
 
     persist_eval_results(
         engine=engine,
+        model_target=target,
         model_version=model_version,
-        test_year=test_year,
+        fold_date=fold_date,
         train_start=start_year,
         train_end=end_year,
-        n_games=len(y_test),
+        n_samples=len(y_test),
         metrics=metrics,
         cal_bins=cal_bins,
     )
@@ -266,6 +269,8 @@ def backtest(
     version: str = typer.Option("v1.0", "--version", help="Model version."),
 ) -> None:
     """Run walk-forward backtesting with fixed hyperparameters."""
+    import datetime
+
     session_factory = get_session_factory()
     engine = session_factory.kw["bind"]
     years_str = "2021,2022,2023,2024,2025"
@@ -304,7 +309,6 @@ def backtest(
     y_prob = oof_df["p_model"].to_numpy()
 
     # Correct handling for multiclass vs binary in backtest diagnostics
-    # OOF column is object-list for multiclass
     if (
         oof_df["p_model"]
         .apply(lambda x: isinstance(x, (list, np.ndarray)) and len(x) > 2)
@@ -327,11 +331,12 @@ def backtest(
 
     persist_eval_results(
         engine=engine,
+        model_target=target,
         model_version=version,
-        test_year=2025,
+        fold_date=datetime.date.today(),
         train_start=2021,
         train_end=2025,
-        n_games=len(y_true),
+        n_samples=len(y_true),
         metrics=metrics,
         cal_bins=cal_bins,
     )
@@ -361,6 +366,8 @@ def explain(
     version: str = typer.Option("v1.0", "--version", help="Model version."),
 ) -> None:
     """Generate and persist SHAP explanations for the model."""
+    import datetime
+
     session_factory = get_session_factory()
     engine = session_factory.kw["bind"]
     years_str = "2024,2025"
@@ -381,11 +388,15 @@ def explain(
     model = MLBModel(**params)
     model.fit(X, y)
 
-    _shap_values, shap_df = compute_global_shap(model, X)
+    shap_df = compute_global_shap(model, X)
     shap_df = cast(pd.DataFrame, shap_df)
 
     persist_global_shap(
-        engine=engine, model_version=version, dataset_label=target, shap_df=shap_df
+        engine=engine,
+        model_target=target,
+        model_version=version,
+        fold_date=datetime.date.today(),
+        shap_df=shap_df,
     )
 
     logger.success(f"Explanation complete for {target}.")

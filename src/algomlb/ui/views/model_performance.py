@@ -2,6 +2,7 @@
 
 import streamlit as st
 import pandas as pd
+import datetime
 from typing import cast
 import plotly.express as px
 import plotly.graph_objects as go
@@ -25,32 +26,37 @@ TEMPLATE = get_plotly_template()
 
 
 @st.cache_data(ttl=600)
-def load_eval_history():
+def load_eval_history(model_target: str = "pa_outcome"):
     query = """
-        SELECT model_version, test_year, train_start_year, train_end_year,
-               n_games, accuracy, auc, log_loss_val AS log_loss, brier
+        SELECT model_target, model_version, fold_date, train_start_year, train_end_year,
+               n_samples, accuracy, auc, log_loss_val AS log_loss, brier
         FROM uranium_eval_history
-        ORDER BY model_version, test_year
+        WHERE model_target = :target
+        ORDER BY model_version, fold_date
     """
     try:
-        return pd.read_sql(text(query), engine)
+        return pd.read_sql(text(query), engine, params={"target": model_target})
     except Exception:
         return pd.DataFrame()
 
 
 @st.cache_data(ttl=600)
-def load_calibration(model_version: str, test_year: int | None = None):
+def load_calibration(
+    model_version: str,
+    fold_date: datetime.date | None = None,
+    model_target: str = "pa_outcome",
+):
     base = """
-        SELECT model_version, test_year, bin_index, bin_lower, bin_upper,
-               pred_mean, obs_rate, n_samples
+        SELECT model_version, fold_date, bin_index, bin_start, bin_end,
+               predicted_prob_mean, actual_prob_mean, sample_count
         FROM uranium_calibration_bins
-        WHERE model_version = :mv
+        WHERE model_version = :mv AND model_target = :target
     """
-    params: dict = {"mv": model_version}
-    if test_year is not None:
-        base += " AND test_year = :ty"
-        params["ty"] = test_year
-    base += " ORDER BY test_year, bin_index"
+    params: dict = {"mv": model_version, "target": model_target}
+    if fold_date is not None:
+        base += " AND fold_date = :fd"
+        params["fd"] = fold_date
+    base += " ORDER BY fold_date, bin_index"
     try:
         return pd.read_sql(text(base), engine, params=params)
     except Exception:
@@ -59,18 +65,20 @@ def load_calibration(model_version: str, test_year: int | None = None):
 
 @st.cache_data(ttl=600)
 def load_global_shap(
-    model_version: str, dataset_label: str | None = None
+    model_version: str,
+    fold_date: datetime.date | None = None,
+    model_target: str = "pa_outcome",
 ) -> pd.DataFrame:
     base = """
-        SELECT model_version, dataset_label, feature_name,
+        SELECT model_version, fold_date, feature_name,
                mean_abs_shap, mean_shap
         FROM uranium_shap_global
-        WHERE model_version = :mv
+        WHERE model_version = :mv AND model_target = :target
     """
-    params: dict = {"mv": model_version}
-    if dataset_label:
-        base += " AND dataset_label = :dl"
-        params["dl"] = dataset_label
+    params: dict = {"mv": model_version, "target": model_target}
+    if fold_date:
+        base += " AND fold_date = :fd"
+        params["fd"] = fold_date
     base += " ORDER BY mean_abs_shap DESC"
     try:
         return pd.read_sql(text(base), engine, params=params)
@@ -100,11 +108,11 @@ with st.sidebar:
     selected_model = st.selectbox("Model Version", model_versions)
 
     df_mv = eval_df[eval_df["model_version"] == selected_model]
-    years = sorted(df_mv["test_year"].unique().tolist())
-    selected_year = st.selectbox(
-        "Test Year (detail view)",
-        options=years,
-        index=len(years) - 1,
+    dates = sorted(df_mv["fold_date"].unique().tolist())
+    selected_date = st.selectbox(
+        "Fold Date",
+        options=dates,
+        index=len(dates) - 1,
     )
 
     # Ensure selected_model is a valid string for typed calls
@@ -112,19 +120,18 @@ with st.sidebar:
 
     # SHAP dataset selector
     shap_df_all = load_global_shap(model_version_str)
-    shap_labels = (
-        sorted(shap_df_all["dataset_label"].unique().tolist())
+    shap_dates = (
+        sorted(shap_df_all["fold_date"].unique().tolist())
         if not shap_df_all.empty
         else []
     )
-    preferred_label = f"test_{selected_year}"
-    selected_shap_label = None
-    if shap_labels:
+    selected_shap_date = None
+    if shap_dates:
         default_idx = (
-            shap_labels.index(preferred_label) if preferred_label in shap_labels else 0
+            shap_dates.index(selected_date) if selected_date in shap_dates else 0
         )
-        selected_shap_label = st.selectbox(
-            "SHAP Dataset", options=shap_labels, index=default_idx
+        selected_shap_date = st.selectbox(
+            "SHAP Fold Date", options=shap_dates, index=default_idx
         )
 
 
@@ -133,7 +140,7 @@ with st.sidebar:
 st.subheader(f"Model: {selected_model}")
 
 df_mv = eval_df[eval_df["model_version"] == selected_model].copy()
-latest = df_mv[df_mv["test_year"] == selected_year]
+latest = df_mv[df_mv["fold_date"] == selected_date]
 
 if not latest.empty:
     row = latest.iloc[0]
@@ -142,18 +149,18 @@ if not latest.empty:
     c2.metric("ROC AUC", f"{row['auc']:.3f}")
     c3.metric("Log Loss", f"{row['log_loss']:.3f}")
     c4.metric("Brier Score", f"{row['brier']:.3f}")
-    c5.metric("Games", f"{int(row['n_games']):,}")
+    c5.metric("Samples", f"{int(row['n_samples']):,}")
 
 st.markdown("---")
 
 
 # ── Section 1: Walk-Forward Metrics Over Time ─────────────────────────────
 
-st.markdown("### 📈 Walk-Forward Metrics by Test Year")
+st.markdown("### 📈 Walk-Forward Metrics by Fold Date")
 
 metric_cols = ["accuracy", "auc", "log_loss", "brier"]
 df_long = df_mv.melt(
-    id_vars=["test_year"],
+    id_vars=["fold_date"],
     value_vars=metric_cols,
     var_name="metric",
     value_name="value",
@@ -168,18 +175,17 @@ color_map = {
 
 fig_metrics = px.line(
     df_long,
-    x="test_year",
+    x="fold_date",
     y="value",
     color="metric",
     markers=True,
     color_discrete_map=color_map,
-    labels={"test_year": "Test Year", "value": "", "metric": "Metric"},
+    labels={"fold_date": "Fold Date", "value": "", "metric": "Metric"},
     template=TEMPLATE,
 )
 fig_metrics.update_layout(
     height=380,
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    xaxis=dict(dtick=1),
 )
 st.plotly_chart(fig_metrics, use_container_width=True)
 
@@ -192,15 +198,15 @@ st.markdown("---")
 
 # ── Section 2: Calibration / Reliability Curve ────────────────────────────
 
-st.markdown(f"### 🎯 Calibration Curve — Test Year {selected_year}")
+st.markdown(f"### 🎯 Calibration Curve — Fold {selected_date}")
 
-cal_df = load_calibration(model_version_str, selected_year)
+cal_df = load_calibration(model_version_str, selected_date)
 
 if cal_df.empty:
-    st.info("No calibration bins found for this model/year. Run training to populate.")
+    st.info("No calibration bins found for this model/date. Run training to populate.")
 else:
     # Filter out empty bins for cleaner display
-    cal_plot = cal_df[cal_df["n_samples"] > 0].copy()
+    cal_plot = cal_df[cal_df["sample_count"] > 0].copy()
 
     fig_cal = go.Figure()
 
@@ -218,11 +224,11 @@ else:
     # Actual calibration curve
     fig_cal.add_trace(
         go.Scatter(
-            x=cal_plot["pred_mean"],
-            y=cal_plot["obs_rate"],
+            x=cal_plot["predicted_prob_mean"],
+            y=cal_plot["actual_prob_mean"],
             mode="lines+markers",
             marker=dict(
-                size=cal_plot["n_samples"].clip(upper=300) / 10 + 4,
+                size=cal_plot["sample_count"].clip(upper=300) / 10 + 4,
                 color=COLORS["secondary"],
             ),
             line=dict(color=COLORS["secondary"], width=2),
@@ -232,7 +238,7 @@ else:
                 "Observed: %{y:.2f}<br>"
                 "N=%{customdata}<extra></extra>"
             ),
-            customdata=cal_plot["n_samples"],
+            customdata=cal_plot["sample_count"],
         )
     )
 
@@ -251,11 +257,11 @@ else:
             cal_df[
                 [
                     "bin_index",
-                    "bin_lower",
-                    "bin_upper",
-                    "pred_mean",
-                    "obs_rate",
-                    "n_samples",
+                    "bin_start",
+                    "bin_end",
+                    "predicted_prob_mean",
+                    "actual_prob_mean",
+                    "sample_count",
                 ]
             ],
             use_container_width=True,
@@ -268,14 +274,14 @@ st.markdown("---")
 
 st.markdown("### 🔬 Global Feature Importance (SHAP)")
 
-if selected_shap_label is None or shap_df_all.empty:
+if selected_shap_date is None or shap_df_all.empty:
     st.info(
         "No SHAP results found. Install `shap` (`uv add shap`) and re-run training."
     )
 else:
-    shap_df = shap_df_all[shap_df_all["dataset_label"] == selected_shap_label].copy()
+    shap_df = shap_df_all[shap_df_all["fold_date"] == selected_shap_date].copy()
     if shap_df.empty:
-        st.info(f"No SHAP rows for dataset '{selected_shap_label}'.")
+        st.info(f"No SHAP rows for date '{selected_shap_date}'.")
     else:
         top_n = st.slider("Top N Features", min_value=5, max_value=50, value=20)
         # Force DataFrame type for pyright to resolve nlargest

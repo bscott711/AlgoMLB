@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import datetime
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
 
@@ -80,8 +81,9 @@ def compute_global_shap(
 
 def persist_global_shap(
     engine: Engine | None,
+    model_target: str,
     model_version: str,
-    dataset_label: str,
+    fold_date: datetime.date,
     shap_df: pd.DataFrame,
 ) -> None:
     """Upsert global SHAP values into uranium_shap_global."""
@@ -93,15 +95,21 @@ def persist_global_shap(
     from algomlb.db.models import UraniumShapGlobalORM
 
     records = shap_df.copy()
+    records["model_target"] = model_target
     records["model_version"] = model_version
-    records["dataset_label"] = dataset_label
+    records["fold_date"] = fold_date
     rows = records.to_dict(orient="records")
 
     with eng.begin() as conn:
         for row in rows:
             stmt = pg_insert(UraniumShapGlobalORM).values([row])
             upsert = stmt.on_conflict_do_update(
-                index_elements=["model_version", "dataset_label", "feature_name"],
+                index_elements=[
+                    "model_target",
+                    "model_version",
+                    "fold_date",
+                    "feature_name",
+                ],
                 set_={
                     "mean_abs_shap": stmt.excluded.mean_abs_shap,
                     "mean_shap": stmt.excluded.mean_shap,
@@ -110,5 +118,5 @@ def persist_global_shap(
             conn.execute(upsert)
 
     logger.info(
-        f"Persisted {len(rows)} SHAP features for {model_version}/{dataset_label}."
+        f"Persisted {len(rows)} SHAP features for {model_target}/{model_version}/{fold_date}."
     )

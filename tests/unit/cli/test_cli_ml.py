@@ -192,7 +192,17 @@ def test_evaluate_and_report_logic(mock_session_factory):
             "brier": 0.1,
         }
 
+        import datetime
+
         metrics = _evaluate_and_report(
-            mock_model, X_test, y_test, 2023, MagicMock(), "v1.0", 2021, 2023
+            mock_model,
+            X_test,
+            y_test,
+            "pa_outcome",
+            datetime.date(2023, 1, 1),
+            MagicMock(),
+            "v1.0",
+            2021,
+            2023,
         )
         assert metrics["accuracy"] == 0.8

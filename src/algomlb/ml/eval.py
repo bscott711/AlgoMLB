@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import numpy as np
 import pandas as pd
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -69,11 +70,11 @@ def compute_calibration_bins(
         rows.append(
             {
                 "bin_index": i,
-                "bin_lower": float(lo),
-                "bin_upper": float(hi),
-                "pred_mean": pred_mean,
-                "obs_rate": obs_rate,
-                "n_samples": n,
+                "bin_start": float(lo),
+                "bin_end": float(hi),
+                "predicted_prob_mean": pred_mean,
+                "actual_prob_mean": obs_rate,
+                "sample_count": n,
             }
         )
 
@@ -124,11 +125,12 @@ def compute_per_game_eval(
 
 def persist_eval_results(
     engine: Engine | None,
+    model_target: str,
     model_version: str,
-    test_year: int,
+    fold_date: datetime.date,
     train_start: int,
     train_end: int,
-    n_games: int,
+    n_samples: int,
     metrics: dict,
     cal_bins: pd.DataFrame,
 ) -> None:
@@ -141,58 +143,67 @@ def persist_eval_results(
 
     # ── Eval history row ──────────────────────────────────────────────
     eval_row = {
+        "model_target": model_target,
         "model_version": model_version,
-        "test_year": test_year,
+        "fold_date": fold_date,
         "train_start_year": train_start,
         "train_end_year": train_end,
-        "n_games": n_games,
-        "accuracy": metrics["accuracy"],
-        "auc": metrics["auc"],
-        "log_loss_val": metrics["log_loss"],
-        "brier": metrics["brier"],
+        "n_samples": n_samples,
+        "accuracy": metrics.get("accuracy"),
+        "auc": metrics.get("auc"),
+        "log_loss_val": metrics.get("log_loss"),
+        "brier": metrics.get("brier"),
+        "ece": metrics.get("ece"),
     }
 
     with eng.begin() as conn:
         stmt = pg_insert(UraniumEvalHistoryORM).values([eval_row])
         upsert = stmt.on_conflict_do_update(
-            index_elements=["model_version", "test_year"],
+            index_elements=["model_target", "model_version", "fold_date"],
             set_={
                 "train_start_year": stmt.excluded.train_start_year,
                 "train_end_year": stmt.excluded.train_end_year,
-                "n_games": stmt.excluded.n_games,
+                "n_samples": stmt.excluded.n_samples,
                 "accuracy": stmt.excluded.accuracy,
                 "auc": stmt.excluded.auc,
                 "log_loss_val": stmt.excluded.log_loss_val,
                 "brier": stmt.excluded.brier,
+                "ece": stmt.excluded.ece,
             },
         )
         conn.execute(upsert)
 
     # ── Calibration bins ──────────────────────────────────────────────
     bin_records = cal_bins.copy()
+    bin_records["model_target"] = model_target
     bin_records["model_version"] = model_version
-    bin_records["test_year"] = test_year
+    bin_records["fold_date"] = fold_date
     records = bin_records.to_dict(orient="records")
 
     with eng.begin() as conn:
         for rec in records:
             stmt = pg_insert(UraniumCalibrationBinsORM).values([rec])
             upsert = stmt.on_conflict_do_update(
-                index_elements=["model_version", "test_year", "bin_index"],
+                index_elements=[
+                    "model_target",
+                    "model_version",
+                    "fold_date",
+                    "bin_index",
+                ],
                 set_={
-                    "bin_lower": stmt.excluded.bin_lower,
-                    "bin_upper": stmt.excluded.bin_upper,
-                    "pred_mean": stmt.excluded.pred_mean,
-                    "obs_rate": stmt.excluded.obs_rate,
-                    "n_samples": stmt.excluded.n_samples,
+                    "bin_start": stmt.excluded.bin_start,
+                    "bin_end": stmt.excluded.bin_end,
+                    "predicted_prob_mean": stmt.excluded.predicted_prob_mean,
+                    "actual_prob_mean": stmt.excluded.actual_prob_mean,
+                    "sample_count": stmt.excluded.sample_count,
                 },
             )
             conn.execute(upsert)
 
     logger.info(
-        f"Persisted eval results for {model_version}/{test_year}: "
-        f"Acc={metrics['accuracy']:.4f} AUC={metrics['auc']:.4f} "
-        f"Brier={metrics['brier']:.4f}, {len(records)} calibration bins."
+        f"Persisted eval results for {model_target}/{model_version}/{fold_date}: "
+        f"Acc={metrics.get('accuracy', 0.0):.4f} AUC={metrics.get('auc', 0.0):.4f}, "
+        f"{len(records)} calibration bins."
     )
 
 

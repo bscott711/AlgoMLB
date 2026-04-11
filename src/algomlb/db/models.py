@@ -1394,12 +1394,9 @@ class UraniumEvalHistoryORM(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    test_year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     train_start_year: Mapped[int] = mapped_column(Integer, nullable=False)
     train_end_year: Mapped[int] = mapped_column(Integer, nullable=False)
-    fold_date: Mapped[Optional[datetime.date]] = mapped_column(
-        Date, nullable=True, index=True
-    )
+    fold_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
 
     n_samples: Mapped[int] = mapped_column(Integer, nullable=False)
     accuracy: Mapped[Optional[float]] = mapped_column(Float)

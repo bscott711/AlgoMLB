@@ -51,11 +51,17 @@ def test_compute_global_shap_import_error(mock_model, sample_x):
 
 
 def test_persist_global_shap_empty():
-    persist_global_shap(None, "v1", "test", pd.DataFrame())
+    import datetime
+
+    persist_global_shap(
+        None, "pa_outcome", "v1", datetime.date(2023, 1, 1), pd.DataFrame()
+    )
     # Should just return early (covered by lack of crash)
 
 
 def test_persist_global_shap_workflow():
+    import datetime
+
     mock_engine = MagicMock()
     mock_conn = mock_engine.begin.return_value.__enter__.return_value
 
@@ -67,6 +73,8 @@ def test_persist_global_shap_workflow():
         patch("algomlb.ml.shap_analysis.get_engine", return_value=mock_engine),
         patch("algomlb.ml.shap_analysis.pg_insert") as mock_insert,
     ):
-        persist_global_shap(mock_engine, "v1", "test", shap_df)
+        persist_global_shap(
+            mock_engine, "pa_outcome", "v1", datetime.date(2023, 1, 1), shap_df
+        )
         assert mock_conn.execute.called
         assert mock_insert.called

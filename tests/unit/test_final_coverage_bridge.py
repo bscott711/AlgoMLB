@@ -215,10 +215,12 @@ def test_coverage_bridge_ui_stubs():
             Exception("DB Error"),
             Exception("DB Error"),
         ]
+        import datetime
+
         load_eval_history()
         load_eval_history()
-        load_calibration("v1.0", 2023)
-        load_global_shap("v1.0", "test_2023")
+        load_calibration("v1.0", datetime.date(2023, 1, 1))
+        load_global_shap("v1.0", datetime.date(2023, 1, 1))
 
     # Hit UI view entry points with mocked streamlit
     with (
