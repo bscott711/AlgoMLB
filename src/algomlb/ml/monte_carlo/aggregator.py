@@ -10,6 +10,7 @@ class SimulationAggregator:
     def aggregate_results(
         self,
         game_pk: int,
+        season: int,
         trial_results: List[Dict[int, BatterSimState | PitcherSimState]],
     ) -> pd.DataFrame:
         """
@@ -74,6 +75,7 @@ class SimulationAggregator:
                 arr = np.array(values)
                 record = {
                     "game_pk": game_pk,
+                    "season": season,
                     "player_id": player_id,
                     "stat_type": public_stat,
                     "mean": float(np.mean(arr)),

@@ -1505,6 +1505,7 @@ class UraniumSimulatedPlayerPropsORM(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    season: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
 
     # Prop Market (e.g., 'K', 'H', 'HR', 'RBI', 'R', 'TB', 'HRR')

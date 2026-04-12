@@ -548,7 +548,9 @@ def simulate_game(
 
         # 4. Aggregate
         aggregator = SimulationAggregator()
-        results_df = aggregator.aggregate_results(game_pk, trial_results)
+        results_df = aggregator.aggregate_results(
+            game_pk, context.game_date.year, trial_results
+        )
 
         # 5. Persist
         from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -559,6 +561,7 @@ def simulate_game(
             upsert = stmt.on_conflict_do_update(
                 index_elements=["game_pk", "player_id", "stat_type"],
                 set_={
+                    "season": stmt.excluded.season,
                     "mean": stmt.excluded.mean,
                     "median": stmt.excluded.median,
                     "prob_over_0_5": stmt.excluded.prob_over_0_5,
