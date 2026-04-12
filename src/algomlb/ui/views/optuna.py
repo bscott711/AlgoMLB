@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import optuna
+from sqlalchemy import text
 from algomlb.db.session import get_engine
 
 
@@ -12,7 +13,11 @@ def render_optuna_view():
 
     # Sidebar for filters
     st.sidebar.title("Filters")
-    target_filter = st.sidebar.text_input("Model Target", value="pa_outcome")
+    target_filter = st.sidebar.selectbox(
+        "Model Target",
+        options=["pa_outcome", "home_win", "total_runs_actual", "is_strike"],
+        index=0,
+    )
     version_filter = st.sidebar.text_input("Model Version", value="v1.0")
 
     tabs = st.tabs(
@@ -78,15 +83,15 @@ def render_optuna_view():
         st.subheader("20-Bin Reliability Diagram")
 
         engine = get_engine()
-        query = f"""
+        query = text("""
             SELECT fold_date, bin_index, bin_start, bin_end, predicted_prob_mean, actual_prob_mean, sample_count
             FROM uranium_calibration_bins
-            WHERE model_target = '{target_filter}' AND model_version = '{version_filter}'
+            WHERE model_target = :target AND model_version = :version
             ORDER BY fold_date DESC, bin_index ASC
-        """
+        """)
 
         try:
-            cal_df = pd.read_sql(query, engine)
+            cal_df = pd.read_sql(query, engine, params={"target": target_filter, "version": version_filter})
 
             if cal_df.empty:
                 st.info(
@@ -139,13 +144,13 @@ def render_optuna_view():
                 # Metrics History
                 st.markdown("---")
                 st.markdown("**ECE History**")
-                ece_query = f"""
+                ece_query = text("""
                     SELECT fold_date, ece, n_samples
                     FROM uranium_eval_history
-                    WHERE model_target = '{target_filter}' AND model_version = '{version_filter}'
+                    WHERE model_target = :target AND model_version = :version
                     ORDER BY fold_date ASC
-                """
-                ece_df = pd.read_sql(ece_query, engine)
+                """)
+                ece_df = pd.read_sql(ece_query, engine, params={"target": target_filter, "version": version_filter})
                 fig_ece = px.line(
                     ece_df,
                     x="fold_date",
@@ -162,15 +167,15 @@ def render_optuna_view():
     with tabs[2]:
         st.subheader("Feature Importance Over Time (SHAP Drift)")
 
-        shap_query = f"""
+        shap_query = text("""
             SELECT fold_date, feature_name, mean_abs_shap
             FROM uranium_shap_global
-            WHERE model_target = '{target_filter}' AND model_version = '{version_filter}'
+            WHERE model_target = :target AND model_version = :version
             ORDER BY fold_date ASC, mean_abs_shap DESC
-        """
+        """)
 
         try:
-            shap_df = pd.read_sql(shap_query, engine)
+            shap_df = pd.read_sql(shap_query, engine, params={"target": target_filter, "version": version_filter})
 
             if shap_df.empty:
                 st.info(f"No SHAP data found for {target_filter}/{version_filter}")

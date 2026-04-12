@@ -27,13 +27,59 @@ def compute_fold_metrics(
         roc_auc_score,
     )
 
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob, dtype=float)
+
+    # Multiclass metrics (log_loss handles it automatically)
+    if y_prob.ndim == 2 and y_prob.shape[1] > 2:
+        y_pred = np.argmax(y_prob, axis=1)
+        # For ECE/Calibration on multiclass, we use Confidence Calibration (Top-1)
+        p_conf = np.max(y_prob, axis=1)
+        y_correct = (y_pred == y_true).astype(int)
+        ece = calculate_ece(y_correct, p_conf)
+        
+        return {
+            "accuracy": float(accuracy_score(y_true, y_pred)),
+            "log_loss": float(log_loss(y_true, y_prob)),
+            "ece": float(ece),
+            "auc": 0.0,  # Multiclass AUC requires per-class or OvR, skipping for now
+            "brier": 0.0,
+        }
+
+    # Safety: handle 2D binary inputs passed to 1D metric functions
+    if y_prob.ndim == 2 and y_prob.shape[1] == 2:
+        y_prob = y_prob[:, 1]
+    elif y_prob.ndim != 1:
+        raise ValueError(f"compute_fold_metrics expects 1D array, got {y_prob.shape}")
+
     y_pred = (y_prob >= 0.5).astype(int)
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "auc": float(roc_auc_score(y_true, y_prob)),
         "log_loss": float(log_loss(y_true, y_prob)),
         "brier": float(brier_score_loss(y_true, y_prob)),
+        "ece": float(calculate_ece(y_true, y_prob)),
     }
+
+
+def calculate_ece(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 15) -> float:
+    """Calculates Expected Calibration Error using a weighted average of bin errors."""
+    y_true = np.asarray(y_true)
+    y_prob = np.asarray(y_prob)
+    
+    if len(y_true) == 0:
+        return 0.0
+        
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for i in range(n_bins):
+        mask = (y_prob >= bins[i]) & (y_prob < bins[i+1])
+        if np.any(mask):
+            pred_mean = y_prob[mask].mean()
+            obs_rate = y_true[mask].mean()
+            weight = mask.sum() / len(y_true)
+            ece += weight * np.abs(pred_mean - obs_rate)
+    return ece
 
 
 # ── Calibration bins ─────────────────────────────────────────────────────
@@ -44,41 +90,52 @@ def compute_calibration_bins(
     y_prob: np.ndarray,
     n_bins: int = 20,
 ) -> pd.DataFrame:
-    """
-    Bin predictions into *n_bins* equal-width intervals and compute
-    per-bin mean predicted probability, observed win rate, and count.
-    """
+    """Bins predictions and calculates observed rates. Supports multiclass matrices."""
     y_true = np.asarray(y_true)
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    rows: list[dict] = []
+    y_prob = np.asarray(y_prob)
+
+    # For multiclass, we reduce to Confidence Calibration (Top-1)
+    if y_prob.ndim == 2 and y_prob.shape[1] > 2:
+        y_pred = np.argmax(y_prob, axis=1)
+        y_prob = np.max(y_prob, axis=1)      # p_confidence
+        y_true = (y_pred == y_true).astype(int) # matches truth
+    elif y_prob.ndim == 2 and y_prob.shape[1] == 2:
+        y_prob = y_prob[:, 1]
+
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    results = []
 
     for i in range(n_bins):
-        lo, hi = edges[i], edges[i + 1]
-        mask = (
-            (y_prob >= lo) & (y_prob < hi)
-            if i < n_bins - 1
-            else (y_prob >= lo) & (y_prob <= hi)
-        )
+        lo, hi = bins[i], bins[i + 1]
+        mask = (y_prob >= lo) & (y_prob < hi)
         n = int(mask.sum())
-        if n == 0:
-            pred_mean = (lo + hi) / 2
-            obs_rate = 0.0
-        else:
+
+        if n > 0:
             pred_mean = float(y_prob[mask].mean())
             obs_rate = float(y_true[mask].mean())
+            results.append(
+                {
+                    "bin_index": i,
+                    "bin_start": lo,
+                    "bin_end": hi,
+                    "predicted_prob_mean": pred_mean,
+                    "actual_prob_mean": obs_rate,
+                    "sample_count": n,
+                }
+            )
+        else:
+            results.append(
+                {
+                    "bin_index": i,
+                    "bin_start": lo,
+                    "bin_end": hi,
+                    "predicted_prob_mean": None,
+                    "actual_prob_mean": None,
+                    "sample_count": 0,
+                }
+            )
 
-        rows.append(
-            {
-                "bin_index": i,
-                "bin_start": float(lo),
-                "bin_end": float(hi),
-                "predicted_prob_mean": pred_mean,
-                "actual_prob_mean": obs_rate,
-                "sample_count": n,
-            }
-        )
-
-    return pd.DataFrame(rows)
+    return pd.DataFrame(results)
 
 
 # ── Per-game evaluation ──────────────────────────────────────────────────

@@ -182,7 +182,7 @@ def summarize_to_silver(
             std_release_pos_z=("release_pos_z", "std"),
             edge_pct=("is_edge", "mean"),
             max_fb_speed=("fb_speed", "max"),
-            avg_fb_speed=("fb_speed", "mean"),
+            fb_speed=("fb_speed", "mean"),
             hard_hits_allowed=("is_hard_hit", "sum"),
             xwoba_vs_rh=("p_xwoba_rh", "mean"),
             pa_vs_rh=("p_pa_rh", "nunique"),
@@ -192,7 +192,7 @@ def summarize_to_silver(
         .reset_index()
         .rename(columns={"pitcher": "player_id"})
     )
-    p_agg["fastball_velo_degradation"] = p_agg["max_fb_speed"] - p_agg["avg_fb_speed"]
+    p_agg["fastball_velo_degradation"] = p_agg["max_fb_speed"] - p_agg["fb_speed"]
     p_agg["role"] = "PITCHER"
 
     # 2. Batter Aggregation
@@ -386,7 +386,7 @@ def _upsert_silver(df: pd.DataFrame):
             k: v
             for k, v in record.items()
             if not str(k).endswith("_prior")
-            and k not in ["max_fb_speed", "avg_fb_speed"]
+            and k not in ["max_fb_speed"]
         }
 
         stmt = insert(StatcastPlayerGameLog).values(**record)

@@ -1023,6 +1023,7 @@ class StatcastPlayerGameLog(Base):
     whiffs: Mapped[Optional[int]] = mapped_column(SmallInteger)
     k: Mapped[Optional[int]] = mapped_column(SmallInteger)
     bb: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    fb_speed: Mapped[Optional[float]] = mapped_column(Float)
     avg_release_speed: Mapped[Optional[float]] = mapped_column(Float)
     avg_pfx_x: Mapped[Optional[float]] = mapped_column(Float)
     avg_pfx_z: Mapped[Optional[float]] = mapped_column(Float)

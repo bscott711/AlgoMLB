@@ -29,7 +29,7 @@ class XGBoostOptunaObjective:
         splitter: TimeSeriesSplitter,
         metric: str = "auto",
     ):
-        self.df = df
+        self.df = df.copy()
         self.features = features
         self.target = target
         self.splitter = splitter
@@ -38,6 +38,15 @@ class XGBoostOptunaObjective:
             self.metric = "mlogloss" if target == "pa_outcome" else "brier_score"
         else:
             self.metric = metric
+
+        # Hardening: Fit LabelEncoder once globally for multiclass
+        self.le = None
+        self.num_class = None
+        if self.metric == "mlogloss":
+            from sklearn.preprocessing import LabelEncoder
+            self.le = LabelEncoder()
+            self.df[self.target] = self.le.fit_transform(self.df[self.target])
+            self.num_class = len(self.le.classes_)
 
     def __call__(self, trial: optuna.Trial) -> float:
         # Define search space strictly to prevent overfitting baseball noise
@@ -56,6 +65,7 @@ class XGBoostOptunaObjective:
         # Handle objective and classes based on target
         if self.metric == "mlogloss":
             params["objective"] = "multi:softprob"
+            params["num_class"] = self.num_class
         else:
             params["objective"] = "binary:logistic"
 
@@ -78,8 +88,8 @@ class XGBoostOptunaObjective:
 
             # Calculate step loss
             if self.metric == "mlogloss":
-                # y_prob is (N, C)
-                step_loss = log_loss(y_test, y_prob)
+                # Explicitly pass all labels to handle folds missing rare outcomes
+                step_loss = log_loss(y_test, y_prob, labels=np.arange(self.num_class))
             else:
                 # y_prob is (N, 2), we want P(class=1)
                 step_loss = brier_score_loss(y_test, y_prob[:, 1])
@@ -94,6 +104,7 @@ class XGBoostOptunaObjective:
                 raise optuna.TrialPruned()
 
         avg_loss = float(np.mean(fold_losses))
+        return avg_loss
 
         # Calculate secondary metrics for logging (ECE)
         # Note: In a real run, we'd accumulate all OOF for a proper ECE,

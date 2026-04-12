@@ -98,6 +98,7 @@ class HistoricalDataLoader:
             at_bat_number=safe_int(row.get("at_bat_number")),
             inning=safe_int(row.get("inning")),
             zone=safe_int(row.get("zone")),
+            type=str(row.get("type")) if not pd.isna(row.get("type")) else None,
             bb_type=str(row.get("bb_type"))
             if not pd.isna(row.get("bb_type"))
             else None,

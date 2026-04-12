@@ -1,4 +1,3 @@
-import logging
 from datetime import date, timedelta
 import pandas as pd
 from sqlalchemy import select
@@ -6,8 +5,7 @@ from algomlb.db.models import StatcastPlayerGameLog, PlayerRollingFeaturesORM
 from algomlb.db.repository import DatabaseRepository
 from algomlb.ml.rolling_processor import RollingProcessor, PlayerRollingRecord
 from algomlb.domain import PlayerRole
-
-logger = logging.getLogger(__name__)
+from algomlb.core.logger import logger
 
 
 class RollingService:
@@ -22,7 +20,13 @@ class RollingService:
         total_written = 0
         current = start_date
         while current <= end_date:
-            total_written += self.process_single_date(current, dry_run=dry_run)
+            written = self.process_single_date(current, dry_run=dry_run)
+            total_written += written
+            if written > 0:
+                logger.success(f"[{current}] Completed rolling features. {written} records saved.")
+            elif current.day == 1: # Log start of month as a heartbeat even if empty
+                logger.info(f"[{current}] Year/Month tick...")
+                
             current += timedelta(days=1)
         return total_written
 

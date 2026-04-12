@@ -11,6 +11,8 @@ import datetime
 import pandas as pd
 import numpy as np
 import typer
+import json
+from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel
 
@@ -233,8 +235,6 @@ def tune(
     logger.success(f"Tuning complete for {target}. Best Params: {best_params}")
 
     # Persistence: Save best params to JSON for backtester/explain
-    import json
-    from pathlib import Path
     out_dir = Path(".data/models")
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"optuna_best_params_{target}_{version}.json"
@@ -310,28 +310,31 @@ def backtest(
 
     # Diagnostic metrics on full OOF
     y_true = oof_df[target].to_numpy()
-    y_prob = oof_df["p_model"].to_numpy()
-
-    # Correct handling for multiclass vs binary in backtest diagnostics
-    if (
-        oof_df["p_model"]
-        .apply(lambda x: isinstance(x, (list, np.ndarray)) and len(x) > 2)
-        .any()
-    ):
-        from sklearn.metrics import log_loss, accuracy_score
-
-        y_prob_stack = np.stack(oof_df["p_model"].tolist())
-        y_pred = np.argmax(y_prob_stack, axis=1)
-        metrics = {
-            "accuracy": float(accuracy_score(y_true, y_pred)),
-            "log_loss": float(log_loss(y_true, y_prob_stack)),
-            "brier": 0.0,
-            "auc": 0.0,
-        }
+    
+    # Robustly handle p_model being either a scalar or a vector (binary/multiclass)
+    if isinstance(oof_df["p_model"].iloc[0], (list, np.ndarray)):
+        prob_matrix = np.stack(oof_df["p_model"].tolist())
+        if prob_matrix.shape[1] > 2:
+            # Multiclass handling
+            from sklearn.metrics import log_loss, accuracy_score
+            y_pred = np.argmax(prob_matrix, axis=1)
+            metrics = {
+                "accuracy": float(accuracy_score(y_true, y_pred)),
+                "log_loss": float(log_loss(y_true, prob_matrix)),
+                "brier": 0.0,
+                "auc": 0.0,
+            }
+            p_pos = prob_matrix  # Calibration bins will likely need adjustment for multiclass
+        else:
+            # Binary probabilities [p_neg, p_pos]
+            p_pos = prob_matrix[:, 1]
+            metrics = compute_fold_metrics(y_true, p_pos)
     else:
-        metrics = compute_fold_metrics(y_true, y_prob)
+        # Scalar probabilities
+        p_pos = oof_df["p_model"].to_numpy()
+        metrics = compute_fold_metrics(y_true, p_pos)
 
-    cal_bins = compute_calibration_bins(y_true, y_prob)
+    cal_bins = compute_calibration_bins(y_true, p_pos)
 
     persist_eval_results(
         engine=engine,
@@ -417,6 +420,43 @@ def explain(
                 },
             )
         )
+
+
+@app.command()
+def train(
+    ctx: typer.Context,
+    target: str = typer.Option(..., "--target", help="The target column to predict."),
+    version: str = typer.Option("v1.0", "--version", help="Model version."),
+) -> None:
+    """Train and persist a production Uranium model using best params."""
+    session_factory = get_session_factory()
+    engine = session_factory.kw["bind"]
+    years_str = "2021,2022,2023,2024,2025"
+
+    data = _load_ml_data(engine, years_str)
+    pipeline = FeaturePipeline()
+    X, y = pipeline.build_uranium_matrix(
+        data["games"],
+        data["pitcher_gold"],
+        data["lineups"] if not data["lineups"].empty else None,
+        data["batter_gold"] if not data["batter_gold"].empty else None,
+        elo_df=data["elo"],
+        pythag_df=data["pythag"],
+        re24_df=data["re24"],
+    )
+
+    params = load_optimized_params(target, version)
+    model = MLBModel(**params)
+    
+    logger.info(f"Fitting production model for {target}...")
+    model.fit(X, y, calibrate=True)
+
+    out_dir = Path(".data/models")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{target}_{version}.joblib"
+    model.save(out_path)
+    
+    logger.success(f"Production model saved to {out_path}")
 
 
 @app.command(name="elo-backfill")

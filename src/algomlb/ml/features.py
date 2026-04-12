@@ -390,7 +390,7 @@ class FeaturePipeline:
     ) -> tuple[pd.DataFrame, pd.Series]:
         """Resolve labels, select features, and impute missing values."""
         if "home_score" in df.columns and "away_score" in df.columns:
-            df = df.dropna(subset=["home_score", "away_score"])
+            df = df.dropna(subset=["home_score", "away_score"]).copy()
             df["home_win"] = (df["home_score"] > df["away_score"]).astype(int)
             df["total_runs_actual"] = df["home_score"] + df["away_score"]
 
@@ -456,7 +456,9 @@ class FeaturePipeline:
         index_cols = [c for c in ["game_date", "game_pk", "game_id"] if c in df.columns]
         if index_cols and not X.empty:
             # Ensure index alignment by using the filtered df
-            X.index = pd.MultiIndex.from_frame(df.loc[X.index, index_cols])
+            spine_index = pd.MultiIndex.from_frame(df.loc[X.index, index_cols])
+            X.index = spine_index
+            y.index = spine_index
 
         logger.info(f"Uranium Matrix built: {X.shape[0]} games, {X.shape[1]} features.")
         return X, y

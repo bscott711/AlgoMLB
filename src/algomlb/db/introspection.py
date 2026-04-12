@@ -44,28 +44,37 @@ class SchemaInspector:
         return datetime.now() - timestamp > self.ttl
 
     def list_tables(self) -> list[TableMeta]:
-        """Returns all tables in the public schema with row counts."""
+        """Returns all tables in the public schema with accurate row counts."""
         if self._table_cache and not self._is_expired(self._table_cache[0]):
             return self._table_cache[1]
 
-        query = text("""
-            SELECT 
-                relname AS table_name, 
-                n_live_tup AS row_count
-            FROM pg_stat_user_tables
-            WHERE schemaname = 'public'
-            ORDER BY relname;
+        # 1. Get all user table names in the public schema
+        name_query = text("""
+            SELECT tablename 
+            FROM pg_catalog.pg_tables 
+            WHERE schemaname = 'public';
         """)
 
         with self.engine.connect() as conn:
-            result = conn.execute(query)
+            names = conn.execute(name_query).fetchall()
             tables = []
-            for row in result:
+            
+            for row in names:
                 table_name = cast(str, row[0])
-                count = int(row[1])
+                # 2. Perform direct COUNT(*) for "Ground Truth" row counts
+                # Using a sub-query or simple select is fine for the small AlgoMLB schema
+                count_query = text(f'SELECT COUNT(*) FROM "{table_name}"')
+                try:
+                    count = conn.execute(count_query).scalar()
+                    count = int(count) if count is not None else 0
+                except Exception:
+                    count = 0
+
                 tables.append(
                     TableMeta(name=table_name, row_count=count, is_empty=(count <= 0))
                 )
+            
+            tables.sort(key=lambda t: t.name)
             self._table_cache = (datetime.now(), tables)
             return tables
 
