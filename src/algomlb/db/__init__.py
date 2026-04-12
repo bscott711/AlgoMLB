@@ -6,6 +6,7 @@ from algomlb.db.models import (
     LiveOddsORM,
     PitchEventORM,
     PlayerRollingFeaturesORM,
+    HistoricalDataORM,
 )
 from algomlb.db.repository import DatabaseRepository
 from algomlb.db.session import Base, create_db_engine, get_session_factory
@@ -22,4 +23,5 @@ __all__ = [
     "GameResultORM",
     "HistoricalOddsORM",
     "BallparkORM",
+    "HistoricalDataORM",
 ]

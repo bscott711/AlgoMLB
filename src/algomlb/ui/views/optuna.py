@@ -91,7 +91,11 @@ def render_optuna_view():
         """)
 
         try:
-            cal_df = pd.read_sql(query, engine, params={"target": target_filter, "version": version_filter})
+            cal_df = pd.read_sql(
+                query,
+                engine,
+                params={"target": target_filter, "version": version_filter},
+            )
 
             if cal_df.empty:
                 st.info(
@@ -150,7 +154,11 @@ def render_optuna_view():
                     WHERE model_target = :target AND model_version = :version
                     ORDER BY fold_date ASC
                 """)
-                ece_df = pd.read_sql(ece_query, engine, params={"target": target_filter, "version": version_filter})
+                ece_df = pd.read_sql(
+                    ece_query,
+                    engine,
+                    params={"target": target_filter, "version": version_filter},
+                )
                 fig_ece = px.line(
                     ece_df,
                     x="fold_date",
@@ -175,7 +183,11 @@ def render_optuna_view():
         """)
 
         try:
-            shap_df = pd.read_sql(shap_query, engine, params={"target": target_filter, "version": version_filter})
+            shap_df = pd.read_sql(
+                shap_query,
+                engine,
+                params={"target": target_filter, "version": version_filter},
+            )
 
             if shap_df.empty:
                 st.info(f"No SHAP data found for {target_filter}/{version_filter}")

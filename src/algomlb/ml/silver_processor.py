@@ -385,8 +385,7 @@ def _upsert_silver(df: pd.DataFrame):
         record = {
             k: v
             for k, v in record.items()
-            if not str(k).endswith("_prior")
-            and k not in ["max_fb_speed"]
+            if not str(k).endswith("_prior") and k not in ["max_fb_speed"]
         }
 
         stmt = insert(StatcastPlayerGameLog).values(**record)

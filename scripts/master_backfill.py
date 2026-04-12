@@ -1,9 +1,9 @@
 import subprocess
-import sys
 from loguru import logger
 import time
 
 YEARS = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+
 
 def run(cmd):
     logger.info(f"Running: {' '.join(cmd)}")
@@ -11,6 +11,7 @@ def run(cmd):
     if result.returncode != 0:
         logger.error(f"Command failed with code {result.returncode}")
     return result.returncode
+
 
 def main():
     logger.info("Starting Master Backfill (Bronze -> Silver -> Gold -> Uranium)")
@@ -40,26 +41,65 @@ def main():
     # 4. Uranium (Training state and Backtesting)
     logger.info("PHASE 4: Backfilling Uranium Layer (ML Models)...")
     run(["uv", "run", "algomlb", "ml", "elo-backfill"])
-    
+
     targets = ["home_win", "total_runs_actual", "pa_outcome", "is_strike"]
     version = "v1.0"
 
     # Step A: Tune (To generate param files)
     for target in targets:
         logger.info(f"--- Tuning target: {target} ---")
-        run(["uv", "run", "algomlb", "ml", "tune", "--target", target, "--version", version, "--trials", "20"])
+        run(
+            [
+                "uv",
+                "run",
+                "algomlb",
+                "ml",
+                "tune",
+                "--target",
+                target,
+                "--version",
+                version,
+                "--trials",
+                "20",
+            ]
+        )
 
     # Step B: Backtest
     for target in targets:
         logger.info(f"--- Backtesting target: {target} ---")
-        run(["uv", "run", "algomlb", "ml", "backtest", "--target", target, "--version", version])
+        run(
+            [
+                "uv",
+                "run",
+                "algomlb",
+                "ml",
+                "backtest",
+                "--target",
+                target,
+                "--version",
+                version,
+            ]
+        )
 
         # Step C: Train
         logger.info(f"--- Training Production Model: {target} ---")
-        run(["uv", "run", "algomlb", "ml", "train", "--target", target, "--version", version])
+        run(
+            [
+                "uv",
+                "run",
+                "algomlb",
+                "ml",
+                "train",
+                "--target",
+                target,
+                "--version",
+                version,
+            ]
+        )
 
     duration = (time.time() - start_time) / 3600
     logger.success(f"MASTER BACKFILL COMPLETE in {duration:.2f} hours")
+
 
 if __name__ == "__main__":
     main()

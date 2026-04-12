@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, roc_auc_score, log_loss, brier_score_loss
+from sklearn.metrics import accuracy_score, roc_auc_score
+
 
 def compute_fold_metrics(y_true, y_prob):
     y_pred = (y_prob >= 0.5).astype(int)
@@ -8,6 +9,7 @@ def compute_fold_metrics(y_true, y_prob):
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "auc": float(roc_auc_score(y_true, y_prob)),
     }
+
 
 # Case 1: Standard numpy
 y_true = np.array([0, 1])

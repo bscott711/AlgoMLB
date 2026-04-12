@@ -1,5 +1,5 @@
 import pandas as pd
-from .state import PitcherState, GameState
+from .state import PitcherSimState, GameState
 
 
 class BullpenManager:
@@ -19,7 +19,7 @@ class BullpenManager:
         return "low_lev"
 
     def should_hook(
-        self, pitcher: PitcherState, game: GameState, manager_id: int
+        self, pitcher: PitcherSimState, game: GameState, manager_id: int
     ) -> bool:
         """Evaluates if the current pitcher should be removed."""
         # Standard safety rails (in production, this checks the hook_profiles matrix)

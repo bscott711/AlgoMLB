@@ -445,7 +445,7 @@ class FeaturePipeline:
 
         X = df[feature_cols].copy().select_dtypes(include=["number"])
         X = X.fillna(X.median()).fillna(0)
-        
+
         # Drop constants safely
         if not X.empty and len(X) > 1:
             variability = X.nunique()

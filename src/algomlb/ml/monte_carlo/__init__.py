@@ -1,12 +1,13 @@
-from .state import GameState, PitcherState
+from .state import GameState, PitcherSimState, BatterSimState
 from .bullpen import BullpenManager
 from .engine import SimulationEngine
-from .aggregator import PropAggregator
+from .aggregator import SimulationAggregator
 
 __all__ = [
     "GameState",
-    "PitcherState",
+    "PitcherSimState",
+    "BatterSimState",
     "BullpenManager",
     "SimulationEngine",
-    "PropAggregator",
+    "SimulationAggregator",
 ]

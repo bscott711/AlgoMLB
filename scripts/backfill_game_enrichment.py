@@ -13,7 +13,9 @@ from algomlb.db.session import get_session_factory
 from algomlb.execution.geography import haversine_distance
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 log = logging.getLogger(__name__)
 
 
@@ -92,7 +94,9 @@ def backfill_enrichment():
 
             if len(updates) >= chunk_size:
                 processed = repo.update_game_enrichment(updates)
-                log.info(f"Progress: {i+1}/{len(games)} (Last chunk updated {processed})")
+                log.info(
+                    f"Progress: {i + 1}/{len(games)} (Last chunk updated {processed})"
+                )
                 updates = []
 
         if updates:

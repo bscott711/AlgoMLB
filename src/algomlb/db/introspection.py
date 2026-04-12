@@ -58,7 +58,7 @@ class SchemaInspector:
         with self.engine.connect() as conn:
             names = conn.execute(name_query).fetchall()
             tables = []
-            
+
             for row in names:
                 table_name = cast(str, row[0])
                 # 2. Perform direct COUNT(*) for "Ground Truth" row counts
@@ -73,7 +73,7 @@ class SchemaInspector:
                 tables.append(
                     TableMeta(name=table_name, row_count=count, is_empty=(count <= 0))
                 )
-            
+
             tables.sort(key=lambda t: t.name)
             self._table_cache = (datetime.now(), tables)
             return tables

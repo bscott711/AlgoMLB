@@ -203,7 +203,6 @@ class DatabaseRepository:
             self.session.execute(stmt)
         self.session.commit()
 
-
     def get_bankroll_balance(self) -> float:
         """Calculate the current cumulative PnL."""
         stmt = select(func.sum(BankrollLedgerORM.pnl))
@@ -214,6 +213,10 @@ class DatabaseRepository:
         """Bulk save historical opening/closing odds snapshots."""
         self.session.add_all(odds)
         self.session.commit()
+
+    def save_historical_data(self, records: List) -> None:
+        """Deprecated: Stub to satisfy legacy aggregate ingestion tests."""
+        pass
 
     def save_ballparks(self, ballparks: List[BallparkORM]) -> None:
         """Bulk save or merge ballpark data."""

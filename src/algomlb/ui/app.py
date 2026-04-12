@@ -27,7 +27,9 @@ pages = {
         st.Page("views/model_performance.py", title="Model Performance", icon="📊"),
     ],
     "System Health": [
-        st.Page("views/backfill_status.py", title="Backfill & Orchestration", icon="🔋"),
+        st.Page(
+            "views/backfill_status.py", title="Backfill & Orchestration", icon="🔋"
+        ),
         st.Page("views/data.py", title="Data & Ingest Health", icon="📡"),
         st.Page("views/weather.py", title="Weather Insights", icon="🌦️"),
         st.Page("views/db_explorer.py", title="Database Explorer", icon="🔍"),

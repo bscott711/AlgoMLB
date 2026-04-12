@@ -37,7 +37,7 @@ def compute_fold_metrics(
         p_conf = np.max(y_prob, axis=1)
         y_correct = (y_pred == y_true).astype(int)
         ece = calculate_ece(y_correct, p_conf)
-        
+
         return {
             "accuracy": float(accuracy_score(y_true, y_pred)),
             "log_loss": float(log_loss(y_true, y_prob)),
@@ -66,14 +66,14 @@ def calculate_ece(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 15) -> f
     """Calculates Expected Calibration Error using a weighted average of bin errors."""
     y_true = np.asarray(y_true)
     y_prob = np.asarray(y_prob)
-    
+
     if len(y_true) == 0:
         return 0.0
-        
+
     bins = np.linspace(0.0, 1.0, n_bins + 1)
     ece = 0.0
     for i in range(n_bins):
-        mask = (y_prob >= bins[i]) & (y_prob < bins[i+1])
+        mask = (y_prob >= bins[i]) & (y_prob < bins[i + 1])
         if np.any(mask):
             pred_mean = y_prob[mask].mean()
             obs_rate = y_true[mask].mean()
@@ -97,8 +97,8 @@ def compute_calibration_bins(
     # For multiclass, we reduce to Confidence Calibration (Top-1)
     if y_prob.ndim == 2 and y_prob.shape[1] > 2:
         y_pred = np.argmax(y_prob, axis=1)
-        y_prob = np.max(y_prob, axis=1)      # p_confidence
-        y_true = (y_pred == y_true).astype(int) # matches truth
+        y_prob = np.max(y_prob, axis=1)  # p_confidence
+        y_true = (y_pred == y_true).astype(int)  # matches truth
     elif y_prob.ndim == 2 and y_prob.shape[1] == 2:
         y_prob = y_prob[:, 1]
 

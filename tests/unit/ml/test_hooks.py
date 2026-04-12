@@ -237,11 +237,11 @@ def test_persist_hook_events():
         [{"game_id": "G1", "pitcher_id": "P1", "manager_id": 1, "is_starter": True}]
     )
     # Test empty
-    assert persist_hook_events(mock_engine, pd.DataFrame()) == 0
+    assert persist_hook_events(mock_engine, pd.DataFrame()).empty
 
     with patch("algomlb.ml.hooks.pg_insert"):
-        count = persist_hook_events(mock_engine, hooks)
-        assert count == 1
+        res_df = persist_hook_events(mock_engine, hooks)
+        assert len(res_df) == 1
         assert mock_engine.begin.called
 
 

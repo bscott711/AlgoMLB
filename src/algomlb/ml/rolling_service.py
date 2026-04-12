@@ -23,10 +23,12 @@ class RollingService:
             written = self.process_single_date(current, dry_run=dry_run)
             total_written += written
             if written > 0:
-                logger.success(f"[{current}] Completed rolling features. {written} records saved.")
-            elif current.day == 1: # Log start of month as a heartbeat even if empty
+                logger.success(
+                    f"[{current}] Completed rolling features. {written} records saved."
+                )
+            elif current.day == 1:  # Log start of month as a heartbeat even if empty
                 logger.info(f"[{current}] Year/Month tick...")
-                
+
             current += timedelta(days=1)
         return total_written
 

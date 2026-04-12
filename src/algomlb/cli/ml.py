@@ -13,12 +13,17 @@ import numpy as np
 import typer
 import json
 from pathlib import Path
+import sqlalchemy as sa
 from loguru import logger
 from pydantic import BaseModel
 
 from algomlb.db.session import get_session_factory
 from algomlb.ml.features import FeaturePipeline
 from algomlb.ml.model import MLBModel
+from algomlb.ml.monte_carlo.loader import MatchupLoader
+from algomlb.ml.monte_carlo.engine import SimulationEngine
+from algomlb.ml.monte_carlo.aggregator import SimulationAggregator
+from algomlb.db.models import UraniumSimulatedPlayerPropsORM
 
 # Alignment: Top-level imports for Pyright
 from algomlb.ml.eval import (
@@ -310,13 +315,14 @@ def backtest(
 
     # Diagnostic metrics on full OOF
     y_true = oof_df[target].to_numpy()
-    
+
     # Robustly handle p_model being either a scalar or a vector (binary/multiclass)
     if isinstance(oof_df["p_model"].iloc[0], (list, np.ndarray)):
         prob_matrix = np.stack(oof_df["p_model"].tolist())
         if prob_matrix.shape[1] > 2:
             # Multiclass handling
             from sklearn.metrics import log_loss, accuracy_score
+
             y_pred = np.argmax(prob_matrix, axis=1)
             metrics = {
                 "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -447,7 +453,7 @@ def train(
 
     params = load_optimized_params(target, version)
     model = MLBModel(**params)
-    
+
     logger.info(f"Fitting production model for {target}...")
     model.fit(X, y, calibrate=True)
 
@@ -455,7 +461,7 @@ def train(
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{target}_{version}.joblib"
     model.save(out_path)
-    
+
     logger.success(f"Production model saved to {out_path}")
 
 
@@ -504,3 +510,87 @@ def decouple(
     run_decoupler_pipeline()
     if ctx.obj and ctx.obj.get("agent_mode", False):
         emit_agent_result(AgentResult(status="success", command="ml.decouple"))
+
+
+@app.command(name="simulate-game")
+def simulate_game(
+    ctx: typer.Context,
+    game_pk: int = typer.Option(..., "--game-pk", help="Game PK to simulate."),
+    trials: int = typer.Option(10000, "--trials", help="Number of Monte Carlo trials."),
+    version: str = typer.Option(
+        "v1.0", "--version", help="Model version for pa_outcome."
+    ),
+) -> None:
+    """Run a high-fidelity Monte Carlo simulation for all player props in a single game."""
+    session_factory = get_session_factory()
+    session = session_factory()
+
+    try:
+        # 1. Load Data
+        loader = MatchupLoader(session)
+        context = loader.load_matchup(game_pk)
+        if not context:
+            raise typer.Exit(1)
+
+        # 2. Load Model
+        model_path = Path(f".data/models/pa_outcome_{version}.joblib")
+        if not model_path.exists():
+            logger.error(
+                f"PA Outcome model not found at {model_path}. Please train it first."
+            )
+            raise typer.Exit(1)
+
+        model = MLBModel.load(model_path)
+
+        # 3. Simulate
+        engine = SimulationEngine(pa_model=model)
+        trial_results = engine.run_trials(context, trials=trials)
+
+        # 4. Aggregate
+        aggregator = SimulationAggregator()
+        results_df = aggregator.aggregate_results(game_pk, trial_results)
+
+        # 5. Persist
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        records = results_df.to_dict(orient="records")
+        for rec in records:
+            stmt = pg_insert(UraniumSimulatedPlayerPropsORM).values([rec])
+            upsert = stmt.on_conflict_do_update(
+                index_elements=["game_pk", "player_id", "stat_type"],
+                set_={
+                    "mean": stmt.excluded.mean,
+                    "median": stmt.excluded.median,
+                    "prob_over_0_5": stmt.excluded.prob_over_0_5,
+                    "prob_over_1_5": stmt.excluded.prob_over_1_5,
+                    "prob_over_2_5": stmt.excluded.prob_over_2_5,
+                    "prob_over_3_5": stmt.excluded.prob_over_3_5,
+                    "prob_over_4_5": stmt.excluded.prob_over_4_5,
+                    "p10": stmt.excluded.p10,
+                    "p90": stmt.excluded.p90,
+                    "trials": stmt.excluded.trials,
+                    "simulated_at": sa.func.now(),
+                },
+            )
+            session.execute(upsert)
+
+        session.commit()
+
+        logger.success(
+            f"Simulation result persisted to uranium_simulated_player_props for {len(results_df)} prop markets."
+        )
+
+        if ctx.obj and ctx.obj.get("agent_mode", False):
+            emit_agent_result(
+                AgentResult(
+                    status="success",
+                    command="ml.simulate-game",
+                    data={"game_pk": game_pk, "prop_markets": len(results_df)},
+                )
+            )
+
+    except Exception as e:
+        logger.exception(f"Simulation failed: {e}")
+        raise typer.Exit(1)
+    finally:
+        session.close()

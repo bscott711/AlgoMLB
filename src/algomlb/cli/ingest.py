@@ -144,25 +144,7 @@ def historical(
 
     with session_factory() as session:
         repo = DatabaseRepository(session)
-        odds_client = OddsAPIClient()
-        stats_client = MLBStatsAPIClient()
         historical_loader = HistoricalDataLoader(repo)
-        transactions_ingester = PlayerTransactionsIngester(repo)
-        openmeteo_ingester = OpenMeteoIngester(session)
-        statcast_ingester = StatcastIngester(session)
-        umpire_ingester = UmpireScorecardIngester(session)
-        orchestrator = IngestionOrchestrator(
-            repo,
-            odds_client,
-            stats_client,
-            historical_loader,
-            transactions_ingester,
-            openmeteo_ingester,
-            statcast_ingester,
-            umpire_ingester,
-        )
-
-        records_processed = 0
 
         records_processed = 0
 
@@ -172,7 +154,9 @@ def historical(
             s_df = historical_loader.fetch_statcast(start, end)
             records_processed += len(s_df)
         else:
-            logger.warning("Historical aggregate stats are deprecated. Use 'ingest statcast' for pitch-level data.")
+            logger.warning(
+                "Historical aggregate stats are deprecated. Use 'ingest statcast' for pitch-level data."
+            )
 
         logger.success(
             f"Successfully processed {records_processed} historical records."

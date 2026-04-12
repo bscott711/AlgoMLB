@@ -71,7 +71,9 @@ class FatigueCalculator:
                     GameResultORM.game_date < game_date,
                 )
             )
-            .order_by(GameResultORM.game_date.desc(), GameResultORM.game_datetime.desc())
+            .order_by(
+                GameResultORM.game_date.desc(), GameResultORM.game_datetime.desc()
+            )
             .limit(1)
         )
 

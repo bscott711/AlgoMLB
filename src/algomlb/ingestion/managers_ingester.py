@@ -114,7 +114,9 @@ def backfill_team_managers(
                     "manager_id": mgr["manager_id"],
                     "manager_name": mgr["manager_name"],
                     "jersey_number": mgr["jersey_number"],
-                    "effective_start_date": datetime.date(season, 3, 1),  # Default to March 1st
+                    "effective_start_date": datetime.date(
+                        season, 3, 1
+                    ),  # Default to March 1st
                 }
 
                 with eng.begin() as conn:

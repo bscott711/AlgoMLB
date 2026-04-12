@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from algomlb.ml.eval import compute_calibration_bins
 
 # Multiclass Test Case
@@ -12,11 +11,7 @@ from algomlb.ml.eval import compute_calibration_bins
 # Resulting binary labels: [1, 1, 1]
 
 y_true = np.array([0, 1, 2])
-y_prob = np.array([
-    [0.8, 0.1, 0.1],
-    [0.2, 0.7, 0.1],
-    [0.1, 0.1, 0.8]
-])
+y_prob = np.array([[0.8, 0.1, 0.1], [0.2, 0.7, 0.1], [0.1, 0.1, 0.8]])
 
 print("Testing Multiclass Confidence Calibration...")
 cal_df = compute_calibration_bins(y_true, y_prob)

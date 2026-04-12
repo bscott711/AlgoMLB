@@ -44,6 +44,7 @@ class XGBoostOptunaObjective:
         self.num_class = None
         if self.metric == "mlogloss":
             from sklearn.preprocessing import LabelEncoder
+
             self.le = LabelEncoder()
             self.df[self.target] = self.le.fit_transform(self.df[self.target])
             self.num_class = len(self.le.classes_)

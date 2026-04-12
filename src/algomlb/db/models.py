@@ -526,8 +526,6 @@ class RetrosheetEventORM(Base):
     pbp: Mapped[Optional[str]] = mapped_column(String(10))
 
 
-
-
 class PlayerRollingFeaturesORM(Base):
     """
     Gold Layer: Pre-materialized rolling features for ML training/inference.
@@ -1478,5 +1476,68 @@ class UraniumShapGlobalORM(Base):
             "fold_date",
             "feature_name",
             name="uq_uranium_shap_global_target_version_fold",
+        ),
+    )
+
+
+class HistoricalDataORM(Base):
+    """
+    Silver Layer: Legacy aggregate player/team statistics.
+    Deprecated in favor of pitch-level Statcast data but retained for backward compatibility.
+    """
+
+    __tablename__ = "historical_player_stats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    metric_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    metric_value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class UraniumSimulatedPlayerPropsORM(Base):
+    """
+    Monte Carlo simulation results for individual player props.
+    Stores the refined probability distribution for each betting market.
+    """
+
+    __tablename__ = "uranium_simulated_player_props"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+
+    # Prop Market (e.g., 'K', 'H', 'HR', 'RBI', 'R', 'TB', 'HRR')
+    stat_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+
+    # Distribution Metrics
+    mean: Mapped[float] = mapped_column(Float, nullable=False)
+    median: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Cumulative Probabilities (P >= X)
+    prob_over_0_5: Mapped[Optional[float]] = mapped_column(Float)
+    prob_over_1_5: Mapped[Optional[float]] = mapped_column(Float)
+    prob_over_2_5: Mapped[Optional[float]] = mapped_column(Float)
+    prob_over_3_5: Mapped[Optional[float]] = mapped_column(Float)
+    prob_over_4_5: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Percentiles for risk assessment
+    p10: Mapped[Optional[float]] = mapped_column(Float)
+    p90: Mapped[Optional[float]] = mapped_column(Float)
+
+    # Metadata
+    trials: Mapped[int] = mapped_column(Integer, default=10000)
+    simulated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk",
+            "player_id",
+            "stat_type",
+            name="uq_simulated_player_prop_game_player_stat",
         ),
     )
