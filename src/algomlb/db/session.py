@@ -35,6 +35,8 @@ def create_db_engine(
 
     engine_kwargs: dict[str, Any] = {
         "echo": db_echo,
+        "pool_pre_ping": True,
+        "pool_recycle": 3600,
     }
 
     # Only include pooling args for databases that support them (e.g. Postgres)

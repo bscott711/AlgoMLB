@@ -73,7 +73,9 @@ class MatchupLoader:
         )
 
         if not lineup_rows:
-            logger.warning(f"No starting lineups found for game {game.game_id}.")
+            logger.warning(
+                f"SKIPPING: No starting lineups found for game {game.game_id} in 'game_lineups' table."
+            )
             return None
 
         home_batters = [
@@ -87,21 +89,27 @@ class MatchupLoader:
             if r.team_side == "away"
         ]
 
+        if not home_batters or not away_batters:
+            logger.warning(
+                f"SKIPPING: Incomplete rosters for game {game.game_id}. Home: {len(home_batters)}, Away: {len(away_batters)}"
+            )
+            return None
+
         # 3. Fetch Pitchers
         if not game.home_pitcher_id or not game.away_pitcher_id:
-            logger.warning(f"Starting pitchers missing for game {game.game_id}.")
-            # Fallback to look up in lineups if they are listed as P (NL style)
-            # For now, we rely on game_results probable pitchers.
+            logger.warning(
+                f"SKIPPING: Starting pitchers missing for game {game.game_id} (Home ID: {game.home_pitcher_id}, Away ID: {game.away_pitcher_id})."
+            )
+            return None
 
         home_starter = PitcherSimState(
-            pitcher_id=game.home_pitcher_id or 0, player_name=game.home_pitcher
+            pitcher_id=game.home_pitcher_id, player_name=game.home_pitcher
         )
         away_starter = PitcherSimState(
-            pitcher_id=game.away_pitcher_id or 0, player_name=game.away_pitcher
+            pitcher_id=game.away_pitcher_id, player_name=game.away_pitcher
         )
 
-        # 4. Fetch Rolling Features (Features are linked to game_date - 1 day ideally,
-        # but our backfill uses game_date as the key for 'pre-game' state).
+        # 4. Fetch Rolling Features
         player_ids = [b.player_id for b in (home_batters + away_batters)]
         player_ids.extend([home_starter.pitcher_id, away_starter.pitcher_id])
 
@@ -114,6 +122,12 @@ class MatchupLoader:
             .scalars()
             .all()
         )
+
+        if not feature_rows:
+            logger.warning(
+                f"SKIPPING: No rolling features found for any players in game {game.game_id} on {game.game_date}."
+            )
+            return None
 
         batter_features = {}
         pitcher_features = {}
