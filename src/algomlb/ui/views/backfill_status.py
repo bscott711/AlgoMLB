@@ -8,6 +8,7 @@ from algomlb.db.session import get_engine
 def _get_backfill_matrix(engine):
     """Computes a completion matrix for all layers across years."""
     years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    layers = ["Bronze", "Silver", "Gold", "Evals", "Props"]
 
     matrix = []
 
@@ -15,11 +16,11 @@ def _get_backfill_matrix(engine):
         for yr in years:
             row = {"Year": str(yr)}
 
-            # Bronze Check (Raw Pitches)
+            # Bronze Check (Raw Statcast)
             bronze_cnt = (
                 conn.execute(
                     text(
-                        f"SELECT count(*) FROM pitch_events WHERE extract(year from game_date) = {yr}"
+                        f"SELECT count(*) FROM statcast_raw WHERE extract(year from game_date) = {yr}"
                     )
                 ).scalar()
                 or 0
@@ -52,8 +53,8 @@ def _get_backfill_matrix(engine):
             )
             row["Gold"] = "✅" if gold_cnt > 10000 else ("⚠️" if gold_cnt > 0 else "❌")
 
-            # Uranium Check (Backtest Efficacy)
-            uranium_cnt = (
+            # Evals Check (Backtest Efficacy)
+            evals_cnt = (
                 conn.execute(
                     text(
                         f"SELECT count(*) FROM uranium_eval_history WHERE extract(year from fold_date) = {yr}"
@@ -61,11 +62,22 @@ def _get_backfill_matrix(engine):
                 ).scalar()
                 or 0
             )
-            row["Uranium"] = "✅" if uranium_cnt > 0 else "❌"
+            row["Evals"] = "✅" if evals_cnt > 0 else "❌"
+
+            # Props Check (Monte Carlo Sims)
+            props_cnt = (
+                conn.execute(
+                    text(
+                        f"SELECT count(*) FROM uranium_simulated_player_props WHERE season = {yr}"
+                    )
+                ).scalar()
+                or 0
+            )
+            row["Props"] = "✅" if props_cnt > 0 else "❌"
 
             matrix.append(row)
 
-    return pd.DataFrame(matrix)
+    return pd.DataFrame(matrix, columns=["Year"] + layers)
 
 
 def _render_live_tail(log_path, lines=20):
