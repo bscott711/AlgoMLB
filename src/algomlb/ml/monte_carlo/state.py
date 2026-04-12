@@ -43,6 +43,17 @@ class PitcherSimState(BaseModel):
     manager_hook_prob: float = 0.0
 
 
+class ManagerHookProfile(BaseModel):
+    """Aggregated manager hook tendencies for a season."""
+
+    manager_id: int
+    manager_name: str
+    avg_sp_pitch_count: float = 90.0
+    pull_before_3rd_tto_pct: float = 0.1
+    pull_with_lead_pct: float = 0.5
+    bullpen_protective_pct: float = 0.2
+
+
 class GameState(BaseModel):
     """Tracks the atomic base-out-score state of the game with identity-based runner tracking."""
 
@@ -117,13 +128,10 @@ class GameState(BaseModel):
             self.bases[1] = batter_id
             self.bases[0] = None
 
-        elif event == "single":
-            # Runner on 3rd scores
-            if self.bases[2] is not None:
-                scored_ids.append(self.bases[2])
-            # Runner on 2nd and 1st advance
-            self.bases[2] = self.bases[1]
-            self.bases[1] = self.bases[0]
-            self.bases[0] = batter_id
-
         return scored_ids
+
+
+BatterSimState.model_rebuild()
+PitcherSimState.model_rebuild()
+ManagerHookProfile.model_rebuild()
+GameState.model_rebuild()

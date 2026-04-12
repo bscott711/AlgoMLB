@@ -549,7 +549,7 @@ def simulate_game(
         # 4. Aggregate
         aggregator = SimulationAggregator()
         results_df = aggregator.aggregate_results(
-            game_pk, context.game_date.year, trial_results
+            game_pk, context.game_date.year, trial_results, context
         )
 
         # 5. Persist

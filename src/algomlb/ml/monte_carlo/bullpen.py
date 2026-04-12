@@ -1,11 +1,12 @@
 import pandas as pd
-from algomlb.ml.monte_carlo.state import PitcherSimState, GameState
+from algomlb.ml.monte_carlo.state import PitcherSimState, GameState, ManagerHookProfile
+from typing import Dict
 
 
 class BullpenManager:
     """Manages in-game pitching changes based on leverage and manager profiles."""
 
-    def __init__(self, bullpen_df: pd.DataFrame, hook_profiles: pd.DataFrame):
+    def __init__(self, bullpen_df: pd.DataFrame, hook_profiles: Dict[int, ManagerHookProfile]):
         self.bullpen_df = bullpen_df
         self.hook_profiles = hook_profiles
 
@@ -22,13 +23,26 @@ class BullpenManager:
         self, pitcher: PitcherSimState, game: GameState, manager_id: int
     ) -> bool:
         """Evaluates if the current pitcher should be removed."""
-        # Standard safety rails (in production, this checks the hook_profiles matrix)
-        if pitcher.pitches_thrown >= 100:
+        profile = self.hook_profiles.get(manager_id)
+        
+        # 1. Fatigue Threshold
+        limit = profile.avg_sp_pitch_count if profile else 95.0
+        if pitcher.pitches_thrown >= limit:
             return True
-        if pitcher.runs_allowed >= 5:
+            
+        # 2. Performance Threshold
+        if pitcher.runs_allowed >= 4: # slightly lower more realistic threshold
             return True
-        if pitcher.current_tto >= 3 and self._calculate_leverage(game) == "high_lev":
-            return True
+            
+        # 3. Time Through Order (TTO) / Strategy
+        leverage = self._calculate_leverage(game)
+        if pitcher.current_tto >= 3:
+            # High leverage or "Quick Hook" profiles pull early
+            if leverage == "high_lev":
+                return True
+            if profile and profile.pull_before_3rd_tto_pct > 0.3:
+                return True
+                
         return False
 
     def select_arm(self, team_id: int, game: GameState) -> int:
