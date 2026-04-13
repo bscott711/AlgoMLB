@@ -152,53 +152,17 @@ class SimulationEngine:
             pit_reg[p.pitcher_id] = p.model_copy(deep=True)
         return bat_reg, pit_reg
 
-    def _sample_pa(
-        self,
-        batter_id: int,
-        pitcher_id: int,
-        context: MatchupContext,
-        batting_side: str,
-    ) -> str:
-        """Merges features and samples one outcome from the ML model."""
-        # 1. Check cache for this specific Batter/Pitcher pair
+        # 1. Retrieval
         cache_key = (batter_id, pitcher_id)
-        if cache_key in self.matchup_cache:
-            probs = self.matchup_cache[cache_key]
-        else:
-            # 2. Get features
-            b_feats = context.batter_features.get(batter_id, {})
-            p_feats = context.pitcher_features.get(pitcher_id, {})
+        
+        # O(1) retrieval — NO pandas overhead in the inner loop
+        probs = self.matchup_cache.get(cache_key)
+        
+        # Failsafe if a matchup wasn't precomputed (e.g. pinch hitter edge cases)
+        if probs is None:
+            probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
 
-            # 3. Assemble feature vector with SIDE-AWARE prefixes
-            # pa_outcome_v1.0 was trained on Uranium columns like h_sp_... and a_bat_...
-            combined = {}
-            p_prefix = (
-                "h_sp_" if batting_side == "away" else "a_sp_"
-            )  # Pitcher side is opposite to batting side
-            b_prefix = "a_bat_" if batting_side == "away" else "h_bat_"
-
-            for k, v in b_feats.items():
-                combined[f"{b_prefix}{k}"] = v
-            for k, v in p_feats.items():
-                combined[f"{p_prefix}{k}"] = v
-
-            # 4. Predict probabilities
-            if self.pa_model and hasattr(self.pa_model, "predict_proba"):
-                try:
-                    # Convert to DataFrame to allow XGBoost to align features by name
-                    X_input = pd.DataFrame([combined])
-                    prob_vector = self.pa_model.predict_proba(X_input)
-                    probs = prob_vector[0]
-                except Exception:
-                    # fallback to a reasonable generic distribution if inference fails
-                    probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
-            else:
-                probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
-
-            # 5. Store in cache
-            self.matchup_cache[cache_key] = probs
-
-        # 6. Sample outcome
+        # 2. Sample outcome
         return self.rng.choice(self.outcome_map, p=probs)
 
     def _attribute_stats(
@@ -214,7 +178,9 @@ class SimulationEngine:
         p = pitcher_registry[pitcher_id]
 
         b.pa_count += 1
-        p.pitches_thrown += 4  # average
+        
+        # Replaced static +4 with probabilistic sampling based on outcome
+        p.pitches_thrown += self._sample_pitch_count(outcome)
 
         if outcome == "strikeout":
             b.strikeouts += 1
@@ -267,9 +233,100 @@ class SimulationEngine:
         logger.info(
             f"Starting {trials} Monte Carlo trials for game {context.game_pk}..."
         )
+        
+        # 🚀 OPTIMIZATION: Batch infer all probabilities BEFORE the loop begins
+        self._precompute_matchups(context)
+        
+        all_trial_results = []
         for i in range(trials):
             if i > 0 and i % 1000 == 0:
                 logger.debug(f"Completed {i} trials...")
             all_trial_results.append(self.simulate_game(context))
         logger.success(f"Simulation of {trials} trials complete.")
         return all_trial_results
+
+    def _precompute_matchups(self, context: MatchupContext):
+        """
+        Vectorized batch inference. Generates the 8-class probability distribution
+        for every possible batter vs. pitcher matchup in the game matrix simultaneously.
+        """
+        matchup_rows = []
+        keys = []
+
+        # Gather all IDs that could face each other
+        away_batters = [b.player_id for b in context.away_lineup]
+        home_batters = [b.player_id for b in context.home_lineup]
+        
+        home_pitchers = [context.home_starter.pitcher_id] + [p.pitcher_id for p in context.home_relievers]
+        away_pitchers = [context.away_starter.pitcher_id] + [p.pitcher_id for p in context.away_relievers]
+
+        # Helper to construct the feature matrix
+        def build_matrix(batters, pitchers, batting_side):
+            p_prefix = "h_sp_" if batting_side == "away" else "a_sp_"
+            b_prefix = "a_bat_" if batting_side == "away" else "h_bat_"
+
+            for b_id in batters:
+                b_feats = context.batter_features.get(b_id, {})
+                for p_id in pitchers:
+                    p_feats = context.pitcher_features.get(p_id, {})
+                    combined = {}
+                    for k, v in b_feats.items():
+                        combined[f"{b_prefix}{k}"] = v
+                    for k, v in p_feats.items():
+                        combined[f"{p_prefix}{k}"] = v
+
+                    matchup_rows.append(combined)
+                    keys.append((b_id, p_id))
+
+        # Build Both Halves
+        build_matrix(away_batters, home_pitchers, "away")
+        build_matrix(home_batters, away_pitchers, "home")
+
+        if not matchup_rows:
+            logger.warning("No matchups generated for batch precomputation.")
+            return
+
+        # Execute Batch Prediction
+        X_batch = pd.DataFrame(matchup_rows)
+        
+        if self.pa_model and hasattr(self.pa_model, "predict_proba"):
+            try:
+                # One single model call for the entire game's permutation matrix
+                prob_matrix = self.pa_model.predict_proba(X_batch)
+                for i, key in enumerate(keys):
+                    self.matchup_cache[key] = prob_matrix[i]
+                logger.debug(f"Successfully batch-inferred {len(keys)} unique matchups.")
+            except Exception as e:
+                logger.error(f"Batch inference failed, using uniform distribution fallback: {e}")
+                fallback = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
+                for key in keys:
+                    self.matchup_cache[key] = fallback
+        else:
+            # Safe Fallback
+            fallback = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
+            for key in keys:
+                self.matchup_cache[key] = fallback
+
+    def _sample_pitch_count(self, outcome: str) -> int:
+        """
+        Samples a realistic pitch count conditional on the PA outcome using normal distributions.
+        """
+        # Baseline historical parameters: (mean, standard_deviation, minimum_possible)
+        dist_params = {
+            "strikeout": (4.8, 1.3, 3),
+            "walk": (5.2, 1.2, 4),
+            "single": (3.8, 1.8, 1),
+            "double": (3.9, 1.8, 1),
+            "triple": (4.0, 1.8, 1),
+            "home_run": (4.1, 1.9, 1),
+            "out_in_play": (3.3, 1.7, 1),
+            "hbp": (3.5, 1.5, 1)
+        }
+        
+        mean, std, min_p = dist_params.get(outcome, (3.9, 1.7, 1))
+
+        # Sample from the normal distribution managed by our reproducible RNG
+        sampled = int(np.round(self.rng.normal(mean, std)))
+        
+        # Cap tails (avoid 20-pitch at-bats while ensuring physical limits)
+        return max(min_p, min(sampled, 14))
