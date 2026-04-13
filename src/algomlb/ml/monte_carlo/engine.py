@@ -151,13 +151,23 @@ class SimulationEngine:
         for p in context.home_relievers + context.away_relievers:
             pit_reg[p.pitcher_id] = p.model_copy(deep=True)
         return bat_reg, pit_reg
-
+    def _sample_pa(
+        self,
+        batter_id: int,
+        pitcher_id: int,
+        context: MatchupContext,
+        batting_side: str,
+    ) -> str:
+        """
+        Samples one outcome from the ML model.
+        Because of batch precomputation, this is now a lightning-fast O(1) dictionary lookup.
+        """
         # 1. Retrieval
         cache_key = (batter_id, pitcher_id)
-        
+
         # O(1) retrieval — NO pandas overhead in the inner loop
         probs = self.matchup_cache.get(cache_key)
-        
+
         # Failsafe if a matchup wasn't precomputed (e.g. pinch hitter edge cases)
         if probs is None:
             probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
@@ -245,7 +255,7 @@ class SimulationEngine:
         logger.success(f"Simulation of {trials} trials complete.")
         return all_trial_results
 
-    def _precompute_matchups(self, context: MatchupContext):
+    def _precompute_matchups(self, context):
         """
         Vectorized batch inference. Generates the 8-class probability distribution
         for every possible batter vs. pitcher matchup in the game matrix simultaneously.
@@ -269,6 +279,7 @@ class SimulationEngine:
                 b_feats = context.batter_features.get(b_id, {})
                 for p_id in pitchers:
                     p_feats = context.pitcher_features.get(p_id, {})
+                    
                     combined = {}
                     for k, v in b_feats.items():
                         combined[f"{b_prefix}{k}"] = v
@@ -286,26 +297,52 @@ class SimulationEngine:
             logger.warning("No matchups generated for batch precomputation.")
             return
 
-        # Execute Batch Prediction
         X_batch = pd.DataFrame(matchup_rows)
         
-        if self.pa_model and hasattr(self.pa_model, "predict_proba"):
+        # Safely unwrap the base XGBoost model if wrapped
+        actual_model = self.pa_model.model if hasattr(self.pa_model, "model") else self.pa_model
+
+        if actual_model and hasattr(actual_model, "predict_proba"):
             try:
-                # One single model call for the entire game's permutation matrix
-                prob_matrix = self.pa_model.predict_proba(X_batch)
+                # 🚀 FIX: Bulletproof Feature Alignment
+                expected_features = None
+                if hasattr(actual_model, "feature_names_in_"):
+                    expected_features = actual_model.feature_names_in_
+                elif hasattr(actual_model, "feature_names") and actual_model.feature_names is not None:
+                    expected_features = actual_model.feature_names
+                elif hasattr(actual_model, "get_booster"):
+                    expected_features = actual_model.get_booster().feature_names
+                
+                if expected_features is not None:
+                    expected_list = list(expected_features)
+                    missing_cols = set(expected_list) - set(X_batch.columns)
+                    
+                    if missing_cols:
+                        # Attempt to rescue missing global game/team features from context
+                        game_feats = getattr(context, "game_features", {})
+                        if not game_feats:
+                            game_feats = getattr(context, "team_features", {})
+                        
+                        # Assign missing columns dynamically (NaN if totally missing)
+                        fill_dict = {col: game_feats.get(col, np.nan) for col in missing_cols}
+                        X_batch = X_batch.assign(**fill_dict)
+                        
+                    # Filter exact columns in exact order (strips out unwanted extras like a_bat_delta_fb_velo)
+                    X_batch = X_batch[expected_list]
+
+                # Run Batch Prediction
+                prob_matrix = actual_model.predict_proba(X_batch)
+                
                 for i, key in enumerate(keys):
                     self.matchup_cache[key] = prob_matrix[i]
+                    
                 logger.debug(f"Successfully batch-inferred {len(keys)} unique matchups.")
+                
             except Exception as e:
-                logger.error(f"Batch inference failed, using uniform distribution fallback: {e}")
-                fallback = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
-                for key in keys:
-                    self.matchup_cache[key] = fallback
+                logger.error(f"CRITICAL: Batch inference failed! {str(e)}")
+                raise RuntimeError(f"PA Model inference failed due to feature mismatch or XGBoost error: {e}") 
         else:
-            # Safe Fallback
-            fallback = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
-            for key in keys:
-                self.matchup_cache[key] = fallback
+            raise ValueError("The provided pa_model does not have a predict_proba method.")
 
     def _sample_pitch_count(self, outcome: str) -> int:
         """
