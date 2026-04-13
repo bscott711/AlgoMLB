@@ -74,6 +74,9 @@ class PlayerRollingRecord:
     seasonal_xwoba_vs_rh: Optional[float] = None
     seasonal_xwoba_vs_lh: Optional[float] = None
 
+    # Situational Impact Feature
+    roll_re24: Optional[float] = None
+
 
 class RollingProcessor:
     def __init__(self, config):
@@ -231,6 +234,10 @@ class RollingProcessor:
         record.seasonal_xwoba_vs_rh = float(eligible["xwoba_vs_rh"].mean())
         record.seasonal_xwoba_vs_lh = float(eligible["xwoba_vs_lh"].mean())
 
+        # Situational Impact (RE24 Sum - trailing window)
+        if "re24" in df.columns:
+            record.roll_re24 = float(df["re24"].sum())
+
     def _compute_batter(
         self, record: PlayerRollingRecord, df: pd.DataFrame, eligible: pd.DataFrame
     ):
@@ -290,6 +297,10 @@ class RollingProcessor:
         # Platoon Stability (Seasonal)
         record.seasonal_xwoba_vs_rh = float(eligible["xwoba_vs_rh"].mean())
         record.seasonal_xwoba_vs_lh = float(eligible["xwoba_vs_lh"].mean())
+
+        # Situational Impact (RE24 Sum - trailing window)
+        if "re24" in df.columns:
+            record.roll_re24 = float(df["re24"].sum())
 
     def _get_ema(self, series: pd.Series, span: int) -> Optional[float]:
         if series.dropna().empty:

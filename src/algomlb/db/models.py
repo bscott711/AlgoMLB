@@ -609,6 +609,11 @@ class PlayerRollingFeaturesORM(Base):
     seasonal_xwoba_vs_rh: Mapped[Optional[float]] = mapped_column(Float)
     seasonal_xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
 
+    # 🚀 Situational Impact Feature
+    roll_re24: Mapped[Optional[float]] = mapped_column(
+        Float, comment="Trailing 30-game sum/avg of Run Expectancy Added"
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "player_id", "game_date", "role", name="uq_player_rolling_features"
@@ -1062,6 +1067,11 @@ class StatcastPlayerGameLog(Base):
     pa_vs_rh: Mapped[Optional[int]] = mapped_column(SmallInteger)
     xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
     pa_vs_lh: Mapped[Optional[int]] = mapped_column(SmallInteger)
+
+    # 🚀 Situational Impact Feature
+    re24: Mapped[Optional[float]] = mapped_column(
+        Float, comment="Atomic situational added-value for this game"
+    )
 
     # --- Metadata ---
     summarized_at: Mapped[datetime.datetime] = mapped_column(

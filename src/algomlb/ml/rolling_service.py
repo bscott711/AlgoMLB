@@ -167,6 +167,8 @@ class RollingService:
             # Seasonal Splits
             "seasonal_xwoba_vs_rh",
             "seasonal_xwoba_vs_lh",
+            # 🚀 NEW: Situational Impact
+            "roll_re24",
         ]
         for attr in attrs:
             try:

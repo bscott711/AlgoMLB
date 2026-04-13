@@ -32,6 +32,7 @@ BATTER_FEATURES = {
     "std_launch_angle_15g",
     "seasonal_xwoba_vs_rh",
     "seasonal_xwoba_vs_lh",
+    "roll_re24",
 }
 
 PITCHER_FEATURES = {
