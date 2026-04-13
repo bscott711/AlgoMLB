@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import text
 from loguru import logger
@@ -16,7 +16,9 @@ def get_unique_dates(engine) -> List[date]:
         return [d if isinstance(d, date) else date.fromisoformat(str(d)) for d in res]
 
 
-def backfill_quant_features(start_date: date = None, end_date: date = None):
+def backfill_quant_features(
+    start_date: Optional[date] = None, end_date: Optional[date] = None
+):
     """Iterate through dates and trigger quant feature processing."""
     engine = get_engine()
     all_dates = get_unique_dates(engine)

@@ -185,7 +185,7 @@ class IngestionOrchestrator:
     ) -> int:
         """Calculate and persist rest days and travel distance for a date range."""
         from algomlb.db.models import GameResultORM
-        from algomlb.execution.fatigue import FatigueCalculator
+        from algomlb.ingestion.fatigue import FatigueCalculator
         from sqlalchemy import select
 
         calc = FatigueCalculator(self.repo.session)
@@ -206,4 +206,4 @@ class IngestionOrchestrator:
         )
 
         game_ids = self.repo.session.execute(stmt).scalars().all()
-        return calc.enrich_batch(game_ids)
+        return calc.enrich_batch(list(game_ids))

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy import select
 
@@ -10,7 +10,7 @@ from algomlb.db.models import (
 )
 from algomlb.db.repository import DatabaseRepository
 from algomlb.db.session import get_session_factory
-from algomlb.execution.geography import haversine_distance
+from algomlb.core.geography import haversine_distance
 
 # Configure logging
 logging.basicConfig(
@@ -55,7 +55,7 @@ def backfill_enrichment():
 
         # 4. Process Chronologically
         # team_state[team_name] = (last_game_date, last_ballpark_id)
-        team_state: Dict[str, Tuple[any, Optional[int]]] = {}
+        team_state: Dict[str, Tuple[Any, Optional[int]]] = {}
         updates = []
         chunk_size = 1000
 

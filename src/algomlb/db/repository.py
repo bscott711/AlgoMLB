@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -378,11 +378,13 @@ class DatabaseRepository:
         Each dict must contain 'game_id' and the fields to update.
         """
         from sqlalchemy import bindparam, update
+        from sqlalchemy.engine import CursorResult
 
         # Use the Core table object to bypass ORM bulk update requirements for primary keys
         table = GameResultORM.__table__
+        # Cast to Any to satisfy Pyright's _DMLTableArgument requirement
         stmt = (
-            update(table)
+            update(cast(Any, table))
             .where(table.c.game_id == bindparam("b_game_id"))
             .values(
                 temperature=bindparam("temperature", None),
@@ -411,4 +413,6 @@ class DatabaseRepository:
 
         result = self.session.execute(stmt, params)
         self.session.commit()
-        return result.rowcount
+        if isinstance(result, CursorResult):
+            return result.rowcount
+        return 0

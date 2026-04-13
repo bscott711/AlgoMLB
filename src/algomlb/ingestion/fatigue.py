@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import and_, or_, select
 
 from algomlb.db.models import BallparkORM, GameResultORM
-from algomlb.execution.geography import haversine_distance
+from algomlb.core.geography import haversine_distance
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -57,7 +57,7 @@ class FatigueCalculator:
         return True
 
     def _get_fatigue_for_team(
-        self, team_name: str, game_date: any, current_ballpark_id: Optional[int]
+        self, team_name: str, game_date: Any, current_ballpark_id: Optional[int]
     ) -> tuple[int, float]:
         """Finds prev game for team and computes rest/travel."""
         stmt = (
@@ -102,8 +102,20 @@ class FatigueCalculator:
         p1 = self.session.get(BallparkORM, prev_game.ballpark_id)
         p2 = self.session.get(BallparkORM, current_ballpark_id)
 
-        if not p1 or not p2 or p1.latitude is None or p2.latitude is None:
+        if (
+            not p1
+            or not p2
+            or p1.latitude is None
+            or p2.latitude is None
+            or p1.longitude is None
+            or p2.longitude is None
+        ):
             return rest_days, 0.0
 
-        dist = haversine_distance(p1.latitude, p1.longitude, p2.latitude, p2.longitude)
+        dist = haversine_distance(
+            float(p1.latitude),
+            float(p1.longitude),
+            float(p2.latitude),
+            float(p2.longitude),
+        )
         return rest_days, dist

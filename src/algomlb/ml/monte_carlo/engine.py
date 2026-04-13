@@ -2,7 +2,11 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Any, Tuple
 from algomlb.core.logger import logger
-from algomlb.ml.monte_carlo.state import GameState, BatterSimState, PitcherSimState, ManagerHookProfile
+from algomlb.ml.monte_carlo.state import (
+    GameState,
+    BatterSimState,
+    PitcherSimState,
+)
 from algomlb.ml.monte_carlo.loader import MatchupContext
 from algomlb.ml.monte_carlo.bullpen import BullpenManager
 
@@ -33,106 +37,127 @@ class SimulationEngine:
     ) -> Dict[int, BatterSimState | PitcherSimState]:
         """Simulates a single 9-inning game trial and returns the final player states."""
         state = GameState()
+        bp_manager = self._setup_bullpen_manager(context)
+        bat_registry, pit_registry = self._init_registries(context)
 
-        # Manager & Bullpen Setup
-        # Assuming a default empty bullpen if none provided to avoid crashes
-        home_pen_df = pd.DataFrame([{"team_id": 0, "pitcher_id": p.pitcher_id, "availability_score": 1.0, "role": "mid_rel"} for p in context.home_relievers])
-        away_pen_df = pd.DataFrame([{"team_id": 1, "pitcher_id": p.pitcher_id, "availability_score": 1.0, "role": "mid_rel"} for p in context.away_relievers])
-        bp_manager = BullpenManager(pd.concat([home_pen_df, away_pen_df]), context.manager_profiles)
-
-        # Local copies of states to accumulate stats in this trial
-        batter_registry: Dict[int, BatterSimState] = {
-            b.player_id: b.model_copy(deep=True)
-            for b in (context.home_lineup + context.away_lineup)
-        }
-        pitcher_registry: Dict[int, PitcherSimState] = {
-            context.home_starter.pitcher_id: context.home_starter.model_copy(deep=True),
-            context.away_starter.pitcher_id: context.away_starter.model_copy(deep=True),
-        }
-        # Add relievers to registry
-        for p in (context.home_relievers + context.away_relievers):
-            pitcher_registry[p.pitcher_id] = p.model_copy(deep=True)
-
-        # Tracking active pitchers
         active_pitchers = {
             "home": context.home_starter.pitcher_id,
             "away": context.away_starter.pitcher_id,
         }
-        
-        # Bullpen queue (simple pops for this simulation)
         queues = {
             "home": [p.pitcher_id for p in context.home_relievers],
             "away": [p.pitcher_id for p in context.away_relievers],
         }
 
-        # Lineup pointers
-        home_ptr = 0
-        away_ptr = 0
+        ptrs = {"home": 0, "away": 0}
 
         while state.inning <= 9 or state.home_score == state.away_score:
             for half in [True, False]:  # True = Top (Away), False = Bottom (Home)
-                state.top_half = half
-                state.outs = 0
+                state.top_half, state.outs = half, 0
                 state.clear_bases()
 
                 while state.outs < 3:
-                    # Determine active pitcher and batter
-                    pitching_side = "home" if half else "away"
-                    batting_side = "away" if half else "home"
-                    
-                    pitcher_id = active_pitchers[pitching_side]
-                    
-                    # 1. Check for Hook
-                    pitcher_state = pitcher_registry[pitcher_id]
-                    mgr_id = context.home_manager_id if pitching_side == "home" else context.away_manager_id
-                    
-                    if bp_manager.should_hook(pitcher_state, state, mgr_id or 0):
-                        if queues[pitching_side]:
-                            new_pid = queues[pitching_side].pop(0)
-                            active_pitchers[pitching_side] = new_pid
-                            pitcher_id = new_pid
-                            logger.debug(f"[{pitching_side}] Hooked pitcher at Inning {state.inning}. New: {pitcher_id}")
-
-                    # 2. Current batter
-                    if half:
-                        batter = context.away_lineup[away_ptr]
-                        away_ptr = (away_ptr + 1) % 9
-                    else:
-                        batter = context.home_lineup[home_ptr]
-                        home_ptr = (home_ptr + 1) % 9
-
-                    # 3. Infer PA Probability Distribution
-                    outcome = self._sample_pa(batter.player_id, pitcher_id, context, batting_side)
-
-                    # 4. Update States
-                    scorer_ids = state.process_event(outcome, batter.player_id)
-
-                    # 5. Attribute Stats
-                    self._attribute_stats(
-                        outcome,
-                        batter.player_id,
-                        pitcher_id,
-                        scorer_ids,
-                        batter_registry,
-                        pitcher_registry,
-                    )
-
-                    # End game immediately if home team takes lead in bottom of 9th+
-                    if (
-                        not state.top_half
-                        and state.inning >= 9
-                        and state.home_score > state.away_score
+                    if self._execute_pa(
+                        state,
+                        context,
+                        bp_manager,
+                        bat_registry,
+                        pit_registry,
+                        active_pitchers,
+                        queues,
+                        ptrs,
                     ):
-                        return {**batter_registry, **pitcher_registry}
+                        return {**bat_registry, **pit_registry}
 
             state.inning += 1
-            if state.inning > 20:  # Infinite loop protection
+            if state.inning > 20:
                 break
 
-        return {**batter_registry, **pitcher_registry}
+        return {**bat_registry, **pit_registry}
+
+    def _execute_pa(
+        self, state, context, bp_manager, b_reg, p_reg, active_p, queues, ptrs
+    ) -> bool:
+        """Executes a single plate appearance and returns True if a walk-off occurred."""
+        p_side = "home" if state.top_half else "away"
+        b_side = "away" if state.top_half else "home"
+        p_id = active_p[p_side]
+
+        # 1. Hook Check
+        mgr_id = (
+            context.home_manager_id if state.top_half else context.away_manager_id
+        ) or 0
+        if bp_manager.should_hook(p_reg[p_id], state, mgr_id):
+            if queues[p_side]:
+                p_id = queues[p_side].pop(0)
+                active_p[p_side] = p_id
+
+        # 2. Batter Resolution
+        batter = (context.away_lineup if state.top_half else context.home_lineup)[
+            ptrs[b_side]
+        ]
+        ptrs[b_side] = (ptrs[b_side] + 1) % 9
+
+        # 3. Outcome & Attribution
+        outcome = self._sample_pa(batter.player_id, p_id, context, b_side)
+        scored_ids = state.process_event(outcome, batter.player_id)
+        self._attribute_stats(outcome, batter.player_id, p_id, scored_ids, b_reg, p_reg)
+
+        # 4. Walk-off Check
+        return (
+            not state.top_half
+            and state.inning >= 9
+            and state.home_score > state.away_score
+        )
+
+    def _setup_bullpen_manager(self, context: MatchupContext) -> BullpenManager:
+        """Create a BullpenManager with initialized availability DataFrames."""
+        h_pen = pd.DataFrame(
+            [
+                {
+                    "team_id": 0,
+                    "pitcher_id": p.pitcher_id,
+                    "availability_score": 1.0,
+                    "role": "mid_rel",
+                }
+                for p in context.home_relievers
+            ]
+        )
+        a_pen = pd.DataFrame(
+            [
+                {
+                    "team_id": 1,
+                    "pitcher_id": p.pitcher_id,
+                    "availability_score": 1.0,
+                    "role": "mid_rel",
+                }
+                for p in context.away_relievers
+            ]
+        )
+        return BullpenManager(pd.concat([h_pen, a_pen]), context.manager_profiles)
+
+    def _init_registries(
+        self, context: MatchupContext
+    ) -> Tuple[Dict[int, BatterSimState], Dict[int, PitcherSimState]]:
+        """Deep copy lineups and pitchers into fresh registries for a trial."""
+        bat_reg = {
+            b.player_id: b.model_copy(deep=True)
+            for b in (context.home_lineup + context.away_lineup)
+        }
+        pit_reg = {
+            context.home_starter.pitcher_id: context.home_starter.model_copy(deep=True),
+            context.away_starter.pitcher_id: context.away_starter.model_copy(deep=True),
+        }
+        for p in context.home_relievers + context.away_relievers:
+            pit_reg[p.pitcher_id] = p.model_copy(deep=True)
+        return bat_reg, pit_reg
 
     def _sample_pa(
-        self, batter_id: int, pitcher_id: int, context: MatchupContext, batting_side: str
+        self,
+        batter_id: int,
+        pitcher_id: int,
+        context: MatchupContext,
+        batting_side: str,
     ) -> str:
         """Merges features and samples one outcome from the ML model."""
         # 1. Check cache for this specific Batter/Pitcher pair
@@ -147,9 +172,11 @@ class SimulationEngine:
             # 3. Assemble feature vector with SIDE-AWARE prefixes
             # pa_outcome_v1.0 was trained on Uranium columns like h_sp_... and a_bat_...
             combined = {}
-            p_prefix = "h_sp_" if batting_side == "away" else "a_sp_" # Pitcher side is opposite to batting side
+            p_prefix = (
+                "h_sp_" if batting_side == "away" else "a_sp_"
+            )  # Pitcher side is opposite to batting side
             b_prefix = "a_bat_" if batting_side == "away" else "h_bat_"
-            
+
             for k, v in b_feats.items():
                 combined[f"{b_prefix}{k}"] = v
             for k, v in p_feats.items():
@@ -162,7 +189,7 @@ class SimulationEngine:
                     X_input = pd.DataFrame([combined])
                     prob_vector = self.pa_model.predict_proba(X_input)
                     probs = prob_vector[0]
-                except Exception as e:
+                except Exception:
                     # fallback to a reasonable generic distribution if inference fails
                     probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
             else:
@@ -232,8 +259,10 @@ class SimulationEngine:
     ) -> List[Dict[int, BatterSimState | PitcherSimState]]:
         """Executes N Monte Carlo trials and returns a list of resulting player states per trial."""
         if context is None:
-            raise ValueError("SimulationEngine.run_trials received context=None. This indicates a failure in MatchupLoader.")
-            
+            raise ValueError(
+                "SimulationEngine.run_trials received context=None. This indicates a failure in MatchupLoader."
+            )
+
         all_trial_results = []
         logger.info(
             f"Starting {trials} Monte Carlo trials for game {context.game_pk}..."

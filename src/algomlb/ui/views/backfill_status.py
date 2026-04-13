@@ -9,75 +9,77 @@ def _get_backfill_matrix(engine):
     """Computes a completion matrix for all layers across years."""
     years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
     layers = ["Bronze", "Silver", "Gold", "Evals", "Props"]
-
     matrix = []
 
     with engine.connect() as conn:
         for yr in years:
             row = {"Year": str(yr)}
-
-            # Bronze Check (Raw Statcast)
-            bronze_cnt = (
-                conn.execute(
-                    text(
-                        f"SELECT count(*) FROM statcast_raw WHERE extract(year from game_date) = {yr}"
-                    )
-                ).scalar()
-                or 0
-            )
-            row["Bronze"] = (
-                "✅" if bronze_cnt > 200000 else ("⚠️" if bronze_cnt > 0 else "❌")
-            )
-
-            # Silver Check (Game Logs + Specialty Metrics)
-            silver_cnt = (
-                conn.execute(
-                    text(
-                        f"SELECT count(*) FROM statcast_player_game_logs WHERE extract(year from game_date) = {yr} AND fb_speed IS NOT NULL"
-                    )
-                ).scalar()
-                or 0
-            )
-            row["Silver"] = (
-                "✅" if silver_cnt > 10000 else ("⚠️" if silver_cnt > 0 else "❌")
-            )
-
-            # Gold Check (Rolling Features)
-            gold_cnt = (
-                conn.execute(
-                    text(
-                        f"SELECT count(*) FROM player_rolling_features WHERE season = {yr}"
-                    )
-                ).scalar()
-                or 0
-            )
-            row["Gold"] = "✅" if gold_cnt > 10000 else ("⚠️" if gold_cnt > 0 else "❌")
-
-            # Evals Check (Backtest Efficacy)
-            evals_cnt = (
-                conn.execute(
-                    text(
-                        f"SELECT count(*) FROM uranium_eval_history WHERE extract(year from fold_date) = {yr}"
-                    )
-                ).scalar()
-                or 0
-            )
-            row["Evals"] = "✅" if evals_cnt > 0 else "❌"
-
-            # Props Check (Monte Carlo Sims)
-            props_cnt = (
-                conn.execute(
-                    text(
-                        f"SELECT count(*) FROM uranium_simulated_player_props WHERE season = {yr}"
-                    )
-                ).scalar()
-                or 0
-            )
-            row["Props"] = "✅" if props_cnt > 0 else "❌"
-
+            row["Bronze"] = _check_bronze(conn, yr)
+            row["Silver"] = _check_silver(conn, yr)
+            row["Gold"] = _check_gold(conn, yr)
+            row["Evals"] = _check_evals(conn, yr)
+            row["Props"] = _check_props(conn, yr)
             matrix.append(row)
 
     return pd.DataFrame(matrix, columns=["Year"] + layers)
+
+
+def _check_bronze(conn, yr):
+    cnt = (
+        conn.execute(
+            text(
+                f"SELECT count(*) FROM statcast_raw WHERE extract(year from game_date) = {yr}"
+            )
+        ).scalar()
+        or 0
+    )
+    return "✅" if cnt > 200000 else ("⚠️" if cnt > 0 else "❌")
+
+
+def _check_silver(conn, yr):
+    cnt = (
+        conn.execute(
+            text(
+                f"SELECT count(*) FROM statcast_player_game_logs WHERE extract(year from game_date) = {yr} AND fb_speed IS NOT NULL"
+            )
+        ).scalar()
+        or 0
+    )
+    return "✅" if cnt > 10000 else ("⚠️" if cnt > 0 else "❌")
+
+
+def _check_gold(conn, yr):
+    cnt = (
+        conn.execute(
+            text(f"SELECT count(*) FROM player_rolling_features WHERE season = {yr}")
+        ).scalar()
+        or 0
+    )
+    return "✅" if cnt > 10000 else ("⚠️" if cnt > 0 else "❌")
+
+
+def _check_evals(conn, yr):
+    cnt = (
+        conn.execute(
+            text(
+                f"SELECT count(*) FROM uranium_eval_history WHERE extract(year from fold_date) = {yr}"
+            )
+        ).scalar()
+        or 0
+    )
+    return "✅" if cnt > 0 else "❌"
+
+
+def _check_props(conn, yr):
+    cnt = (
+        conn.execute(
+            text(
+                f"SELECT count(*) FROM uranium_simulated_player_props WHERE season = {yr}"
+            )
+        ).scalar()
+        or 0
+    )
+    return "✅" if cnt > 0 else "❌"
 
 
 def _render_live_tail(log_path, lines=20):

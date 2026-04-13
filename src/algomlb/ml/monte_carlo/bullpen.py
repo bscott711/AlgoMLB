@@ -6,7 +6,9 @@ from typing import Dict
 class BullpenManager:
     """Manages in-game pitching changes based on leverage and manager profiles."""
 
-    def __init__(self, bullpen_df: pd.DataFrame, hook_profiles: Dict[int, ManagerHookProfile]):
+    def __init__(
+        self, bullpen_df: pd.DataFrame, hook_profiles: Dict[int, ManagerHookProfile]
+    ):
         self.bullpen_df = bullpen_df
         self.hook_profiles = hook_profiles
 
@@ -24,16 +26,16 @@ class BullpenManager:
     ) -> bool:
         """Evaluates if the current pitcher should be removed."""
         profile = self.hook_profiles.get(manager_id)
-        
+
         # 1. Fatigue Threshold
         limit = profile.avg_sp_pitch_count if profile else 95.0
         if pitcher.pitches_thrown >= limit:
             return True
-            
+
         # 2. Performance Threshold
-        if pitcher.runs_allowed >= 4: # slightly lower more realistic threshold
+        if pitcher.runs_allowed >= 4:  # slightly lower more realistic threshold
             return True
-            
+
         # 3. Time Through Order (TTO) / Strategy
         leverage = self._calculate_leverage(game)
         if pitcher.current_tto >= 3:
@@ -42,7 +44,7 @@ class BullpenManager:
                 return True
             if profile and profile.pull_before_3rd_tto_pct > 0.3:
                 return True
-                
+
         return False
 
     def select_arm(self, team_id: int, game: GameState) -> int:

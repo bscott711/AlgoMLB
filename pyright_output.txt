@@ -1,44 +1,134 @@
-/home/opc/AlgoMLB/src/algomlb/cli/ingest.py
-  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:50:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
-    Type "GumboIngester" is not assignable to type "LineupIngester | None"
-      "GumboIngester" is not assignable to "LineupIngester"
-      "GumboIngester" is not assignable to "None" (reportArgumentType)
-  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:96:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
-    Type "GumboIngester" is not assignable to type "LineupIngester | None"
-      "GumboIngester" is not assignable to "LineupIngester"
-      "GumboIngester" is not assignable to "None" (reportArgumentType)
-  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:364:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
-    Type "GumboIngester" is not assignable to type "LineupIngester | None"
-      "GumboIngester" is not assignable to "LineupIngester"
-      "GumboIngester" is not assignable to "None" (reportArgumentType)
-  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:414:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
-    Type "GumboIngester" is not assignable to type "LineupIngester | None"
-      "GumboIngester" is not assignable to "LineupIngester"
-      "GumboIngester" is not assignable to "None" (reportArgumentType)
-  /home/opc/AlgoMLB/src/algomlb/cli/ingest.py:515:13 - error: Argument of type "GumboIngester" cannot be assigned to parameter "lineup_ingester" of type "LineupIngester | None" in function "__init__"
-    Type "GumboIngester" is not assignable to type "LineupIngester | None"
-      "GumboIngester" is not assignable to "LineupIngester"
-      "GumboIngester" is not assignable to "None" (reportArgumentType)
-/home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py
-  /home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py:46:52 - error: Argument of type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" cannot be assigned to parameter "iterable" of type "Iterable[_T@enumerate]" in function "__new__"
-    Type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" is not assignable to type "Iterable[Any]"
-      "None" is incompatible with protocol "Iterable[Any]"
-        "__iter__" is not present (reportArgumentType)
-  /home/opc/AlgoMLB/src/algomlb/ml/component_models/pa_model.py:46:52 - error: Argument of type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" cannot be assigned to parameter "iterable" of type "Iterable[_T@enumerate]" in function "__new__"
-    Type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" is not assignable to type "Iterable[_T@enumerate]"
-      "None" is incompatible with protocol "Iterable[_T@enumerate]"
-        "__iter__" is not present (reportArgumentType)
-/home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py
-  /home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py:44:31 - error: Cannot access attribute "predict_proba" for class "IsotonicRegression"
-    Attribute "predict_proba" is unknown (reportAttributeAccessIssue)
-  /home/opc/AlgoMLB/src/algomlb/ml/prop_heads/calibration.py:70:39 - error: Argument of type "np_1darray[Any] | ExtensionArray | Categorical" cannot be assigned to parameter "y_true" of type "ndarray[_AnyShape, dtype[Any]]" in function "calculate_ece"
-    Type "np_1darray[Any] | ExtensionArray | Categorical" is not assignable to type "ndarray[_AnyShape, dtype[Any]]"
-      "ExtensionArray" is not assignable to "ndarray[_AnyShape, dtype[Any]]" (reportArgumentType)
-/home/opc/AlgoMLB/tests/ml/test_component_models.py
-  /home/opc/AlgoMLB/tests/ml/test_component_models.py:48:46 - error: No parameter named "bat_speed" (reportCallIssue)
-/home/opc/AlgoMLB/tests/ml/test_monte_carlo.py
-  /home/opc/AlgoMLB/tests/ml/test_monte_carlo.py:56:64 - error: Argument of type "None" cannot be assigned to parameter "bullpen_manager" of type "BullpenManager" in function "__init__"
-    "None" is not assignable to "BullpenManager" (reportArgumentType)
-  /home/opc/AlgoMLB/tests/ml/test_monte_carlo.py:57:64 - error: Argument of type "None" cannot be assigned to parameter "bullpen_manager" of type "BullpenManager" in function "__init__"
-    "None" is not assignable to "BullpenManager" (reportArgumentType)
-12 errors, 0 warnings, 0 informations
+/home/opc/AlgoMLB/scripts/backfill_game_enrichment.py
+  /home/opc/AlgoMLB/scripts/backfill_game_enrichment.py:58:37 - error: Expected class but received "(iterable: Iterable[object], /) -> bool" (reportGeneralTypeIssues)
+/home/opc/AlgoMLB/scripts/backfill_quant_features.py
+  /home/opc/AlgoMLB/scripts/backfill_quant_features.py:19:48 - error: Expression of type "None" cannot be assigned to parameter of type "date"
+    "None" is not assignable to "date" (reportArgumentType)
+  /home/opc/AlgoMLB/scripts/backfill_quant_features.py:19:71 - error: Expression of type "None" cannot be assigned to parameter of type "date"
+    "None" is not assignable to "date" (reportArgumentType)
+  /home/opc/AlgoMLB/scripts/backfill_quant_features.py:60:40 - error: Argument of type "date | None" cannot be assigned to parameter "start_date" of type "date" in function "backfill_quant_features"
+    Type "date | None" is not assignable to type "date"
+      "None" is not assignable to "date" (reportArgumentType)
+  /home/opc/AlgoMLB/scripts/backfill_quant_features.py:60:55 - error: Argument of type "date | None" cannot be assigned to parameter "end_date" of type "date" in function "backfill_quant_features"
+    Type "date | None" is not assignable to type "date"
+      "None" is not assignable to "date" (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/db/repository.py
+  /home/opc/AlgoMLB/src/algomlb/db/repository.py:385:20 - error: Argument of type "FromClause" cannot be assigned to parameter "table" of type "_DMLTableArgument" in function "update"
+    Type "FromClause" is not assignable to type "_DMLTableArgument"
+      "FromClause" is not assignable to "TableClause"
+      "FromClause" is not assignable to "Join"
+      "FromClause" is not assignable to "Alias"
+      "FromClause" is not assignable to "CTE"
+      "FromClause" is not assignable to "Type[Any]"
+      "FromClause" is not assignable to "Inspectable[_HasClauseElement[Any]]"
+      "FromClause" is incompatible with protocol "_HasClauseElement[Any]"
+    ... (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/db/repository.py:414:23 - error: Cannot access attribute "rowcount" for class "Result[Any]"
+    Attribute "rowcount" is unknown (reportAttributeAccessIssue)
+/home/opc/AlgoMLB/src/algomlb/execution/fatigue.py
+  /home/opc/AlgoMLB/src/algomlb/execution/fatigue.py:60:42 - error: Expected class but received "(iterable: Iterable[object], /) -> bool" (reportGeneralTypeIssues)
+  /home/opc/AlgoMLB/src/algomlb/execution/fatigue.py:108:48 - error: Argument of type "float | None" cannot be assigned to parameter "lon1" of type "float" in function "haversine_distance"
+    Type "float | None" is not assignable to type "float"
+      "None" is not assignable to "float" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/execution/fatigue.py:108:75 - error: Argument of type "float | None" cannot be assigned to parameter "lon2" of type "float" in function "haversine_distance"
+    Type "float | None" is not assignable to type "float"
+      "None" is not assignable to "float" (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/ingestion/orchestrator.py
+  /home/opc/AlgoMLB/src/algomlb/ingestion/orchestrator.py:209:34 - error: Argument of type "Sequence[str]" cannot be assigned to parameter "game_ids" of type "list[str]" in function "enrich_batch"
+    "Sequence[str]" is not assignable to "list[str]" (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/ml/hooks.py
+  /home/opc/AlgoMLB/src/algomlb/ml/hooks.py:372:40 - error: Argument of type "int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"
+    Type "int | None" is not assignable to type "ConvertibleToInt"
+      Type "None" is not assignable to type "ConvertibleToInt"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsInt"
+          "__int__" is not present
+        "None" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/hooks.py:372:40 - error: Argument of type "int | None" cannot be assigned to parameter "x" of type "ConvertibleToInt" in function "__new__"
+    Type "int | None" is not assignable to type "ConvertibleToInt"
+      Type "None" is not assignable to type "ConvertibleToInt"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsInt"
+          "__int__" is not present
+        "None" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/hooks.py:395:16 - error: Type "Literal[0]" is not assignable to return type "DataFrame"
+    "Literal[0]" is not assignable to "DataFrame" (reportReturnType)
+/home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:112:17 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_projected_lineup"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:115:17 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_projected_lineup"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:155:21 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_projected_pitcher"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:161:21 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_projected_pitcher"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:221:13 - error: Argument of type "list[int | None]" cannot be assigned to parameter "manager_ids" of type "List[int]" in function "_fetch_hook_profiles"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:226:13 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:229:13 - error: Argument of type "int | None" cannot be assigned to parameter "h_starter_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:230:13 - error: Argument of type "int | None" cannot be assigned to parameter "a_starter_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:233:13 - error: Argument of type "int | None" cannot be assigned to parameter "team_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:236:13 - error: Argument of type "int | None" cannot be assigned to parameter "h_starter_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:237:13 - error: Argument of type "int | None" cannot be assigned to parameter "a_starter_id" of type "int" in function "_fetch_bullpen"
+    Type "int | None" is not assignable to type "int"
+      "None" is not assignable to "int" (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:427:24 - error: Type "Sequence[GameLineupORM]" is not assignable to return type "List[GameLineupORM]"
+    "Sequence[GameLineupORM]" is not assignable to "List[GameLineupORM]" (reportReturnType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:455:24 - error: Type "tuple[int, str | None]" is not assignable to return type "Tuple[int, str] | None"
+    Type "tuple[int, str | None]" is not assignable to type "Tuple[int, str] | None"
+      "tuple[int, str | None]" is not assignable to "Tuple[int, str]"
+        Tuple entry 2 is incorrect type
+          Type "str | None" is not assignable to type "str"
+            "None" is not assignable to "str"
+      "tuple[int, str | None]" is not assignable to "None" (reportReturnType)
+  /home/opc/AlgoMLB/src/algomlb/ml/monte_carlo/loader.py:457:24 - error: Type "tuple[int, str | None]" is not assignable to return type "Tuple[int, str] | None"
+    Type "tuple[int, str | None]" is not assignable to type "Tuple[int, str] | None"
+      "tuple[int, str | None]" is not assignable to "Tuple[int, str]"
+        Tuple entry 2 is incorrect type
+          Type "str | None" is not assignable to type "str"
+            "None" is not assignable to "str"
+      "tuple[int, str | None]" is not assignable to "None" (reportReturnType)
+/home/opc/AlgoMLB/src/algomlb/ml/training/optuna_tuner.py
+  /home/opc/AlgoMLB/src/algomlb/ml/training/optuna_tuner.py:50:34 - error: Argument of type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" cannot be assigned to parameter "obj" of type "Sized" in function "len"
+    Type "NDArray[Unknown] | Any | tuple[NDArray[Unknown] | Any, ...] | tuple[NDArray[Unknown], ...] | tuple[NDArray[Unknown], Any] | tuple[Any | None, ...] | tuple[Any, ...] | tuple[Any, Any | None] | Unknown | None" is not assignable to type "Sized"
+      "None" is incompatible with protocol "Sized"
+        "__len__" is not present (reportArgumentType)
+  /home/opc/AlgoMLB/src/algomlb/ml/training/optuna_tuner.py:93:61 - error: No overloads for "arange" match the provided arguments (reportCallIssue)
+  /home/opc/AlgoMLB/src/algomlb/ml/training/optuna_tuner.py:93:71 - error: Argument of type "int | None" cannot be assigned to parameter "start_or_stop" of type "_ArangeScalar | float | str" in function "arange"
+    Type "int | None" is not assignable to type "_ArangeScalar | float | str"
+      Type "None" is not assignable to type "_ArangeScalar | float | str"
+        "None" is not assignable to "integer[Any]"
+        "None" is not assignable to "floating[Any]"
+        "None" is not assignable to "datetime64[date | int | None]"
+        "None" is not assignable to "timedelta64[timedelta | int | None]"
+        "None" is not assignable to "float"
+        "None" is not assignable to "str" (reportArgumentType)
+/home/opc/AlgoMLB/src/algomlb/ui/utils.py
+  /home/opc/AlgoMLB/src/algomlb/ui/utils.py:88:9 - error: Operator ">" not supported for "None" (reportOptionalOperand)
+/home/opc/AlgoMLB/tests/unit/test_absolute_final.py
+  /home/opc/AlgoMLB/tests/unit/test_absolute_final.py:77:31 - error: Argument of type "DataFrame" cannot be assigned to parameter "hook_profiles" of type "Dict[int, ManagerHookProfile]" in function "__init__"
+    "DataFrame" is not assignable to "Dict[int, ManagerHookProfile]" (reportArgumentType)
+  /home/opc/AlgoMLB/tests/unit/test_absolute_final.py:86:43 - error: Argument of type "DataFrame" cannot be assigned to parameter "hook_profiles" of type "Dict[int, ManagerHookProfile]" in function "__init__"
+    "DataFrame" is not assignable to "Dict[int, ManagerHookProfile]" (reportArgumentType)
+34 errors, 0 warnings, 0 informations

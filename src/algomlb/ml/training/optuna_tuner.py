@@ -47,7 +47,9 @@ class XGBoostOptunaObjective:
 
             self.le = LabelEncoder()
             self.df[self.target] = self.le.fit_transform(self.df[self.target])
-            self.num_class = len(self.le.classes_)
+            # Ensure self.le is not None for Pyright
+            if self.le.classes_ is not None:
+                self.num_class = len(self.le.classes_)
 
     def __call__(self, trial: optuna.Trial) -> float:
         # Define search space strictly to prevent overfitting baseball noise
@@ -90,7 +92,10 @@ class XGBoostOptunaObjective:
             # Calculate step loss
             if self.metric == "mlogloss":
                 # Explicitly pass all labels to handle folds missing rare outcomes
-                step_loss = log_loss(y_test, y_prob, labels=np.arange(self.num_class))
+                labels = (
+                    np.arange(self.num_class) if self.num_class is not None else None
+                )
+                step_loss = log_loss(y_test, y_prob, labels=labels)
             else:
                 # y_prob is (N, 2), we want P(class=1)
                 step_loss = brier_score_loss(y_test, y_prob[:, 1])
@@ -105,13 +110,6 @@ class XGBoostOptunaObjective:
                 raise optuna.TrialPruned()
 
         avg_loss = float(np.mean(fold_losses))
-        return avg_loss
-
-        # Calculate secondary metrics for logging (ECE)
-        # Note: In a real run, we'd accumulate all OOF for a proper ECE,
-        # but for per-trial info, average ECE across folds is a decent proxy.
-        # However, ECE is very sensitive to sample size, so use with caution.
-
         return avg_loss
 
 

@@ -1,12 +1,15 @@
 import datetime
 import pandas as pd
-from typing import Optional, List, Dict, Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from pathlib import Path
 
 from algomlb.ml.model import MLBModel
-from algomlb.db.models import GameResultORM, UraniumSimulatedPlayerPropsORM, GameLineupORM
+from algomlb.db.models import (
+    GameResultORM,
+    UraniumSimulatedPlayerPropsORM,
+    GameLineupORM,
+)
 from algomlb.ingestion.lineup_ingester import LineupIngester
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -22,9 +25,10 @@ importlib.reload(mc_loader)
 importlib.reload(mc_aggregator)
 importlib.reload(mc_engine)
 
-from algomlb.ml.monte_carlo.loader import MatchupLoader, MatchupContext
-from algomlb.ml.monte_carlo.aggregator import SimulationAggregator
-from algomlb.ml.monte_carlo.engine import SimulationEngine
+from algomlb.ml.monte_carlo.loader import MatchupLoader  # noqa: E402
+from algomlb.ml.monte_carlo.aggregator import SimulationAggregator  # noqa: E402
+from algomlb.ml.monte_carlo.engine import SimulationEngine  # noqa: E402
+
 
 def get_upcoming_games(session: Session, selected_date: datetime.date) -> pd.DataFrame:
     """Fetch games for a specific date, including upcoming ones."""
@@ -37,52 +41,58 @@ def get_upcoming_games(session: Session, selected_date: datetime.date) -> pd.Dat
         GameResultORM.away_score,
         GameResultORM.home_score,
         GameResultORM.status,
-        GameResultORM.game_date
+        GameResultORM.game_date,
     ).where(GameResultORM.game_date == selected_date)
-    
+
     results = session.execute(stmt).all()
     if not results:
         return pd.DataFrame()
-        
+
     return pd.DataFrame([dict(r._asdict()) for r in results])
 
 
 def load_simulation_results(session: Session, game_pk: int) -> pd.DataFrame:
     """Load pre-computed simulation results for a game."""
-    stmt = select(UraniumSimulatedPlayerPropsORM).where(UraniumSimulatedPlayerPropsORM.game_pk == game_pk)
+    stmt = select(UraniumSimulatedPlayerPropsORM).where(
+        UraniumSimulatedPlayerPropsORM.game_pk == game_pk
+    )
     results = session.execute(stmt).scalars().all()
     if not results:
         return pd.DataFrame()
-        
+
     data = []
     for r in results:
-        data.append({
-            "player_id": r.player_id,
-            "stat_type": r.stat_type,
-            "mean": r.mean,
-            "median": r.median,
-            "prob_over_0_5": r.prob_over_0_5,
-            "prob_over_1_5": r.prob_over_1_5,
-            "prob_over_2_5": r.prob_over_2_5,
-            "p10": r.p10,
-            "p90": r.p90,
-            "trials": r.trials
-        })
+        data.append(
+            {
+                "player_id": r.player_id,
+                "stat_type": r.stat_type,
+                "mean": r.mean,
+                "median": r.median,
+                "prob_over_0_5": r.prob_over_0_5,
+                "prob_over_1_5": r.prob_over_1_5,
+                "prob_over_2_5": r.prob_over_2_5,
+                "p10": r.p10,
+                "p90": r.p90,
+                "trials": r.trials,
+            }
+        )
     return pd.DataFrame(data)
 
 
 def run_and_persist_simulation(
-    session: Session, 
-    game_pk: int, 
-    trials: int, 
-    version: str = "v1.0"
+    session: Session, game_pk: int, trials: int, version: str = "v1.0"
 ) -> pd.DataFrame:
     """Run a new simulation and save results to the database."""
     # 1. Ensure Lineups Exist (Auto-Ingest if missing)
-    lineup_exists = session.execute(
-        select(sa.func.count()).select_from(GameLineupORM).where(GameLineupORM.game_pk == game_pk)
-    ).scalar() > 0
-    
+    lineup_exists = (
+        session.execute(
+            select(sa.func.count())
+            .select_from(GameLineupORM)
+            .where(GameLineupORM.game_pk == game_pk)
+        ).scalar()
+        or 0
+    ) > 0
+
     if not lineup_exists:
         # Fetch game date first
         game_date = session.execute(
@@ -96,9 +106,11 @@ def run_and_persist_simulation(
     # 2. Load context
     loader = MatchupLoader(session)
     context = loader.load_matchup(game_pk)
-    
+
     if context is None:
-        raise ValueError(f"CRITICAL: MatchupLoader returned None for game {game_pk}. This should not happen. Check backend logs.")
+        raise ValueError(
+            f"CRITICAL: MatchupLoader returned None for game {game_pk}. This should not happen. Check backend logs."
+        )
 
     # 3. Load model
     model_path = Path(f".data/models/pa_outcome_{version}.joblib")
@@ -138,6 +150,6 @@ def run_and_persist_simulation(
             },
         )
         session.execute(upsert)
-    
+
     session.commit()
     return results_df

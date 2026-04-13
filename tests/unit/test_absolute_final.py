@@ -74,7 +74,7 @@ def test_absolute_last_mile_coverage():
             "availability_score": [0.5, 0.5],
         }
     )
-    mgr = BullpenManager(pen, pd.DataFrame())
+    mgr = BullpenManager(pen, {})
     mgr.select_arm(
         1, MagicMock(home_score=0, away_score=0, inning=1)
     )  # hits low leverage (49)
@@ -83,7 +83,7 @@ def test_absolute_last_mile_coverage():
     pen_trash = pd.DataFrame(
         {"role": ["T"], "pitcher_id": [1], "team_id": [1], "availability_score": [0.5]}
     )
-    mgr_trash = BullpenManager(pen_trash, pd.DataFrame())
+    mgr_trash = BullpenManager(pen_trash, {})
     mgr_trash.select_arm(1, MagicMock(home_score=0, away_score=0, inning=1))
 
     # 7. Rolling Processor Fatigue Fallback (314)
