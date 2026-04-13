@@ -254,12 +254,12 @@ class MatchupLoader:
             logger.warning(
                 f"Starting pitchers missing for game {game.game_id}. Attempting projections..."
             )
-            if not h_sp_id:
+            if not h_sp_id and game.home_team_id is not None:
                 res = self._fetch_rotation_projection(game.home_team_id, game.game_date)
                 if res:
                     h_sp_id, h_sp_name = res
                     h_projected = True
-            if not a_sp_id:
+            if not a_sp_id and game.away_team_id is not None:
                 res = self._fetch_rotation_projection(game.away_team_id, game.game_date)
                 if res:
                     a_sp_id, a_sp_name = res
