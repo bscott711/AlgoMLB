@@ -29,15 +29,24 @@ class XGBoostOptunaObjective:
         splitter: TimeSeriesSplitter,
         metric: str = "auto",
     ):
-        self.df = df.copy()
-        self.features = features
-        self.target = target
-        self.splitter = splitter
+        # Optimization: Pre-generate split indices and convert to numpy for O(1) trial starts
+        # This prevents the redundant 15-minute "Generating 25 folds" delay in every trial.
+        self.X = df[features].to_numpy(dtype="float32")
+        self.y = df[target].to_numpy()
 
         if metric == "auto":
             self.metric = "mlogloss" if target == "pa_outcome" else "brier_score"
         else:
             self.metric = metric
+
+        # Generate integer indices for each fold
+        self.folds = []
+        df_indices = np.arange(len(df))
+        for train_df, test_df in splitter.split(df):
+            # Map back to integer offsets in the original array
+            train_idx = df_indices[: len(train_df)]
+            test_idx = df_indices[len(train_df) : len(train_df) + len(test_df)]
+            self.folds.append((train_idx, test_idx))
 
         # Hardening: Fit LabelEncoder once globally for multiclass
         self.le = None
@@ -46,8 +55,8 @@ class XGBoostOptunaObjective:
             from sklearn.preprocessing import LabelEncoder
 
             self.le = LabelEncoder()
-            self.df[self.target] = self.le.fit_transform(self.df[self.target])
-            # Ensure self.le is not None for Pyright
+            # y was already converted to numpy, so we encode it there
+            self.y = self.le.fit_transform(self.y)
             if self.le.classes_ is not None:
                 self.num_class = len(self.le.classes_)
 
@@ -74,15 +83,11 @@ class XGBoostOptunaObjective:
         else:
             params["objective"] = "binary:logistic"
 
-        folds = self.splitter.split(self.df)
-        if not folds:
-            raise ValueError("No temporal folds generated for objective evaluation.")
-
         fold_losses = []
 
-        for i, (train_df, test_df) in enumerate(folds):
-            X_train, y_train = train_df[self.features], train_df[self.target]
-            X_test, y_test = test_df[self.features], test_df[self.target]
+        for i, (train_idx, test_idx) in enumerate(self.folds):
+            X_train, y_train = self.X[train_idx], self.y[train_idx]
+            X_test, y_test = self.X[test_idx], self.y[test_idx]
 
             # Initialize and fit model
             model = XGBClassifier(**params)

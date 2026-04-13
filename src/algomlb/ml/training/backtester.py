@@ -32,15 +32,13 @@ class TimeSeriesSplitter:
 
     def split(
         self, df: pd.DataFrame, date_col: str = "game_date"
-    ) -> List[Tuple[pd.DataFrame, pd.DataFrame]]:
+    ):  # Returns a generator of (train_df, test_df)
         """
         Iteratively expands the training window and slides the test window.
-
-        Returns:
-            List of (train_df, test_df) tuples.
+        Uses yield to prevent materializing all folds in memory simultaneously.
         """
         if df.empty:
-            return []
+            return
 
         # Ensure date column is datetime
         df = df.copy()
@@ -50,7 +48,6 @@ class TimeSeriesSplitter:
         min_date = df[date_col].min()
         max_date = df[date_col].max()
 
-        splits = []
         # First train window ends after train_window_days
         current_train_end = min_date + timedelta(days=self.config.train_window_days)
 
@@ -69,18 +66,10 @@ class TimeSeriesSplitter:
                     f"Temporal leakage detected! Train max: {train_df[date_col].max()}, Test min: {test_df[date_col].min()}"
                 )
 
-                splits.append((train_df, test_df))
-                logger.debug(
-                    f"Fold created: Train ends {current_train_end.date()}, Test [{test_start.date()} to {test_end.date()})"
-                )
+                yield (train_df, test_df)
 
             # Advance the train window end by the test window size (Expanding Window)
             current_train_end = test_end
-
-        logger.info(
-            f"Generated {len(splits)} walk-forward folds from {min_date.date()} to {max_date.date()}"
-        )
-        return splits
 
 
 def calculate_20bin_ece(y_true: np.ndarray, y_prob: np.ndarray) -> float:
