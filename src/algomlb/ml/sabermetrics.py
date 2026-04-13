@@ -325,3 +325,60 @@ def compute_rolling_re24(
     result = pd.DataFrame(rows)
     logger.info(f"Computed rolling RE24 for {len(result)} player-game rows.")
     return result
+
+
+def backfill_team_sabermetrics_history(engine_in=None) -> None:
+    """
+    Offline backfill for team_sabermetrics_history from game_results.
+    Calculates rolling Pythagorean stats and materializes them for simulation use.
+    """
+    from algomlb.db.session import get_engine
+
+    eng = engine_in or get_engine()
+
+    # 1. Fetch all completed games with scores
+    query = """
+        SELECT game_id as game_pk, game_date, home_team, away_team,
+               home_score, away_score
+        FROM game_results
+        WHERE status = 'COMPLETED'
+          AND home_score IS NOT NULL
+          AND away_score IS NOT NULL
+        ORDER BY game_date, game_id
+    """
+    games = pd.read_sql(query, eng)
+    if games.empty:
+        logger.warning("No completed games found for sabermetric backfill.")
+        return
+
+    # 2. Compute Features
+    logger.info(f"Computing Pythagorean features for {len(games)} historical games...")
+    pyth_df = compute_pythagorean_features(games)
+
+    # 3. Preparation for DB (map game_id back to game_pk if needed, although they are mostly synonymous here)
+    from algomlb.db.models import TeamSabermetricsHistoryORM
+
+    # 4. Batch Upsert (PostgreSQL optimized)
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    records = pyth_df.to_dict(orient="records")
+    batch_size = 500
+    
+    logger.info(f"Upserting {len(records)} sabermetric rows into team_sabermetrics_history...")
+    with eng.begin() as conn:
+        for i in range(0, len(records), batch_size):
+            batch = records[i : i + batch_size]
+            stmt = pg_insert(TeamSabermetricsHistoryORM).values(batch)
+            upsert_stmt = stmt.on_conflict_do_update(
+                index_elements=["game_pk", "team_id", "is_home"],
+                set_={
+                    "pythag_win_pct": stmt.excluded.pythag_win_pct,
+                    "roll_run_diff": stmt.excluded.roll_run_diff,
+                    "roll_rs_per_game": stmt.excluded.roll_rs_per_game,
+                    "roll_ra_per_game": stmt.excluded.roll_ra_per_game,
+                    "game_date": stmt.excluded.game_date,
+                },
+            )
+            conn.execute(upsert_stmt)
+
+    logger.success(f"Successfully materialized {len(records)} team sabermetrics rows.")

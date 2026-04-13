@@ -14,6 +14,8 @@ from algomlb.db.models import (
     TeamManagerORM,
     ManagerHookProfileORM,
     StatcastRawORM,
+    TeamEloHistoryORM,
+    TeamSabermetricsHistoryORM,
 )
 from algomlb.domain import PlayerRole, GameStatus
 from algomlb.ml.monte_carlo.state import (
@@ -49,6 +51,9 @@ class MatchupContext(BaseModel):
 
     # Context features (Stadium, Weather, etc.)
     game_context: Dict[str, float]
+    
+    # Global Matchup Features (Elo, Pythag, etc.)
+    matchup_features: Dict[str, float] = {}
 
     # Projection Metadata
     home_sp_projected: bool = False
@@ -85,13 +90,15 @@ class MatchupLoader:
             away_starter.pitcher_id,
         )
 
-        # 5. Fetch Managers & Hook Profiles
+        # 5. Fetch Global Matchup Features (Elo, Pythag)
+        matchup_feats = self._fetch_global_features(game)
+
+        # 6. Fetch Managers & Hook Profiles
         h_mgr_id, a_mgr_id = self._fetch_manager_ids(game)
-        # Ensure we only pass non-None IDs to satisfy List[int] requirement
         active_mgr_ids = [m for m in [h_mgr_id, a_mgr_id] if m is not None]
         mgr_profiles = self._fetch_hook_profiles(active_mgr_ids, game.game_date.year)
 
-        # 6. Fetch Bullpens (Targeting top 5 relievers by rolling workload/availability)
+        # 7. Fetch Bullpens
         if game.home_team_id is None or game.away_team_id is None:
             raise ValueError(f"Game {game.game_id} missing team IDs for bullpen fetch.")
 
@@ -110,8 +117,7 @@ class MatchupLoader:
             away_starter.pitcher_id,
         )
 
-        # 7. Build Context
-
+        # 8. Build Context
         context = MatchupContext(
             game_pk=int(game.game_id),
             game_date=game.game_date,
@@ -129,8 +135,9 @@ class MatchupLoader:
             game_context={
                 "temp": game.temperature or 70.0,
                 "wind_speed": game.wind_speed or 5.0,
-                "is_night": 1.0,  # Placeholder
+                "is_night": 1.0,
             },
+            matchup_features=matchup_feats,
             home_sp_projected=h_proj,
             away_sp_projected=a_proj,
         )
@@ -441,6 +448,84 @@ class MatchupLoader:
                     existing_features[r.player_id] = self._extract_features(r)
 
         return relievers
+
+    def _fetch_global_features(self, game: GameResultORM) -> Dict[str, float]:
+        """Fetch materialized team-level features (Elo, Pythag) up to the game date."""
+        home_team = str(game.home_team)
+        away_team = str(game.away_team)
+        game_date = game.game_date
+
+        feats: Dict[str, float] = {}
+
+        # 1. Fetch Elo (pre-game)
+        h_elo = (
+            self.session.query(TeamEloHistoryORM)
+            .filter(
+                TeamEloHistoryORM.team_id == home_team,
+                TeamEloHistoryORM.game_date < game_date,
+            )
+            .order_by(TeamEloHistoryORM.game_date.desc(), TeamEloHistoryORM.id.desc())
+            .first()
+        )
+        a_elo = (
+            self.session.query(TeamEloHistoryORM)
+            .filter(
+                TeamEloHistoryORM.team_id == away_team,
+                TeamEloHistoryORM.game_date < game_date,
+            )
+            .order_by(TeamEloHistoryORM.game_date.desc(), TeamEloHistoryORM.id.desc())
+            .first()
+        )
+
+        h_elo_val = h_elo.elo_post if h_elo else 1500.0
+        a_elo_val = a_elo.elo_post if a_elo else 1500.0
+
+        feats["home_team_elo_pre"] = h_elo_val
+        feats["away_team_elo_pre"] = a_elo_val
+        feats["elo_diff"] = h_elo_val - a_elo_val
+
+        # 2. Fetch Sabermetrics (pre-game)
+        h_saber = (
+            self.session.query(TeamSabermetricsHistoryORM)
+            .filter(
+                TeamSabermetricsHistoryORM.team_id == home_team,
+                TeamSabermetricsHistoryORM.game_date < game_date,
+            )
+            .order_by(
+                TeamSabermetricsHistoryORM.game_date.desc(),
+                TeamSabermetricsHistoryORM.id.desc(),
+            )
+            .first()
+        )
+        a_saber = (
+            self.session.query(TeamSabermetricsHistoryORM)
+            .filter(
+                TeamSabermetricsHistoryORM.team_id == away_team,
+                TeamSabermetricsHistoryORM.game_date < game_date,
+            )
+            .order_by(
+                TeamSabermetricsHistoryORM.game_date.desc(),
+                TeamSabermetricsHistoryORM.id.desc(),
+            )
+            .first()
+        )
+
+        # Home
+        feats["h_pythag_win_pct"] = h_saber.pythag_win_pct if h_saber else 0.5
+        feats["h_roll_run_diff"] = h_saber.roll_run_diff if h_saber else 0.0
+        feats["h_roll_rs_per_game"] = h_saber.roll_rs_per_game if h_saber else 4.5
+        feats["h_roll_ra_per_game"] = h_saber.roll_ra_per_game if h_saber else 4.5
+
+        # Away
+        feats["a_pythag_win_pct"] = a_saber.pythag_win_pct if a_saber else 0.5
+        feats["a_roll_run_diff"] = a_saber.roll_run_diff if a_saber else 0.0
+        feats["a_roll_rs_per_game"] = a_saber.roll_rs_per_game if a_saber else 4.5
+        feats["a_roll_ra_per_game"] = a_saber.roll_ra_per_game if a_saber else 4.5
+
+        # Derived
+        feats["pythag_diff"] = feats["h_pythag_win_pct"] - feats["a_pythag_win_pct"]
+
+        return feats
 
     def _fetch_rotation_projection(
         self, team_id: int, current_date: date

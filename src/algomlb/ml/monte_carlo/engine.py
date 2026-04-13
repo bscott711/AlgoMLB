@@ -9,6 +9,58 @@ from algomlb.ml.monte_carlo.state import (
 )
 from algomlb.ml.monte_carlo.loader import MatchupContext
 from algomlb.ml.monte_carlo.bullpen import BullpenManager
+logger = logging.getLogger(__name__)
+
+# Define exactly what features belong to which entity based on training schema
+BATTER_FEATURES = {
+    "roll_pas",
+    "roll_hits_per_pa",
+    "roll_k_pct_batter",
+    "roll_bb_pct_batter",
+    "roll_barrel_pct",
+    "roll_avg_launch_speed",
+    "roll_avg_launch_angle",
+    "roll_avg_batter_xwoba",
+    "roll_batter_xwoba_shrunk",
+    "ema_batter_xwoba_3g",
+    "ema_batter_xwoba_7g",
+    "ema_bat_speed_3g",
+    "ema_attack_angle_3g",
+    "ema_chase_pct_3g",
+    "ema_iz_whiff_pct_3g",
+    "std_batter_xwoba_15g",
+    "std_launch_angle_15g",
+    "seasonal_xwoba_vs_rh",
+    "seasonal_xwoba_vs_lh",
+}
+
+PITCHER_FEATURES = {
+    "n_games_used",
+    "days_since_last_game",
+    "roll_pitches",
+    "roll_strikes_pct",
+    "roll_whiff_pct",
+    "roll_k_pct",
+    "roll_bb_pct",
+    "roll_avg_release_speed",
+    "roll_avg_pfx_x",
+    "roll_avg_pfx_z",
+    "roll_avg_pitcher_xwoba",
+    "roll_pitcher_xwoba_shrunk",
+    "ema_pitcher_xwoba_3g",
+    "ema_pitcher_xwoba_7g",
+    "ema_edge_pct_3g",
+    "ema_velo_degradation_3g",
+    "std_pitcher_xwoba_15g",
+    "std_edge_pct_15g",
+    "std_release_pos_z_15g",
+    "fatigue_index_7d",
+    "fatigue_index_14d",
+    "delta_spin_rate_3g",
+    "delta_extension_3g",
+    "delta_fb_velo_3g",
+    "roll_re24",
+}
 
 
 class SimulationEngine:
@@ -257,8 +309,7 @@ class SimulationEngine:
 
     def _precompute_matchups(self, context):
         """
-        Vectorized batch inference. Generates the 8-class probability distribution
-        for every possible batter vs. pitcher matchup in the game matrix simultaneously.
+        Vectorized batch inference with strict feature alignment and role-specific mapping.
         """
         matchup_rows = []
         keys = []
@@ -266,9 +317,13 @@ class SimulationEngine:
         # Gather all IDs that could face each other
         away_batters = [b.player_id for b in context.away_lineup]
         home_batters = [b.player_id for b in context.home_lineup]
-        
-        home_pitchers = [context.home_starter.pitcher_id] + [p.pitcher_id for p in context.home_relievers]
-        away_pitchers = [context.away_starter.pitcher_id] + [p.pitcher_id for p in context.away_relievers]
+
+        home_pitchers = [context.home_starter.pitcher_id] + [
+            p.pitcher_id for p in context.home_relievers
+        ]
+        away_pitchers = [context.away_starter.pitcher_id] + [
+            p.pitcher_id for p in context.away_relievers
+        ]
 
         # Helper to construct the feature matrix
         def build_matrix(batters, pitchers, batting_side):
@@ -279,12 +334,21 @@ class SimulationEngine:
                 b_feats = context.batter_features.get(b_id, {})
                 for p_id in pitchers:
                     p_feats = context.pitcher_features.get(p_id, {})
-                    
+
                     combined = {}
+                    # 1. Apply Batter-specific features only
                     for k, v in b_feats.items():
-                        combined[f"{b_prefix}{k}"] = v
+                        if k in BATTER_FEATURES:
+                            combined[f"{b_prefix}{k}"] = v
+
+                    # 2. Apply Pitcher-specific features only
                     for k, v in p_feats.items():
-                        combined[f"{p_prefix}{k}"] = v
+                        if k in PITCHER_FEATURES:
+                            combined[f"{p_prefix}{k}"] = v
+
+                    # 3. Add Global Matchup Features (Rescue from context)
+                    for k, v in context.matchup_features.items():
+                        combined[k] = v
 
                     matchup_rows.append(combined)
                     keys.append((b_id, p_id))
@@ -298,49 +362,50 @@ class SimulationEngine:
             return
 
         X_batch = pd.DataFrame(matchup_rows)
-        
+
         # Safely unwrap the base XGBoost model if wrapped
-        actual_model = self.pa_model.model if hasattr(self.pa_model, "model") else self.pa_model
+        actual_model = (
+            self.pa_model.model if hasattr(self.pa_model, "model") else self.pa_model
+        )
 
         if actual_model and hasattr(actual_model, "predict_proba"):
             try:
-                # 🚀 FIX: Bulletproof Feature Alignment
+                # 🚀 Bulletproof Feature Alignment
                 expected_features = None
                 if hasattr(actual_model, "feature_names_in_"):
                     expected_features = actual_model.feature_names_in_
-                elif hasattr(actual_model, "feature_names") and actual_model.feature_names is not None:
+                elif (
+                    hasattr(actual_model, "feature_names")
+                    and actual_model.feature_names is not None
+                ):
                     expected_features = actual_model.feature_names
                 elif hasattr(actual_model, "get_booster"):
                     expected_features = actual_model.get_booster().feature_names
-                
+
                 if expected_features is not None:
                     expected_list = list(expected_features)
                     missing_cols = set(expected_list) - set(X_batch.columns)
-                    
+
                     if missing_cols:
-                        # Attempt to rescue missing global game/team features from context
-                        game_feats = getattr(context, "game_features", {})
-                        if not game_feats:
-                            game_feats = getattr(context, "team_features", {})
-                        
-                        # Assign missing columns dynamically (NaN if totally missing)
-                        fill_dict = {col: game_feats.get(col, np.nan) for col in missing_cols}
-                        X_batch = X_batch.assign(**fill_dict)
-                        
-                    # Filter exact columns in exact order (strips out unwanted extras like a_bat_delta_fb_velo)
+                        # Final failsafe injecting NaN for totally missing columns
+                        X_batch = X_batch.assign(**{col: np.nan for col in missing_cols})
+
+                    # Filter exact columns in exact order
                     X_batch = X_batch[expected_list]
 
                 # Run Batch Prediction
                 prob_matrix = actual_model.predict_proba(X_batch)
-                
+
                 for i, key in enumerate(keys):
                     self.matchup_cache[key] = prob_matrix[i]
-                    
+
                 logger.debug(f"Successfully batch-inferred {len(keys)} unique matchups.")
-                
+
             except Exception as e:
                 logger.error(f"CRITICAL: Batch inference failed! {str(e)}")
-                raise RuntimeError(f"PA Model inference failed due to feature mismatch or XGBoost error: {e}") 
+                raise RuntimeError(
+                    f"PA Model inference failed due to feature mismatch or XGBoost error: {e}"
+                )
         else:
             raise ValueError("The provided pa_model does not have a predict_proba method.")
 

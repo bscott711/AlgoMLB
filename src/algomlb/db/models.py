@@ -1372,6 +1372,42 @@ class TeamEloHistoryORM(Base):
     )
 
 
+class TeamSabermetricsHistoryORM(Base):
+    """
+    Materialized team-level sabermetrics computed from game results.
+    Stores rolling Pythagorean win % and run differentials at each game grain.
+    Used by the Uranium simulation engine to retrieve historical context without leakage.
+    """
+
+    __tablename__ = "team_sabermetrics_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    team_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    is_home: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    pythag_win_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    roll_run_diff: Mapped[float] = mapped_column(Float, nullable=False)
+    roll_rs_per_game: Mapped[float] = mapped_column(Float, nullable=False)
+    roll_ra_per_game: Mapped[float] = mapped_column(Float, nullable=False)
+
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk",
+            "team_id",
+            "is_home",
+            name="uq_team_sabermetrics_history_row",
+        ),
+    )
+
+
 class UraniumEvalHistoryORM(Base):
     """
     Walk-forward evaluation summary for Uranium models.
