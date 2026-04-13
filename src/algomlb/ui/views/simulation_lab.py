@@ -41,7 +41,9 @@ def show_simulation_lab():
         ctx = loader.load_matchup(int(game_row["game_id"]))
     except ValueError as val_err:
         st.warning(f"⚠️ Simulation Data Gap: {val_err}")
-        st.info("This occasionally happens for future games where historical data is sparse. Try another matchup or check back after the next database sync.")
+        st.info(
+            "This occasionally happens for future games where historical data is sparse. Try another matchup or check back after the next database sync."
+        )
         session.close()
         return
     except Exception as e:
@@ -92,9 +94,9 @@ def _render_matchup_header(game_row, ctx=None):
     st.subheader(
         f"📅 Simulation for {game_row['game_date']} (Status: {game_row['status']})"
     )
-    
-    h_name = game_row['home_pitcher'] or 'TBD'
-    a_name = game_row['away_pitcher'] or 'TBD'
+
+    h_name = game_row["home_pitcher"] or "TBD"
+    a_name = game_row["away_pitcher"] or "TBD"
     h_proj_str = ""
     a_proj_str = ""
 
@@ -102,9 +104,13 @@ def _render_matchup_header(game_row, ctx=None):
         h_name = ctx.home_starter.player_name
         a_name = ctx.away_starter.player_name
         if ctx.home_sp_projected:
-            h_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+            h_proj_str = (
+                " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+            )
         if ctx.away_sp_projected:
-            a_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+            a_proj_str = (
+                " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+            )
 
     col1, col2, col3 = st.columns([2, 1, 2])
     with col1:

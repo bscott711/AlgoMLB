@@ -72,7 +72,9 @@ class MatchupLoader:
         home_batters, away_batters = self._prepare_lineups(game)
 
         # 3. Fetch Pitchers
-        home_starter, away_starter, h_proj, a_proj = self._prepare_starting_pitchers(game)
+        home_starter, away_starter, h_proj, a_proj = self._prepare_starting_pitchers(
+            game
+        )
 
         # 4. Fetch Rolling Features (Latest available up to game_date)
         batter_features, pitcher_features = self._fetch_all_rolling_features(
@@ -186,21 +188,31 @@ class MatchupLoader:
             )
             if game.home_team_id is None or game.away_team_id is None:
                 raise ValueError(f"Game {game.game_id} is missing team IDs.")
-            
+
             h_rows = self._fetch_projected_lineup(game.home_team_id, game.game_date)
             a_rows = self._fetch_projected_lineup(game.away_team_id, game.game_date)
-            
+
             if not h_rows or not a_rows:
                 h_name = game.home_team
                 a_name = game.away_team
                 missing = []
-                if not h_rows: missing.append(f"Home ({h_name})")
-                if not a_rows: missing.append(f"Away ({a_name})")
-                raise ValueError(f"Incomplete rosters for game {game.game_id}. Missing data for: {', '.join(missing)}. Try a different matchup or check database sync.")
-            
+                if not h_rows:
+                    missing.append(f"Home ({h_name})")
+                if not a_rows:
+                    missing.append(f"Away ({a_name})")
+                raise ValueError(
+                    f"Incomplete rosters for game {game.game_id}. Missing data for: {', '.join(missing)}. Try a different matchup or check database sync."
+                )
+
             # Use the rows directly for each side, bypassing team_side filtering from historical records
-            home_batters = [BatterSimState(player_id=r.player_id, player_name=r.player_name) for r in h_rows]
-            away_batters = [BatterSimState(player_id=r.player_id, player_name=r.player_name) for r in a_rows]
+            home_batters = [
+                BatterSimState(player_id=r.player_id, player_name=r.player_name)
+                for r in h_rows
+            ]
+            away_batters = [
+                BatterSimState(player_id=r.player_id, player_name=r.player_name)
+                for r in a_rows
+            ]
             return home_batters, away_batters
 
         home_batters = [
@@ -218,9 +230,13 @@ class MatchupLoader:
             h_name = game.home_team
             a_name = game.away_team
             missing = []
-            if not home_batters: missing.append(f"Home ({h_name})")
-            if not away_batters: missing.append(f"Away ({a_name})")
-            raise ValueError(f"Incomplete rosters for game {game.game_id}. Missing data for: {', '.join(missing)}. Try a different matchup or check database sync.")
+            if not home_batters:
+                missing.append(f"Home ({h_name})")
+            if not away_batters:
+                missing.append(f"Away ({a_name})")
+            raise ValueError(
+                f"Incomplete rosters for game {game.game_id}. Missing data for: {', '.join(missing)}. Try a different matchup or check database sync."
+            )
         return home_batters, away_batters
 
     def _prepare_starting_pitchers(
@@ -235,7 +251,9 @@ class MatchupLoader:
         a_projected = False
 
         if not h_sp_id or not a_sp_id:
-            logger.warning(f"Starting pitchers missing for game {game.game_id}. Attempting projections...")
+            logger.warning(
+                f"Starting pitchers missing for game {game.game_id}. Attempting projections..."
+            )
             if not h_sp_id:
                 res = self._fetch_rotation_projection(game.home_team_id, game.game_date)
                 if res:
@@ -424,7 +442,9 @@ class MatchupLoader:
 
         return relievers
 
-    def _fetch_rotation_projection(self, team_id: int, current_date: date) -> Optional[Tuple[int, str]]:
+    def _fetch_rotation_projection(
+        self, team_id: int, current_date: date
+    ) -> Optional[Tuple[int, str]]:
         """
         Identifies the starting rotation sequence and projects the 'Next Man Up'.
         Returns (pitcher_id, pitcher_name).
@@ -435,8 +455,15 @@ class MatchupLoader:
         # 1. Fetch last 20 games chronologically to see the pattern
         stmt = (
             select(GameResultORM)
-            .where(or_(GameResultORM.home_team_id == team_id, GameResultORM.away_team_id == team_id))
-            .where(GameResultORM.status.in_([GameStatus.COMPLETED, GameStatus.IN_PROGRESS]))
+            .where(
+                or_(
+                    GameResultORM.home_team_id == team_id,
+                    GameResultORM.away_team_id == team_id,
+                )
+            )
+            .where(
+                GameResultORM.status.in_([GameStatus.COMPLETED, GameStatus.IN_PROGRESS])
+            )
             .where(GameResultORM.game_date < current_date)
             .order_by(desc(GameResultORM.game_date))
             .limit(50)  # Expanded window to 50 games
@@ -463,27 +490,27 @@ class MatchupLoader:
             if p_id not in seen:
                 unique_starters.append((p_id, p_name))
                 seen.add(p_id)
-            if len(unique_starters) >= 6: # Most MLB teams use 5 or 6
+            if len(unique_starters) >= 6:  # Most MLB teams use 5 or 6
                 break
-        
+
         # 3. Find the 'Last Starter' and project the 'Next'
         # unique_starters is in reverse chronological order: [Latest, Lat-1, Lat-2...]
         if len(unique_starters) < 2:
-            return unique_starters[0] # Just the same guy if only 1 found
+            return unique_starters[0]  # Just the same guy if only 1 found
 
         # Let's find the cycle.
         cycle = []
         seen_cycle = set()
-        for i in range(len(rotation_history)-1, -1, -1):
+        for i in range(len(rotation_history) - 1, -1, -1):
             pid = rotation_history[i][0]
             if pid not in seen_cycle:
                 cycle.insert(0, rotation_history[i])
                 seen_cycle.add(pid)
             else:
-                break # We've completed one full loop backward
-        
+                break  # We've completed one full loop backward
+
         if not cycle:
-            return rotation_history[-1] # Fallback to most recent
+            return rotation_history[-1]  # Fallback to most recent
 
         # Now cycle is [Candidate1, Candidate2, ..., LastStarter]
         # We want Candidate1.
@@ -497,14 +524,27 @@ class MatchupLoader:
             return []
 
         # 1. Find the 50 most recent games for this team
-        recent_games = self.session.execute(
-            select(GameResultORM)
-            .where(or_(GameResultORM.home_team_id == team_id, GameResultORM.away_team_id == team_id))
-            .where(GameResultORM.status.in_([GameStatus.COMPLETED, GameStatus.IN_PROGRESS]))
-            .where(GameResultORM.game_date < current_date)
-            .order_by(desc(GameResultORM.game_date))
-            .limit(50)
-        ).scalars().all()
+        recent_games = (
+            self.session.execute(
+                select(GameResultORM)
+                .where(
+                    or_(
+                        GameResultORM.home_team_id == team_id,
+                        GameResultORM.away_team_id == team_id,
+                    )
+                )
+                .where(
+                    GameResultORM.status.in_(
+                        [GameStatus.COMPLETED, GameStatus.IN_PROGRESS]
+                    )
+                )
+                .where(GameResultORM.game_date < current_date)
+                .order_by(desc(GameResultORM.game_date))
+                .limit(50)
+            )
+            .scalars()
+            .all()
+        )
 
         if not recent_games:
             return []
@@ -514,11 +554,15 @@ class MatchupLoader:
         if not game_pks:
             return []
 
-        all_slots = self.session.execute(
-            select(GameLineupORM)
-            .where(GameLineupORM.game_pk.in_(game_pks))
-            .order_by(desc(GameLineupORM.game_pk), GameLineupORM.batting_order)
-        ).scalars().all()
+        all_slots = (
+            self.session.execute(
+                select(GameLineupORM)
+                .where(GameLineupORM.game_pk.in_(game_pks))
+                .order_by(desc(GameLineupORM.game_pk), GameLineupORM.batting_order)
+            )
+            .scalars()
+            .all()
+        )
 
         # 3. Process in Python to find the first complete 9-man lineup for our team
         # Group by game_pk
