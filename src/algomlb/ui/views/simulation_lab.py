@@ -36,14 +36,27 @@ def show_simulation_lab():
         session.close()
         return
 
-    _render_matchup_header(game_row)
+    loader = MatchupLoader(session)
+    try:
+        ctx = loader.load_matchup(int(game_row["game_id"]))
+    except ValueError as val_err:
+        st.warning(f"⚠️ Simulation Data Gap: {val_err}")
+        st.info("This occasionally happens for future games where historical data is sparse. Try another matchup or check back after the next database sync.")
+        session.close()
+        return
+    except Exception as e:
+        st.error(f"❌ Failed to load matchup context: {e}")
+        session.close()
+        return
+
+    _render_matchup_header(game_row, ctx)
     st.markdown("---")
 
     sim_df = _get_simulation_data(session, int(game_row["game_id"]), trials, run_sim)
 
     if not sim_df.empty:
         _render_win_probability(sim_df, game_row)
-        _render_tabs(session, sim_df, int(game_row["game_id"]), game_row)
+        _render_tabs(session, sim_df, int(game_row["game_id"]), game_row, ctx)
     else:
         st.warning("No simulation results found for this game.")
         st.info("Click 'Run New Simulation' in the sidebar to generate projections.")
@@ -74,11 +87,25 @@ def _render_sidebar(session):
         return game_row, trials, run_sim
 
 
-def _render_matchup_header(game_row):
+def _render_matchup_header(game_row, ctx=None):
     """Render the visual VS header for the game."""
     st.subheader(
         f"📅 Simulation for {game_row['game_date']} (Status: {game_row['status']})"
     )
+    
+    h_name = game_row['home_pitcher'] or 'TBD'
+    a_name = game_row['away_pitcher'] or 'TBD'
+    h_proj_str = ""
+    a_proj_str = ""
+
+    if ctx:
+        h_name = ctx.home_starter.player_name
+        a_name = ctx.away_starter.player_name
+        if ctx.home_sp_projected:
+            h_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+        if ctx.away_sp_projected:
+            a_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+
     col1, col2, col3 = st.columns([2, 1, 2])
     with col1:
         st.markdown(
@@ -86,7 +113,7 @@ def _render_matchup_header(game_row):
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<p style='text-align: center;'>Starter: <b>{game_row['away_pitcher'] or 'TBD'}</b></p>",
+            f"<p style='text-align: center;'>Starter: <b>{a_name}</b>{a_proj_str}</p>",
             unsafe_allow_html=True,
         )
     with col2:
@@ -103,7 +130,7 @@ def _render_matchup_header(game_row):
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<p style='text-align: center;'>Starter: <b>{game_row['home_pitcher'] or 'TBD'}</b></p>",
+            f"<p style='text-align: center;'>Starter: <b>{h_name}</b>{h_proj_str}</p>",
             unsafe_allow_html=True,
         )
 
@@ -133,13 +160,14 @@ def _render_win_probability(sim_df, game_row):
         st.progress(h_win, text=f"Home Advantage: {h_win:.1%}")
 
 
-def _render_tabs(session, sim_df, game_pk, game_row):
+def _render_tabs(session, sim_df, game_pk, game_row, ctx=None):
     """Render the detailed prop distribution tabs."""
     tab1, tab2, tab3 = st.tabs(
         ["🔥 Batter Props", "🧤 Pitcher Props", "📈 Distributions"]
     )
-    loader = MatchupLoader(session)
-    ctx = loader.load_matchup(game_pk)
+    if not ctx:
+        loader = MatchupLoader(session)
+        ctx = loader.load_matchup(game_pk)
     if not ctx:
         return
 
