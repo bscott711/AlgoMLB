@@ -111,24 +111,29 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
         logger.warning("team_elo_history not found.")
         elo_df = pd.DataFrame()
 
-    pythag_df = compute_pythagorean_features(games_df)
-
-    re24_df = pd.DataFrame()
     try:
+        years_list = [int(y.strip()) for y in years_str.split(",")]
         retro_df = pd.read_sql(
             f"""
-            SELECT game_id, date, inning, top_bot, outs_pre, outs_post,
+            SELECT game_id, date AS game_date, inning, top_bot, outs_pre, outs_post,
                    br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
-                   runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team
+                   runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team,
+                   walk, k, hbp, single, double_flag, triple, hr
             FROM retrosheet_events
             WHERE EXTRACT(YEAR FROM date) IN ({years_str}) AND pa_flag = 1
-        """,
+            """,
             engine,
         )
-        if not retro_df.empty:
-            re24_df = compute_rolling_re24(compute_re24_per_pa(retro_df), window=20)
+        retro_df = _label_pa_outcomes(retro_df)
     except Exception as e:
-        logger.warning(f"RE24 computation skipped: {e}")
+        logger.warning(f"retrosheet_events loading failed: {e}")
+        retro_df = pd.DataFrame()
+
+    pythag_df = compute_pythagorean_features(games_df)
+
+    # RE24: Now pre-computed in player_rolling_features (loaded into pitcher_gold/batter_gold)
+    # The build_uranium_matrix method will handle joining these from the gold dataframes.
+    re24_df = pd.concat([pitcher_gold, batter_gold], ignore_index=True)
 
     return {
         "games": games_df,
@@ -138,7 +143,26 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
         "elo": elo_df,
         "pythag": pythag_df,
         "re24": re24_df,
+        "pas": retro_df,
     }
+
+
+def _label_pa_outcomes(df: pd.DataFrame) -> pd.DataFrame:
+    """Map Retrosheet flags to canonical simulation outcomes."""
+    if df.empty:
+        return df
+    
+    # Priority order for mapping:
+    df["pa_outcome"] = "out_in_play"
+    df.loc[df["k"] == 1, "pa_outcome"] = "strikeout"
+    df.loc[df["walk"] == 1, "pa_outcome"] = "walk"
+    df.loc[df["hbp"] == 1, "pa_outcome"] = "hbp"
+    df.loc[df["single"] == 1, "pa_outcome"] = "single"
+    df.loc[df["double_flag"] == 1, "pa_outcome"] = "double"
+    df.loc[df["triple"] == 1, "pa_outcome"] = "triple"
+    df.loc[df["hr"] == 1, "pa_outcome"] = "home_run"
+    
+    return df
 
 
 def _evaluate_and_report(
@@ -213,15 +237,24 @@ def tune(
         raise typer.Exit(1)
 
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_uranium_matrix(
-        data["games"],
-        data["pitcher_gold"],
-        data["lineups"] if not data["lineups"].empty else None,
-        data["batter_gold"] if not data["batter_gold"].empty else None,
-        elo_df=data["elo"],
-        pythag_df=data["pythag"],
-        re24_df=data["re24"],
-    )
+    if target == "pa_outcome":
+        X, y = pipeline.build_pa_matrix(
+            data["pas"],
+            data["pitcher_gold"],
+            data["batter_gold"],
+            lineups_df=data["lineups"] if not data["lineups"].empty else None,
+            elo_df=data["elo"],
+        )
+    else:
+        X, y = pipeline.build_uranium_matrix(
+            data["games"],
+            data["pitcher_gold"],
+            data["lineups"] if not data["lineups"].empty else None,
+            data["batter_gold"] if not data["batter_gold"].empty else None,
+            elo_df=data["elo"],
+            pythag_df=data["pythag"],
+            re24_df=data["re24"],
+        )
 
     if X.empty:
         logger.error("Empty matrix.")
@@ -290,15 +323,24 @@ def backtest(
         raise typer.Exit(1)
 
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_uranium_matrix(
-        data["games"],
-        data["pitcher_gold"],
-        data["lineups"] if not data["lineups"].empty else None,
-        data["batter_gold"] if not data["batter_gold"].empty else None,
-        elo_df=data["elo"],
-        pythag_df=data["pythag"],
-        re24_df=data["re24"],
-    )
+    if target == "pa_outcome":
+        X, y = pipeline.build_pa_matrix(
+            data["pas"],
+            data["pitcher_gold"],
+            data["batter_gold"],
+            lineups_df=data["lineups"] if not data["lineups"].empty else None,
+            elo_df=data["elo"],
+        )
+    else:
+        X, y = pipeline.build_uranium_matrix(
+            data["games"],
+            data["pitcher_gold"],
+            data["lineups"] if not data["lineups"].empty else None,
+            data["batter_gold"] if not data["batter_gold"].empty else None,
+            elo_df=data["elo"],
+            pythag_df=data["pythag"],
+            re24_df=data["re24"],
+        )
 
     # Combined DF for backtester
     combined_df = cast(pd.DataFrame, pd.concat([X, y.to_frame(name=target)], axis=1))
@@ -387,15 +429,24 @@ def explain(
 
     data = _load_ml_data(engine, years_str)
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_uranium_matrix(
-        data["games"],
-        data["pitcher_gold"],
-        data["lineups"] if not data["lineups"].empty else None,
-        data["batter_gold"] if not data["batter_gold"].empty else None,
-        elo_df=data["elo"],
-        pythag_df=data["pythag"],
-        re24_df=data["re24"],
-    )
+    if target == "pa_outcome":
+        X, y = pipeline.build_pa_matrix(
+            data["pas"],
+            data["pitcher_gold"],
+            data["batter_gold"],
+            lineups_df=data["lineups"] if not data["lineups"].empty else None,
+            elo_df=data["elo"],
+        )
+    else:
+        X, y = pipeline.build_uranium_matrix(
+            data["games"],
+            data["pitcher_gold"],
+            data["lineups"] if not data["lineups"].empty else None,
+            data["batter_gold"] if not data["batter_gold"].empty else None,
+            elo_df=data["elo"],
+            pythag_df=data["pythag"],
+            re24_df=data["re24"],
+        )
 
     params = load_optimized_params(target, version)
     model = MLBModel(**params)
@@ -441,15 +492,24 @@ def train(
 
     data = _load_ml_data(engine, years_str)
     pipeline = FeaturePipeline()
-    X, y = pipeline.build_uranium_matrix(
-        data["games"],
-        data["pitcher_gold"],
-        data["lineups"] if not data["lineups"].empty else None,
-        data["batter_gold"] if not data["batter_gold"].empty else None,
-        elo_df=data["elo"],
-        pythag_df=data["pythag"],
-        re24_df=data["re24"],
-    )
+    if target == "pa_outcome":
+        X, y = pipeline.build_pa_matrix(
+            data["pas"],
+            data["pitcher_gold"],
+            data["batter_gold"],
+            lineups_df=data["lineups"] if not data["lineups"].empty else None,
+            elo_df=data["elo"],
+        )
+    else:
+        X, y = pipeline.build_uranium_matrix(
+            data["games"],
+            data["pitcher_gold"],
+            data["lineups"] if not data["lineups"].empty else None,
+            data["batter_gold"] if not data["batter_gold"].empty else None,
+            elo_df=data["elo"],
+            pythag_df=data["pythag"],
+            re24_df=data["re24"],
+        )
 
     params = load_optimized_params(target, version)
     model = MLBModel(**params)

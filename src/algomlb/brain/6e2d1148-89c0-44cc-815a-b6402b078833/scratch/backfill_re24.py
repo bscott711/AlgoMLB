@@ -19,39 +19,52 @@ def backfill_re24():
     # 1. Backfill Silver Layer re24
     logger.info("Starting Silver Layer RE24 backfill...")
     with engine.connect() as conn:
-        game_pks = conn.execute(select(StatcastRawORM.game_pk).distinct()).scalars().all()
+        # Find games that still have NULL re24 in the summary table
+        missing_stmt = text("""
+            SELECT DISTINCT game_pk 
+            FROM statcast_player_game_logs 
+            WHERE re24 IS NULL
+        """)
+        missing_game_pks = conn.execute(missing_stmt).scalars().all()
     
-    total = len(game_pks)
-    for i, game_pk in enumerate(game_pks):
-        if i % 100 == 0:
-            logger.info(f"Processing Silver game {i}/{total} ({game_pk})")
-            
-        with engine.connect() as conn:
-            query = select(StatcastRawORM).where(StatcastRawORM.game_pk == game_pk)
-            df = pd.read_sql(query, conn)
-            
-        if df.empty:
-            continue
-            
-        # summarize_to_silver now includes re24 aggregation from delta_run_exp
-        silver_df = summarize_to_silver(df)
-        if not silver_df.empty:
-            _upsert_silver(silver_df)
+    if not missing_game_pks:
+        logger.info("All Silver Layer logs already have RE24 populated. Skipping phase 1.")
+    else:
+        total = len(missing_game_pks)
+        logger.info(f"Processing {total} games with missing RE24...")
+        for i, game_pk in enumerate(missing_game_pks):
+            if i % 100 == 0:
+                logger.info(f"Processing Silver game {i}/{total} ({game_pk})")
+                
+            with engine.connect() as conn:
+                query = select(StatcastRawORM).where(StatcastRawORM.game_pk == game_pk)
+                df = pd.read_sql(query, conn)
+                
+            if df.empty:
+                continue
+                
+            silver_df = summarize_to_silver(df)
+            if not silver_df.empty:
+                _upsert_silver(silver_df)
 
-    logger.info("Silver Layer RE24 backfill complete.")
+    logger.info("Silver Layer RE24 cleanup complete.")
 
     # 2. Backfill Gold Layer roll_re24
     logger.info("Starting Gold Layer roll_re24 backfill (2024-2026)...")
     processor = RollingProcessor(settings.ml)
     from algomlb.db.repository import DatabaseRepository
-    repo = DatabaseRepository(engine)
-    service = RollingService(repo, processor)
+    from algomlb.db.session import get_session_factory
     
-    start_date = date(2024, 3, 20) # Start of 2024 season roughly
-    end_date = date.today()
-    
-    service.process_date_range(start_date, end_date)
-    logger.info("Gold Layer roll_re24 backfill complete.")
+    factory = get_session_factory()
+    with factory() as session:
+        repo = DatabaseRepository(session)
+        service = RollingService(repo, processor)
+        
+        start_date = date(2019, 3, 20) # Start of earliest Statcast era in DB
+        end_date = date.today()
+        
+        service.process_date_range(start_date, end_date)
+        logger.info("Gold Layer roll_re24 backfill complete.")
 
 if __name__ == "__main__":
     backfill_re24()

@@ -9,7 +9,6 @@ from algomlb.ml.monte_carlo.state import (
 )
 from algomlb.ml.monte_carlo.loader import MatchupContext
 from algomlb.ml.monte_carlo.bullpen import BullpenManager
-logger = logging.getLogger(__name__)
 
 # Define exactly what features belong to which entity based on training schema
 BATTER_FEATURES = {
