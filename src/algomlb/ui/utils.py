@@ -80,7 +80,7 @@ def load_simulation_results(session: Session, game_pk: int) -> pd.DataFrame:
 
 
 def run_and_persist_simulation(
-    session: Session, game_pk: int, trials: int, version: str = "v1.0"
+    session: Session, game_pk: int, trials: int, version: str = "v1.1"
 ) -> pd.DataFrame:
     """Run a new simulation and save results to the database."""
     # 1. Ensure Lineups Exist (Auto-Ingest if missing)

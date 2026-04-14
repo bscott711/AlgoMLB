@@ -128,6 +128,18 @@ class GameState(BaseModel):
             self.bases[1] = batter_id
             self.bases[0] = None
 
+        elif event == "single":
+            # Runner on 3rd scores
+            if self.bases[2] is not None:
+                scored_ids.append(self.bases[2])
+            # Runner on 2nd scores (conservative sim: single scores from 2nd)
+            if self.bases[1] is not None:
+                scored_ids.append(self.bases[1])
+            # Runner on 1st goes to 2nd
+            self.bases[1] = self.bases[0]
+            self.bases[0] = batter_id
+            self.bases[2] = None
+
         return scored_ids
 
 

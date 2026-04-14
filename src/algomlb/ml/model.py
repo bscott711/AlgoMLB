@@ -39,24 +39,32 @@ class MLBModel:
             },
         )
         self.calibrated_clf = None
+        self.le = None
 
     def fit(self, X: pd.DataFrame, y: pd.Series, calibrate: bool = True) -> None:
         """
         Fit the classifier and optionally apply Isotonic Calibration.
         Note: True temporal splitting should be handled by the caller or pipeline.
         """
+        y_encoded = y
+        if not np.issubdtype(y.dtype, np.number):
+            from sklearn.preprocessing import LabelEncoder
+
+            self.le = LabelEncoder()
+            y_encoded = self.le.fit_transform(y)
+
         if calibrate:
             # For very small data (e.g. tests), use 2-fold; otherwise 5-fold
             n_folds = 5 if len(X) >= 10 else 2
             self.calibrated_clf = CalibratedClassifierCV(
                 self.clf, method="isotonic", cv=n_folds
             )
-            self.calibrated_clf.fit(X, y)
+            self.calibrated_clf.fit(X, y_encoded)
         else:
-            self.clf.fit(X, y)
+            self.clf.fit(X, y_encoded)
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        """Return calibrated win probabilities for [away_team_win, home_team_win]."""
+        """Return calibrated probabilities."""
         if self.calibrated_clf:
             return self.calibrated_clf.predict_proba(X)
         return self.clf.predict_proba(X)
@@ -91,9 +99,13 @@ class MLBModel:
         )
 
     def save(self, file_path: Path) -> None:
-        """Persist the model bundle (including calibration) to disk."""
+        """Persist the model bundle (including calibration and label encoding) to disk."""
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        bundle = {"clf": self.clf, "calibrated_clf": self.calibrated_clf}
+        bundle = {
+            "clf": self.clf,
+            "calibrated_clf": self.calibrated_clf,
+            "le": self.le,
+        }
         joblib.dump(bundle, file_path)
 
     @classmethod
@@ -103,4 +115,5 @@ class MLBModel:
         model = cls()
         model.clf = bundle["clf"]
         model.calibrated_clf = bundle.get("calibrated_clf")
+        model.le = bundle.get("le")
         return model

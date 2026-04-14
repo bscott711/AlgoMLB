@@ -72,17 +72,22 @@ class SimulationEngine:
         self.rng = np.random.default_rng(seed)
         self.matchup_cache: Dict[Tuple[int, int], np.ndarray] = {}
 
-        # Top 8 classes from pa_outcome_v1.0 (ALPHABETICAL order for LabelEncoder)
-        self.outcome_map = [
-            "double",
-            "home_run",
-            "out_in_play",
-            "out_in_play",  # mapping variety of outs
-            "single",
-            "strikeout",
-            "triple",
-            "walk",
-        ]
+        # Dynamically load outcomes from the model's LabelEncoder classes
+        # This ensures we support hbp, triple, etc. without hardcoding
+        if hasattr(pa_model, "le") and pa_model.le is not None:
+            self.outcome_map = list(pa_model.le.classes_)
+        else:
+            # Fallback to canonical order if no encoder exists
+            self.outcome_map = [
+                "double",
+                "hbp",
+                "home_run",
+                "out_in_play",
+                "single",
+                "strikeout",
+                "triple",
+                "walk",
+            ]
 
     def simulate_game(
         self, context: MatchupContext
@@ -252,6 +257,10 @@ class SimulationEngine:
             b.walks += 1
             b.total_bases += 1
             p.walks_allowed += 1
+        elif outcome == "hbp":
+            b.hbp += 1
+            b.total_bases += 1
+            p.walks_allowed += 1  # Standardizing on Walks Allowed for HBP in basic sims
         elif outcome == "single":
             b.hits += 1
             b.singles += 1
