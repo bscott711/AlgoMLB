@@ -1,0 +1,11 @@
+nohup: ignoring input
+[32m14:07:07[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m14:07:34[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+/home/opc/AlgoMLB/src/algomlb/cli/ml.py:136: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  re24_df = pd.concat([pitcher_gold, batter_gold], ignore_index=True)
+[32m14:08:10[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.1.json[0m
+[32m14:08:10[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m518[0m — [1mFitting production model for pa_outcome...[0m
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [14:08:19] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+Parameters: { "scale_pos_weight" } are not used.
+
+  bst.update(dtrain, iteration=i, fobj=obj)

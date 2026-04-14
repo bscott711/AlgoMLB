@@ -138,6 +138,7 @@ class FeaturePipeline:
         batter_gold_df: pd.DataFrame,
         lineups_df: pd.DataFrame | None = None,
         elo_df: pd.DataFrame | None = None,
+        re24_df: pd.DataFrame | None = None,
     ) -> tuple[pd.DataFrame, pd.Series]:
         """
         Specialized matrix builder for Plate Appearance (PA) grain models.
@@ -155,14 +156,16 @@ class FeaturePipeline:
         pitcher_gold_df = self._align_types(pitcher_gold_df.copy())
         batter_gold_df = self._align_types(batter_gold_df.copy())
 
-        # 2. Join specific Pitcher Features
         df = pd.merge(
             pas_df,
             pitcher_gold_df.add_prefix("pitcher_"),
             left_on=["pitcher_id", "game_date"],
             right_on=["pitcher_player_id", "pitcher_game_date"],
             how="left",
+            suffixes=("", "_drop")
         ).drop(columns=["pitcher_player_id", "pitcher_game_date"], errors="ignore")
+        # Clean up any suffix-renamed columns
+        df = df.drop(columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore")
 
         # 3. Join specific Batter Features
         df = pd.merge(
@@ -171,31 +174,38 @@ class FeaturePipeline:
             left_on=["batter_id", "game_date"],
             right_on=["batter_player_id", "batter_game_date"],
             how="left",
+            suffixes=("", "_drop")
         ).drop(columns=["batter_player_id", "batter_game_date"], errors="ignore")
+        df = df.drop(columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore")
 
         # 4. Join Team Metadata (Elo etc)
         if elo_df is not None and not elo_df.empty:
             df = self._attach_elo_metrics(df, elo_df)
 
-        # 5. Join Lineup Aggregates (Clutch factor of the rest of the team)
+        # 4b. Join Situational Metrics (RE24)
+        if re24_df is not None and not re24_df.empty:
+            df = self._attach_re24_to_pa_matrix(df, re24_df)
+
+        # 5. Join Lineup Aggregates (Common for Uranium and PA models)
         if lineups_df is not None:
-            h_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home").add_prefix("h_bat_")
-            a_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away").add_prefix("a_bat_")
+            # _aggregate_team_batting internally adds h_bat_ / a_bat_ prefixes
+            h_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
+            a_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
             
             if not h_bat.empty:
                 df = df.merge(
                     h_bat, 
                     left_on="game_pk", 
-                    right_on="h_bat_game_pk", 
+                    right_on="game_pk", 
                     how="left"
-                ).drop(columns=["h_bat_game_pk"], errors="ignore")
+                )
             if not a_bat.empty:
                 df = df.merge(
                     a_bat, 
                     left_on="game_pk", 
-                    right_on="a_bat_game_pk", 
+                    right_on="game_pk", 
                     how="left"
-                ).drop(columns=["a_bat_game_pk"], errors="ignore")
+                )
 
         # 6. Resolve Target
         if "pa_outcome" in df.columns:
@@ -206,16 +216,14 @@ class FeaturePipeline:
             logger.error("No PA outcome target found in data.")
             return pd.DataFrame(), pd.Series()
 
-        # 7. Finalize Features
+        # 7. Finalize Features (Harden against Metadata Leak)
         keep_prefixes = ["pitcher_", "batter_", "h_bat_", "a_bat_"]
         extra = ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]
         
         feature_cols = [
             c for c in df.columns 
             if (any(c.startswith(p) for p in keep_prefixes) or c in extra)
-            and "player_id" not in c 
-            and "game_date" not in c 
-            and "season" not in c
+            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "date", "role"])
         ]
 
         X = df[feature_cols].select_dtypes(include=["number"]).astype("float32")
@@ -495,6 +503,32 @@ class FeaturePipeline:
 
         if "h_sp_roll_re24" in df.columns and "a_sp_roll_re24" in df.columns:
             df["re24_sp_diff"] = df["h_sp_roll_re24"] - df["a_sp_roll_re24"]
+        return df
+
+    def _attach_re24_to_pa_matrix(
+        self, df: pd.DataFrame, re24_df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Specialized RE24 join for PA-grain matrices (Pitcher/Batter focus)."""
+        re24 = self._align_types(re24_df.copy())
+        
+        # Joins for the active participants
+        p_re24 = re24[re24["role"] == "PITCHER"][
+            ["player_id", "game_date", "roll_re24"]
+        ]
+        b_re24 = re24[re24["role"] == "BATTER"][
+            ["player_id", "game_date", "roll_re24"]
+        ]
+
+        df = df.merge(
+            p_re24.rename(columns={"player_id": "pitcher_id", "roll_re24": "pitcher_roll_re24"}),
+            on=["pitcher_id", "game_date"],
+            how="left"
+        )
+        df = df.merge(
+            b_re24.rename(columns={"player_id": "batter_id", "roll_re24": "batter_roll_re24"}),
+            on=["batter_id", "game_date"],
+            how="left"
+        )
         return df
 
     def _finalize_features(

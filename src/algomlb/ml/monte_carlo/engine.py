@@ -336,8 +336,9 @@ class SimulationEngine:
 
         # Helper to construct the feature matrix
         def build_matrix(batters, pitchers, batting_side):
-            p_prefix = "h_sp_" if batting_side == "away" else "a_sp_"
-            b_prefix = "a_bat_" if batting_side == "away" else "h_bat_"
+            # Map simulation role-prefixes to entity-prefixes used in PA-grain training
+            p_prefix = "pitcher_"
+            b_prefix = "batter_"
 
             for b_id in batters:
                 b_feats = context.batter_features.get(b_id, {})

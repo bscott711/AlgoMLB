@@ -499,6 +499,7 @@ def train(
             data["batter_gold"],
             lineups_df=data["lineups"] if not data["lineups"].empty else None,
             elo_df=data["elo"],
+            re24_df=data["re24"],
         )
     else:
         X, y = pipeline.build_uranium_matrix(
