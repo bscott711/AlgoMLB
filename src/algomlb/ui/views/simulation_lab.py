@@ -19,7 +19,8 @@ from algomlb.ui.utils import (  # noqa: E402
 )
 from algomlb.ui.styles import apply_premium_styles  # noqa: E402
 from algomlb.ml.monte_carlo.loader import MatchupLoader  # noqa: E402
-
+from sqlalchemy import select
+from algomlb.db.models import StatcastRawORM
 
 def show_simulation_lab():
     apply_premium_styles()
@@ -51,15 +52,16 @@ def show_simulation_lab():
         session.close()
         return
 
-    _render_matchup_header(game_row, ctx)
-    st.markdown("---")
-
     sim_df = _get_simulation_data(session, int(game_row["game_id"]), trials, run_sim)
 
     if not sim_df.empty:
+        _render_matchup_header(game_row, ctx, sim_df)
+        st.markdown("---")
         _render_win_probability(sim_df, game_row)
         _render_tabs(session, sim_df, int(game_row["game_id"]), game_row, ctx)
     else:
+        _render_matchup_header(game_row, ctx)
+        st.markdown("---")
         st.warning("No simulation results found for this game.")
         st.info("Click 'Run New Simulation' in the sidebar to generate projections.")
 
@@ -85,12 +87,12 @@ def _render_sidebar(session):
 
         st.divider()
         trials = st.slider("Monte Carlo Trials", 1000, 20000, 10000, step=1000)
-        run_sim = st.button("🚀 Run New Simulation", use_container_width=True)
+        run_sim = st.button("🚀 Run New Simulation", width="stretch")
         return game_row, trials, run_sim
 
 
-def _render_matchup_header(game_row, ctx=None):
-    """Render the visual VS header for the game."""
+def _render_matchup_header(game_row, ctx=None, sim_df=None):
+    """Render the visual VS header for the game with simulated score."""
     st.subheader(
         f"📅 Simulation for {game_row['game_date']} (Status: {game_row['status']})"
     )
@@ -104,13 +106,24 @@ def _render_matchup_header(game_row, ctx=None):
         h_name = ctx.home_starter.player_name
         a_name = ctx.away_starter.player_name
         if ctx.home_sp_projected:
-            h_proj_str = (
-                " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
-            )
+            h_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
         if ctx.away_sp_projected:
-            a_proj_str = (
-                " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
-            )
+            a_proj_str = " <span style='color: #888; font-size: 0.8em;'>(Projected 🔮)</span>"
+
+    # Default to actual score or 0
+    a_score = game_row["away_score"] if pd.notna(game_row["away_score"]) else 0
+    h_score = game_row["home_score"] if pd.notna(game_row["home_score"]) else 0
+
+    # Extract simulated projection score if available
+    a_proj_score = "?"
+    h_proj_score = "?"
+    if sim_df is not None and not sim_df.empty:
+        r_props = sim_df[sim_df["stat_type"] == "R"]
+        if not r_props.empty and ctx:
+            h_pids = [b.player_id for b in ctx.home_lineup]
+            a_pids = [b.player_id for b in ctx.away_lineup]
+            h_proj_score = round(r_props[r_props["player_id"].isin(h_pids)]["mean"].sum(), 1)
+            a_proj_score = round(r_props[r_props["player_id"].isin(a_pids)]["mean"].sum(), 1)
 
     col1, col2, col3 = st.columns([2, 1, 2])
     with col1:
@@ -124,12 +137,15 @@ def _render_matchup_header(game_row, ctx=None):
         )
     with col2:
         st.markdown("<h2 style='text-align: center;'>VS</h2>", unsafe_allow_html=True)
-        a_score = game_row["away_score"] if pd.notna(game_row["away_score"]) else 0
-        h_score = game_row["home_score"] if pd.notna(game_row["home_score"]) else 0
+        # Use simple VS for future games, Actual overrides for final games
+        is_final = game_row["status"].lower() in ["final", "completed"]
+        status_label = "Actual:" if is_final else ""
         st.markdown(
-            f"<h3 style='text-align: center;'>{a_score} - {h_score}</h3>",
+            f"<h3 style='text-align: center;'>{status_label} {a_score} - {h_score}</h3>" if is_final else "<h3 style='text-align: center;'>-</h3>",
             unsafe_allow_html=True,
         )
+        if sim_df is not None and not sim_df.empty:
+            st.markdown(f"<p style='text-align: center; color: #aaa; font-size: 0.8em;'>Projected: {a_proj_score} - {h_proj_score}</p>", unsafe_allow_html=True)
     with col3:
         st.markdown(
             f"<h3 style='text-align: center;'>🏟️ {game_row['home_team']}</h3>",
@@ -151,6 +167,36 @@ def _get_simulation_data(session, game_pk, trials, run_sim):
                 st.error(f"Simulation failed: {e}")
                 return pd.DataFrame()
     return load_simulation_results(session, game_pk)
+
+
+def _fetch_actual_player_stats(session, game_pk):
+    """Dynamically aggregate real-world box score from pitch logs out of StatcastRawORM."""
+    stmt = select(StatcastRawORM.batter, StatcastRawORM.pitcher, StatcastRawORM.events, StatcastRawORM.at_bat_number).where(StatcastRawORM.game_pk == game_pk)
+    df = pd.read_sql(stmt, session.connection())
+    if df.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    df['is_hit'] = df['events'].isin(['single', 'double', 'triple', 'home_run'])
+    df['is_hr'] = df['events'] == 'home_run'
+    df['is_k'] = df['events'] == 'strikeout'
+    df['tb'] = 0
+    df.loc[df['events'] == 'single', 'tb'] = 1
+    df.loc[df['events'] == 'double', 'tb'] = 2
+    df.loc[df['events'] == 'triple', 'tb'] = 3
+    df.loc[df['events'] == 'home_run', 'tb'] = 4
+
+    b_df = df.groupby('batter').agg(
+        H=('is_hit', 'sum'), HR=('is_hr', 'sum'), TB=('tb', 'sum'), HRR=('is_hr', 'sum')
+    ).reset_index().rename(columns={'batter': 'player_id'})
+    # Proxy R and RBI since they require deeper play-by-play inference
+    b_df['RBI'] = b_df['HR']
+    b_df['R'] = b_df['HR']
+
+    p_df = df.groupby('pitcher').agg(
+        K=('is_k', 'sum'), H=('is_hit', 'sum'), PO=('at_bat_number', 'nunique')
+    ).reset_index().rename(columns={'pitcher': 'player_id'})
+
+    return b_df, p_df
 
 
 def _render_win_probability(sim_df, game_row):
@@ -190,19 +236,24 @@ def _render_tabs(session, sim_df, game_pk, game_row, ctx=None):
     h_pids.add(ctx.home_starter.pitcher_id)
     p_pids.update([ctx.away_starter.pitcher_id, ctx.home_starter.pitcher_id])
 
+    b_actuals, p_actuals = pd.DataFrame(), pd.DataFrame()
+    if game_row["status"].lower() in ["final", "completed"]:
+        b_actuals, p_actuals = _fetch_actual_player_stats(session, game_pk)
+
     with tab1:
         _render_player_table(
             sim_df,
             ["H", "HR", "RBI", "R", "TB", "HRR"],
             names,
-            a_pids,
-            h_pids,
+            a_pids - p_pids,
+            h_pids - p_pids,
             game_row,
             "Greens",
+            b_actuals,
         )
     with tab2:
         _render_player_table(
-            sim_df, ["K", "PO"], names, a_pids, h_pids, game_row, "Blues", p_pids
+            sim_df, ["K", "PO", "H"], names, a_pids, h_pids, game_row, "Blues", filter_pids=p_pids, actuals_df=p_actuals
         )
     with tab3:
         sel_player = st.selectbox(
@@ -219,13 +270,13 @@ def _render_tabs(session, sim_df, game_pk, game_row, ctx=None):
                 title=f"Mean Projected Stats: {sel_player}",
                 template="plotly_dark",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         else:
             st.info("No distribution data for selected player.")
 
 
 def _render_player_table(
-    df, stats, names, a_pids, h_pids, game_row, cmap, filter_pids=None
+    df, stats, names, a_pids, h_pids, game_row, cmap, actuals_df=pd.DataFrame(), filter_pids=None
 ):
     """Generic helper to render a side-by-side player stat table."""
     df_filtered = df[df["stat_type"].isin(stats)].copy()
@@ -244,12 +295,33 @@ def _render_player_table(
             st.markdown(f"#### {team}")
             side_df = df_filtered[df_filtered["player_id"].isin(pids)]
             if not side_df.empty:
-                st.dataframe(
-                    side_df.pivot(
-                        index="Player", columns="stat_type", values="mean"
-                    ).style.background_gradient(cmap=cmap),
-                    use_container_width=True,
-                )
+                wide_df = side_df.pivot(index="Player", columns="stat_type", values="mean").fillna(0)
+                
+                # Overlay actuals
+                if not actuals_df.empty:
+                    # Melt actuals_df to merge it correctly
+                    for stat_col in actuals_df.columns:
+                        if stat_col in wide_df.columns:
+                            # Map actual matching by Player name instead of player_id?
+                            # the actuals_df has `player_id`.
+                            # We can map the player_id back to name:
+                            actuals_df_mapped = actuals_df.copy()
+                            actuals_df_mapped["Player"] = actuals_df_mapped["player_id"].map(names)
+                            
+                            # Build strings mapping: wide_df value (Actual value)
+                            merged = wide_df.merge(actuals_df_mapped[["Player", stat_col]], on="Player", how="left", suffixes=("", "_act"))
+                            # Apply strictly to the display representation!
+                            wide_df[stat_col] = merged.apply(
+                                lambda r: f"{r[stat_col]:.1f} ({r[stat_col + '_act']:.0f})" 
+                                if pd.notna(r[f"{stat_col}_act"]) else f"{r[stat_col]:.1f}", 
+                                axis=1
+                            ).values
+                else:
+                    # Just format as 1 decimal if no actuals
+                    for c in wide_df.columns:
+                        wide_df[c] = wide_df[c].apply(lambda x: f"{x:.1f}")
+
+                st.dataframe(wide_df, width="stretch")
             else:
                 st.caption("No data")
 

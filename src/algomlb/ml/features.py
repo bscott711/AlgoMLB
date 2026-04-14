@@ -182,30 +182,11 @@ class FeaturePipeline:
         if elo_df is not None and not elo_df.empty:
             df = self._attach_elo_metrics(df, elo_df)
 
-        # 4b. Join Situational Metrics (RE24)
-        if re24_df is not None and not re24_df.empty:
-            df = self._attach_re24_to_pa_matrix(df, re24_df)
+        # Removed 4b (_attach_re24_to_pa_matrix) completely.
+        # Situational RE24 metrics are naturally merged via pitcher_gold and batter_gold above without suffixes.
 
-        # 5. Join Lineup Aggregates (Common for Uranium and PA models)
-        if lineups_df is not None:
-            # _aggregate_team_batting internally adds h_bat_ / a_bat_ prefixes
-            h_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "home")
-            a_bat = self._aggregate_team_batting(lineups_df, batter_gold_df, "away")
-            
-            if not h_bat.empty:
-                df = df.merge(
-                    h_bat, 
-                    left_on="game_pk", 
-                    right_on="game_pk", 
-                    how="left"
-                )
-            if not a_bat.empty:
-                df = df.merge(
-                    a_bat, 
-                    left_on="game_pk", 
-                    right_on="game_pk", 
-                    how="left"
-                )
+        # Removed 5 (Lineup Aggregates). PA outcomes are isolated to the specific pitcher/batter duel
+        # without polluting the matrix with generalized team hitting metrics (h_bat_ / a_bat_).
 
         # 6. Resolve Target
         if "pa_outcome" in df.columns:
@@ -217,13 +198,13 @@ class FeaturePipeline:
             return pd.DataFrame(), pd.Series()
 
         # 7. Finalize Features (Harden against Metadata Leak)
-        keep_prefixes = ["pitcher_", "batter_", "h_bat_", "a_bat_"]
+        keep_prefixes = ["pitcher_", "batter_"]
         extra = ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]
         
         feature_cols = [
             c for c in df.columns 
             if (any(c.startswith(p) for p in keep_prefixes) or c in extra)
-            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "date", "role"])
+            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "date", "role", "fatigue_index_", "_window_games"])
         ]
 
         X = df[feature_cols].select_dtypes(include=["number"]).astype("float32")

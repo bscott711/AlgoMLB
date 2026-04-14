@@ -1,28 +1,28 @@
 nohup: ignoring input
-[32m04:50:06[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
-[32m04:50:34[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+[32m17:06:05[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m17:06:32[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
 /home/opc/AlgoMLB/src/algomlb/cli/ml.py:136: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
   re24_df = pd.concat([pitcher_gold, batter_gold], ignore_index=True)
-[32m04:51:08[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.1.json[0m
-[32m04:51:08[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m517[0m — [1mFitting production model for pa_outcome...[0m
-/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [04:51:17] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+[32m17:07:01[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.1.json[0m
+[32m17:07:01[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m518[0m — [1mFitting production model for pa_outcome...[0m
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [17:07:07] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
-/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:07:11] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [17:17:57] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
-/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:23:05] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [17:28:47] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
-/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:38:55] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [17:39:33] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
-/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:54:46] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [17:50:22] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
-[32m06:10:28[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m525[0m — [32m[1mProduction model saved to .data/models/pa_outcome_v1.1.joblib[0m
+[32m18:01:10[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m526[0m — [32m[1mProduction model saved to .data/models/pa_outcome_v1.1.joblib[0m

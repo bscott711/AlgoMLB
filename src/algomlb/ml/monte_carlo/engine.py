@@ -54,8 +54,6 @@ PITCHER_FEATURES = {
     "std_pitcher_xwoba_15g",
     "std_edge_pct_15g",
     "std_release_pos_z_15g",
-    "fatigue_index_7d",
-    "fatigue_index_14d",
     "delta_spin_rate_3g",
     "delta_extension_3g",
     "delta_fb_velo_3g",
@@ -227,7 +225,7 @@ class SimulationEngine:
 
         # Failsafe if a matchup wasn't precomputed (e.g. pinch hitter edge cases)
         if probs is None:
-            probs = np.array([0.05, 0.03, 0.40, 0.05, 0.15, 0.22, 0.01, 0.09])
+            raise RuntimeError(f"Failsafe triggered: No precomputed probabilities found for matchup {batter_id} vs {pitcher_id}. Cache miss indicates inference architecture failure.")
 
         # 2. Sample outcome
         return self.rng.choice(self.outcome_map, p=probs)
@@ -339,6 +337,24 @@ class SimulationEngine:
             # Map simulation role-prefixes to entity-prefixes used in PA-grain training
             p_prefix = "pitcher_"
             b_prefix = "batter_"
+            
+            # --- SHIM SETUP: Calculate Team Averages ---
+            # Required for the legacy model which expects h_bat_ and a_bat_ features
+            def get_avg(team_batters):
+                res = {}
+                count = 0
+                for b in team_batters:
+                    feats = context.batter_features.get(b, {})
+                    for k, v in feats.items():
+                        res[k] = res.get(k, 0) + v
+                    count += 1
+                if count > 0:
+                    for k in res:
+                        res[k] /= count
+                return res
+            
+            away_avg = get_avg(away_batters)
+            home_avg = get_avg(home_batters)
 
             for b_id in batters:
                 b_feats = context.batter_features.get(b_id, {})
@@ -347,18 +363,41 @@ class SimulationEngine:
 
                     combined = {}
                     # 1. Apply Batter-specific features only
+                    # We inject all available features and let the X_batch.reindex() 
+                    # organically filter to the exact XGBoost signature.
                     for k, v in b_feats.items():
-                        if k in BATTER_FEATURES:
-                            combined[f"{b_prefix}{k}"] = v
+                        combined[f"{b_prefix}{k}"] = v
 
                     # 2. Apply Pitcher-specific features only
                     for k, v in p_feats.items():
-                        if k in PITCHER_FEATURES:
-                            combined[f"{p_prefix}{k}"] = v
+                        combined[f"{p_prefix}{k}"] = v
 
-                    # 3. Add Global Matchup Features (Rescue from context)
-                    for k, v in context.matchup_features.items():
-                        combined[k] = v
+                    # 3. Add Global Matchup Features (Strict schema)
+                    for k in ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]:
+                        if k in context.matchup_features:
+                            combined[k] = context.matchup_features[k]
+
+                    # --- COMPATIBILITY SHIM (Populate legacy features) ---
+                    # Populates missing legacy features expected by the currently
+                    # deployed PA Outcome model without failing the new engine schema. 
+                    # Once recalibrated, XGBoost validate_features will naturally ignore these.
+                    for k, v in home_avg.items():
+                         combined[f"h_bat_{k}"] = v
+                    for k, v in away_avg.items():
+                         combined[f"a_bat_{k}"] = v
+                    
+                    if "roll_re24" in p_feats:
+                         combined[f"pitcher_roll_re24_x"] = p_feats["roll_re24"]
+                         combined[f"pitcher_roll_re24_y"] = p_feats["roll_re24"]
+                    if "roll_re24" in b_feats:
+                         combined[f"batter_roll_re24_x"] = b_feats["roll_re24"]
+                         combined[f"batter_roll_re24_y"] = b_feats["roll_re24"]
+                         
+                    for f in ["n_games_used", "window_games", "days_since_last_game", "fatigue_index_7d", "fatigue_index_14d"]:
+                         if f in p_feats:
+                             combined[f"pitcher_{f}"] = p_feats[f]
+                         if f in b_feats:
+                             combined[f"batter_{f}"] = b_feats[f]
 
                     matchup_rows.append(combined)
                     keys.append((b_id, p_id))
@@ -382,26 +421,32 @@ class SimulationEngine:
             try:
                 # 🚀 Bulletproof Feature Alignment
                 expected_features = None
-                if hasattr(actual_model, "feature_names_in_"):
-                    expected_features = actual_model.feature_names_in_
+                
+                # Accurately unwrap the internal Booster or Classifier
+                base_estimator = None
+                if hasattr(self.pa_model, "get_base_xgb_estimator"):
+                    base_estimator = self.pa_model.get_base_xgb_estimator()
+                elif hasattr(actual_model, "model"):
+                    base_estimator = actual_model.model
+                else:
+                    base_estimator = actual_model
+
+                if hasattr(base_estimator, "feature_names_in_"):
+                    expected_features = base_estimator.feature_names_in_
                 elif (
-                    hasattr(actual_model, "feature_names")
-                    and actual_model.feature_names is not None
+                    hasattr(base_estimator, "feature_names")
+                    and base_estimator.feature_names is not None
                 ):
-                    expected_features = actual_model.feature_names
-                elif hasattr(actual_model, "get_booster"):
-                    expected_features = actual_model.get_booster().feature_names
+                    expected_features = base_estimator.feature_names
+                elif hasattr(base_estimator, "get_booster"):
+                    expected_features = base_estimator.get_booster().feature_names
 
                 if expected_features is not None:
                     expected_list = list(expected_features)
-                    missing_cols = set(expected_list) - set(X_batch.columns)
-
-                    if missing_cols:
-                        # Final failsafe injecting NaN for totally missing columns
-                        X_batch = X_batch.assign(**{col: np.nan for col in missing_cols})
-
-                    # Filter exact columns in exact order
-                    X_batch = X_batch[expected_list]
+                    # Use pandas reindex to organically guarantee exact mapping and ordering.
+                    # Extra columns (like irrelevant team averages) are automatically dumped.
+                    # Missing columns (if any) are filled safely with 0.0s.
+                    X_batch = X_batch.reindex(columns=expected_list, fill_value=0.0)
 
                 # Run Batch Prediction
                 prob_matrix = actual_model.predict_proba(X_batch)

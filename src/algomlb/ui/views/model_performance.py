@@ -187,11 +187,11 @@ fig_metrics.update_layout(
     height=380,
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
 )
-st.plotly_chart(fig_metrics, use_container_width=True)
+st.plotly_chart(fig_metrics, width="stretch")
 
 # Also show the raw table
 with st.expander("Raw Walk-Forward Data"):
-    st.dataframe(df_mv, use_container_width=True)
+    st.dataframe(df_mv, width="stretch")
 
 st.markdown("---")
 
@@ -249,7 +249,7 @@ else:
         height=400,
         showlegend=False,
     )
-    st.plotly_chart(fig_cal, use_container_width=True)
+    st.plotly_chart(fig_cal, width="stretch")
 
     # Bin detail table
     with st.expander("Calibration Bin Details"):
@@ -264,7 +264,7 @@ else:
                     "sample_count",
                 ]
             ],
-            use_container_width=True,
+            width="stretch",
         )
 
 st.markdown("---")
@@ -307,14 +307,14 @@ else:
             height=max(400, top_n * 22),
             margin=dict(l=10, r=10, t=10, b=10),
         )
-        st.plotly_chart(fig_shap, use_container_width=True)
+        st.plotly_chart(fig_shap, width="stretch")
 
         with st.expander("Raw SHAP Table"):
             st.dataframe(
                 shap_top[["feature_name", "mean_abs_shap", "mean_shap"]].reset_index(
                     drop=True
                 ),
-                use_container_width=True,
+                width="stretch",
             )
 
 st.markdown("---")

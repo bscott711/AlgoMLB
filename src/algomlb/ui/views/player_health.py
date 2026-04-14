@@ -125,7 +125,7 @@ def _render_gold_metrics(engine, player_input, df_player):
                     )
                 )
                 fig.update_layout(template="plotly_dark", height=300)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             with hg2:
                 st.write("#### 📡 Early Warning Signals")
                 for label, key, delta_key, unit in [

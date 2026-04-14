@@ -471,7 +471,7 @@ with tab_trends:
             title=f"Advanced xwOBA Momentum & Volatility (Shrinkage Baseline: {league_mean})",
         )
         if fig_trend:
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, width="stretch")
     else:
         st.info(
             "No rolling Gold layer features found for this player. Ensure the backfill has processed this player_id."

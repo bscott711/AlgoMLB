@@ -59,7 +59,7 @@ def render_optuna_view():
 
                 # Plot optimization history
                 fig_hist = optuna.visualization.plot_optimization_history(study)
-                st.plotly_chart(fig_hist, use_container_width=True)
+                st.plotly_chart(fig_hist, width="stretch")
 
                 col1, col2 = st.columns(2)
                 with col1:
@@ -73,7 +73,7 @@ def render_optuna_view():
                 st.markdown("---")
                 st.markdown("**Parameter Importances**")
                 fig_imp = optuna.visualization.plot_param_importances(study)
-                st.plotly_chart(fig_imp, use_container_width=True)
+                st.plotly_chart(fig_imp, width="stretch")
 
         except Exception as e:
             st.error(f"Error loading Optuna study: {e}")
@@ -143,7 +143,7 @@ def render_optuna_view():
                     height=600,
                 )
 
-                st.plotly_chart(fig_cal, use_container_width=True)
+                st.plotly_chart(fig_cal, width="stretch")
 
                 # Metrics History
                 st.markdown("---")
@@ -166,7 +166,7 @@ def render_optuna_view():
                     markers=True,
                     title="Expected Calibration Error over Folds",
                 )
-                st.plotly_chart(fig_ece, use_container_width=True)
+                st.plotly_chart(fig_ece, width="stretch")
 
         except Exception as e:
             st.error(f"Error loading calibration data: {e}")
@@ -212,7 +212,7 @@ def render_optuna_view():
                     template="plotly_dark",
                     height=600,
                 )
-                st.plotly_chart(fig_shap, use_container_width=True)
+                st.plotly_chart(fig_shap, width="stretch")
 
                 st.markdown(
                     "**Why this matters:** A sudden spike in a single feature's importance over time can indicate data leakage or a shift in the underlying MLB environment (e.g. pitch clock effects)."
