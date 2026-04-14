@@ -9,3 +9,20 @@ nohup: ignoring input
 Parameters: { "scale_pos_weight" } are not used.
 
   bst.update(dtrain, iteration=i, fobj=obj)
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:07:11] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+Parameters: { "scale_pos_weight" } are not used.
+
+  bst.update(dtrain, iteration=i, fobj=obj)
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:23:05] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+Parameters: { "scale_pos_weight" } are not used.
+
+  bst.update(dtrain, iteration=i, fobj=obj)
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:38:55] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+Parameters: { "scale_pos_weight" } are not used.
+
+  bst.update(dtrain, iteration=i, fobj=obj)
+/home/opc/AlgoMLB/.venv/lib/python3.12/site-packages/xgboost/training.py:200: UserWarning: [05:54:46] WARNING: /__w/xgboost/xgboost/src/learner.cc:782: 
+Parameters: { "scale_pos_weight" } are not used.
+
+  bst.update(dtrain, iteration=i, fobj=obj)
+[32m06:10:28[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m525[0m — [32m[1mProduction model saved to .data/models/pa_outcome_v1.1.joblib[0m
