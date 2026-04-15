@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from algomlb.core.logger import logger
 from algomlb.ml.monte_carlo.state import (
     GameState,
@@ -9,6 +9,7 @@ from algomlb.ml.monte_carlo.state import (
 )
 from algomlb.ml.monte_carlo.loader import MatchupContext
 from algomlb.ml.monte_carlo.bullpen import BullpenManager
+from algomlb.ml.hook_model import HookModel
 
 # Define exactly what features belong to which entity based on training schema
 BATTER_FEATURES = {
@@ -64,8 +65,9 @@ PITCHER_FEATURES = {
 class SimulationEngine:
     """Core engine executing thousands of Markov-chain game trials using ML outcomes."""
 
-    def __init__(self, pa_model: Any, seed: int = 42):
+    def __init__(self, pa_model: Any, hook_model: Optional[HookModel] = None, seed: int = 42):
         self.pa_model = pa_model
+        self.hook_model = hook_model
         # Explicit Random Generator for strict reproducibility
         self.rng = np.random.default_rng(seed)
         self.matchup_cache: Dict[Tuple[int, int], np.ndarray] = {}
@@ -189,7 +191,21 @@ class SimulationEngine:
                 for p in context.away_relievers
             ]
         )
-        return BullpenManager(pd.concat([h_pen, a_pen]), context.manager_profiles)
+        # Track which pitcher IDs are game starters so BullpenManager can
+        # populate the is_starter feature correctly during inference.
+        starter_ids = {
+            context.home_starter.pitcher_id,
+            context.away_starter.pitcher_id,
+        }
+        # Seed the bullpen RNG as a reproducible child of the engine RNG
+        bp_seed = int(self.rng.integers(1 << 31))
+        return BullpenManager(
+            pd.concat([h_pen, a_pen]),
+            context.manager_profiles,
+            hook_model=self.hook_model,
+            rng=np.random.default_rng(bp_seed),
+            starter_ids=starter_ids,
+        )
 
     def _init_registries(
         self, context: MatchupContext

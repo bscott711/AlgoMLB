@@ -581,6 +581,16 @@ def simulate_game(
     version: str = typer.Option(
         "v1.0", "--version", help="Model version for pa_outcome."
     ),
+    use_hook_model: bool = typer.Option(
+        True,
+        "--use-hook-model/--no-hook-model",
+        help="Use the trained ML hook model for pitcher substitutions (default: True).",
+    ),
+    hook_model_path: Optional[str] = typer.Option(
+        None,
+        "--hook-model-path",
+        help="Path to hook model joblib. Defaults to .data/models/hook_model_v1.0.joblib.",
+    ),
 ) -> None:
     """Run a high-fidelity Monte Carlo simulation for all player props in a single game."""
     session_factory = get_session_factory()
@@ -593,18 +603,34 @@ def simulate_game(
         if not context:
             raise typer.Exit(1)
 
-        # 2. Load Model
+        # 2. Load PA Outcome Model
         model_path = Path(f".data/models/pa_outcome_{version}.joblib")
         if not model_path.exists():
             logger.error(
                 f"PA Outcome model not found at {model_path}. Please train it first."
             )
             raise typer.Exit(1)
-
         model = MLBModel.load(model_path)
 
-        # 3. Simulate
-        engine = SimulationEngine(pa_model=model)
+        # 3. Optionally load Hook Model
+        from algomlb.ml.hook_model import HookModel
+
+        hook_model = None
+        if use_hook_model:
+            _hook_path = Path(
+                hook_model_path or ".data/models/hook_model_v1.0.joblib"
+            )
+            if _hook_path.exists():
+                hook_model = HookModel.load(_hook_path)
+                logger.info(f"🎯 Loaded hook model from {_hook_path}")
+            else:
+                logger.warning(
+                    f"⚠️ Hook model not found at {_hook_path}; "
+                    "using heuristic pitcher substitutions."
+                )
+
+        # 4. Simulate
+        engine = SimulationEngine(pa_model=model, hook_model=hook_model)
         trial_results = engine.run_trials(context, trials=trials)
 
         # 4. Aggregate
@@ -658,3 +684,92 @@ def simulate_game(
         raise typer.Exit(1)
     finally:
         session.close()
+
+
+@app.command(name="train-hook-model")
+def train_hook_model(
+    ctx: typer.Context,
+    version: str = typer.Option("v1.0", "--version", help="Model version tag."),
+    output: str = typer.Option(
+        ".data/models", "--output", help="Output directory for the joblib bundle."
+    ),
+    no_calibrate: bool = typer.Option(
+        False,
+        "--no-calibrate",
+        help="Skip isotonic calibration (faster, less accurate probabilities).",
+    ),
+) -> None:
+    """Train and persist the manager hook decision model from manager_hook_events."""
+    import sys as _sys
+
+    from algomlb.ml.hook_model import HookModel, compute_leverage_index  # noqa: F401
+
+    session_factory = get_session_factory()
+    engine_db = session_factory.kw["bind"]
+
+    import pandas as _pd
+
+    query = """
+        SELECT game_pk, team_id, game_date, season,
+               inning, outs_at_hook, pitches_thrown, tto_at_hook,
+               score_diff_at_hook, base_state_at_hook, is_starter
+        FROM manager_hook_events
+        ORDER BY game_date, game_pk, team_id, inning
+    """
+    df = _pd.read_sql(query, engine_db)
+    if df.empty:
+        logger.error("No hook events found. Run backfill-manager-hooks first.")
+        raise typer.Exit(1)
+
+    # Derive labels (last pitcher per game-team = completed, others = hooked)
+    df["_rank"] = df.groupby(["game_pk", "team_id"])["inning"].rank(
+        method="first", ascending=False
+    )
+    df["was_hooked"] = (df["_rank"] > 1).astype(int)
+    df = df.drop(columns=["_rank"])
+
+    # Recompute LI
+    df["leverage_index_at_hook"] = [
+        compute_leverage_index(
+            inning=int(r["inning"]),
+            outs=int(r["outs_at_hook"]),
+            base_state=int(r["base_state_at_hook"]),
+            score_diff=int(r["score_diff_at_hook"]),
+        )
+        for _, r in df.iterrows()
+    ]
+    df["is_starter"] = df["is_starter"].astype(int)
+
+    X = df[HookModel.FEATURE_NAMES].astype(float)
+    y = df["was_hooked"].astype(int)
+
+    if X.empty or y.nunique() < 2:
+        logger.error("Insufficient or single-class training data.")
+        raise typer.Exit(1)
+
+    import datetime as _dt
+
+    cutoff = _pd.Timestamp(_dt.date(2024, 4, 1))
+    dates = _pd.to_datetime(df["game_date"])
+    train_mask = dates < cutoff
+    X_train, y_train = X[train_mask], y[train_mask]
+
+    model = HookModel()
+    logger.info(f"Training HookModel on {train_mask.sum():,} events...")
+    model.fit(X_train, y_train, calibrate=not no_calibrate)
+
+    from pathlib import Path as _Path
+
+    out_path = _Path(output) / f"hook_model_{version}.joblib"
+    _Path(output).mkdir(parents=True, exist_ok=True)
+    model.save(out_path)
+    logger.success(f"Hook model saved → {out_path}")
+
+    if ctx.obj and ctx.obj.get("agent_mode", False):
+        emit_agent_result(
+            AgentResult(
+                status="success",
+                command="ml.train-hook-model",
+                data={"version": version, "output": str(out_path)},
+            )
+        )
