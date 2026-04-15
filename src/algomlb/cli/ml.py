@@ -775,3 +775,39 @@ def train_hook_model(
                 data={"version": version, "output": str(out_path)},
             )
         )
+
+
+@app.command(name="backfill-manager-hooks")
+def backfill_manager_hooks(
+    ctx: typer.Context,
+    start_year: int = typer.Option(
+        2019, "--start-year", help="First season to backfill (default: 2019)."
+    ),
+    end_year: int = typer.Option(
+        2025, "--end-year", help="Last season to backfill (default: 2025)."
+    ),
+) -> None:
+    """Extract hook events from Retrosheet, persist to DB, and compute manager profiles."""
+    from algomlb.ml.hooks import backfill_hook_events
+
+    session_factory = get_session_factory()
+    engine_db = session_factory.kw["bind"]
+
+    logger.info(
+        f"🚀 Starting Manager Hook Backfill (Retrosheet → Hooks) for {start_year}–{end_year}..."
+    )
+    try:
+        backfill_hook_events(engine_db, start_year=start_year, end_year=end_year)
+        logger.success("🏁 Manager Hook Backfill complete!")
+    except Exception as e:
+        logger.exception(f"❌ Backfill failed: {e}")
+        raise typer.Exit(1)
+
+    if ctx.obj and ctx.obj.get("agent_mode", False):
+        emit_agent_result(
+            AgentResult(
+                status="success",
+                command="ml.backfill-manager-hooks",
+                data={"start_year": start_year, "end_year": end_year},
+            )
+        )
