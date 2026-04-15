@@ -123,6 +123,10 @@ class BullpenManager:
             "score_diff_at_hook": score_diff,
             "base_state_at_hook": base_state,
             "leverage_index_at_hook": li,
+            "runs_allowed": pitcher.runs_allowed,
+            "hits_allowed": pitcher.hits_allowed,
+            "walks_allowed": pitcher.walks_allowed,
+            "strikeouts": pitcher.strikeouts,
             "is_starter": int(pitcher.pitcher_id in self.starter_ids),
         }
         return pd.DataFrame([row])

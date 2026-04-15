@@ -1279,6 +1279,12 @@ class ManagerHookEventORM(Base):
     )  # 0-7 bitmask
     leverage_index_at_hook: Mapped[float] = mapped_column(Float, nullable=False)
 
+    # Pitcher performance at hook moment
+    runs_allowed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    hits_allowed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    walks_allowed: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    strikeouts: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # Manager context
     manager_tenure_day: Mapped[int] = mapped_column(Integer, nullable=False)
     days_since_manager_change: Mapped[int] = mapped_column(Integer, nullable=False)

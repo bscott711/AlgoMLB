@@ -132,6 +132,10 @@ class HookModel:
         "score_diff_at_hook",
         "base_state_at_hook",
         "leverage_index_at_hook",
+        "runs_allowed",
+        "hits_allowed",
+        "walks_allowed",
+        "strikeouts",
         "is_starter",
     ]
 

@@ -48,6 +48,10 @@ def minimal_X() -> pd.DataFrame:
                 "score_diff_at_hook": 1,
                 "base_state_at_hook": 0,
                 "leverage_index_at_hook": 0.82,
+                "runs_allowed": 2,
+                "hits_allowed": 5,
+                "walks_allowed": 1,
+                "strikeouts": 4,
                 "is_starter": 1,
             },
             {
@@ -58,6 +62,10 @@ def minimal_X() -> pd.DataFrame:
                 "score_diff_at_hook": -1,
                 "base_state_at_hook": 3,
                 "leverage_index_at_hook": 2.04,
+                "runs_allowed": 4,
+                "hits_allowed": 8,
+                "walks_allowed": 3,
+                "strikeouts": 6,
                 "is_starter": 1,
             },
             {
@@ -68,6 +76,10 @@ def minimal_X() -> pd.DataFrame:
                 "score_diff_at_hook": 2,
                 "base_state_at_hook": 7,
                 "leverage_index_at_hook": 1.96,
+                "runs_allowed": 0,
+                "hits_allowed": 1,
+                "walks_allowed": 0,
+                "strikeouts": 2,
                 "is_starter": 0,
             },
         ]

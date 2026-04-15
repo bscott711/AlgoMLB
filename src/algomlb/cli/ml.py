@@ -712,7 +712,9 @@ def train_hook_model(
     query = """
         SELECT game_pk, team_id, game_date, season,
                inning, outs_at_hook, pitches_thrown, tto_at_hook,
-               score_diff_at_hook, base_state_at_hook, is_starter
+               score_diff_at_hook, base_state_at_hook,
+               runs_allowed, hits_allowed, walks_allowed, strikeouts,
+               is_starter
         FROM manager_hook_events
         ORDER BY game_date, game_pk, team_id, inning
     """
