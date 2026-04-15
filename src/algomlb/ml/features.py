@@ -152,7 +152,15 @@ class FeaturePipeline:
         pas_df = self._align_types(pas_df.copy())
         if "game_pk" not in pas_df.columns and "game_id" in pas_df.columns:
             pas_df["game_pk"] = pas_df["game_id"]
-        
+
+        # 1b. Derive count_state from Retrosheet balls/strikes columns
+        if "balls" in pas_df.columns and "strikes" in pas_df.columns:
+            pas_df["count_state"] = (
+                pas_df["balls"].fillna(0).astype(int).astype(str)
+                + "-"
+                + pas_df["strikes"].fillna(0).astype(int).astype(str)
+            )
+
         pitcher_gold_df = self._align_types(pitcher_gold_df.copy())
         batter_gold_df = self._align_types(batter_gold_df.copy())
 
@@ -188,6 +196,15 @@ class FeaturePipeline:
         # Removed 5 (Lineup Aggregates). PA outcomes are isolated to the specific pitcher/batter duel
         # without polluting the matrix with generalized team hitting metrics (h_bat_ / a_bat_).
 
+        # 5b. One-hot encode count_state for count-conditional outcome modeling
+        COUNT_STATES = [
+            "0-0", "0-1", "0-2", "1-0", "1-1", "1-2",
+            "2-0", "2-1", "2-2", "3-0", "3-1", "3-2",
+        ]
+        if "count_state" in df.columns:
+            for cs in COUNT_STATES:
+                df[f"cnt_{cs}"] = (df["count_state"] == cs).astype("float32")
+
         # 6. Resolve Target
         if "pa_outcome" in df.columns:
             y = df["pa_outcome"]
@@ -198,7 +215,7 @@ class FeaturePipeline:
             return pd.DataFrame(), pd.Series()
 
         # 7. Finalize Features (Harden against Metadata Leak)
-        keep_prefixes = ["pitcher_", "batter_"]
+        keep_prefixes = ["pitcher_", "batter_", "cnt_"]
         extra = ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]
         
         feature_cols = [

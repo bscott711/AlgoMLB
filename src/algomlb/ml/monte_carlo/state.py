@@ -65,8 +65,22 @@ class GameState(BaseModel):
     # Represents [1st Base, 2nd Base, 3rd Base]. Stores player_id if occupied, else None.
     bases: List[Optional[int]] = Field(default_factory=lambda: [None, None, None])
 
+    # Count tracking for count-conditional PA outcome modeling
+    balls: int = 0
+    strikes: int = 0
+
     def clear_bases(self):
         self.bases = [None, None, None]
+
+    def reset_count(self):
+        """Reset the count for a new plate appearance."""
+        self.balls = 0
+        self.strikes = 0
+
+    @property
+    def count_state(self) -> str:
+        """Current count as 'balls-strikes' string."""
+        return f"{self.balls}-{self.strikes}"
 
     def process_event(self, event: str, batter_id: int) -> List[int]:
         """

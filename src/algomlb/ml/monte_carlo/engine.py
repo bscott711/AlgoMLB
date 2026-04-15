@@ -61,6 +61,12 @@ PITCHER_FEATURES = {
     "roll_re24",
 }
 
+# All 12 valid ball-strike count states in baseball
+COUNT_STATES = [
+    "0-0", "0-1", "0-2", "1-0", "1-1", "1-2",
+    "2-0", "2-1", "2-2", "3-0", "3-1", "3-2",
+]
+
 
 class SimulationEngine:
     """Core engine executing thousands of Markov-chain game trials using ML outcomes."""
@@ -70,7 +76,8 @@ class SimulationEngine:
         self.hook_model = hook_model
         # Explicit Random Generator for strict reproducibility
         self.rng = np.random.default_rng(seed)
-        self.matchup_cache: Dict[Tuple[int, int], np.ndarray] = {}
+        self.matchup_cache: Dict[Tuple, np.ndarray] = {}
+        self._count_aware = False  # Set True after 3D precomputation
 
         # Dynamically load outcomes from the model's LabelEncoder classes
         # This ensures we support hbp, triple, etc. without hardcoding
@@ -155,8 +162,9 @@ class SimulationEngine:
         ]
         ptrs[b_side] = (ptrs[b_side] + 1) % 9
 
-        # 3. Outcome & Attribution
-        outcome = self._sample_pa(batter.player_id, p_id, context, b_side)
+        # 3. Simulate count and sample count-conditional outcome
+        self._simulate_count(state)
+        outcome = self._sample_pa(batter.player_id, p_id, context, b_side, state.count_state)
         scored_ids = state.process_event(outcome, batter.player_id)
         self._attribute_stats(outcome, batter.player_id, p_id, scored_ids, b_reg, p_reg)
 
@@ -228,23 +236,79 @@ class SimulationEngine:
         pitcher_id: int,
         context: MatchupContext,
         batting_side: str,
+        count_state: str = "0-0",
     ) -> str:
         """
         Samples one outcome from the ML model.
-        Because of batch precomputation, this is now a lightning-fast O(1) dictionary lookup.
+        Uses count-conditional probabilities when available via the 3D cache,
+        falling back to the flat (batter, pitcher) cache for backward compatibility.
         """
-        # 1. Retrieval
-        cache_key = (batter_id, pitcher_id)
+        probs = None
 
-        # O(1) retrieval — NO pandas overhead in the inner loop
-        probs = self.matchup_cache.get(cache_key)
+        # 1. Try count-conditional lookup (3D cache)
+        if self._count_aware:
+            probs = self.matchup_cache.get((batter_id, pitcher_id, count_state))
+            if probs is None:
+                # Fallback within 3D: try neutral count
+                probs = self.matchup_cache.get((batter_id, pitcher_id, "0-0"))
 
-        # Failsafe if a matchup wasn't precomputed (e.g. pinch hitter edge cases)
+        # 2. Fallback to flat 2D cache (model trained without count features)
         if probs is None:
-            raise RuntimeError(f"Failsafe triggered: No precomputed probabilities found for matchup {batter_id} vs {pitcher_id}. Cache miss indicates inference architecture failure.")
+            probs = self.matchup_cache.get((batter_id, pitcher_id))
 
-        # 2. Sample outcome
+        if probs is None:
+            raise RuntimeError(
+                f"Failsafe triggered: No precomputed probabilities found for "
+                f"matchup {batter_id} vs {pitcher_id} (count={count_state}). "
+                f"Cache miss indicates inference architecture failure."
+            )
+
+        # 3. Sample outcome
         return self.rng.choice(self.outcome_map, p=probs)
+
+    def _simulate_count(self, state: GameState) -> None:
+        """
+        Simulate a Markov pitch sequence to determine the count at PA resolution.
+
+        Uses historical pitch outcome frequencies:
+        - ~38% strike (called/swinging/foul with <2 strikes)
+        - ~32% ball
+        - ~15% foul (only extends at 2 strikes)
+        - ~15% terminal event (BIP or terminal K/BB handled by model)
+
+        The count is set on the GameState and used by _sample_pa for lookup.
+        If the engine is not count-aware, the count defaults to 0-0.
+        """
+        state.reset_count()
+
+        if not self._count_aware:
+            return  # Skip simulation for backward-compatible flat models
+
+        max_pitches = 15  # Safety cap to prevent infinite loops
+        for _ in range(max_pitches):
+            r = self.rng.random()
+
+            if r < 0.32:
+                # Ball
+                state.balls += 1
+                if state.balls >= 4:
+                    return  # Terminal walk — model will produce walk-weighted probs
+            elif r < 0.62:
+                # Strike (called or swinging)
+                if state.strikes < 2:
+                    state.strikes += 1
+                else:
+                    # At 2 strikes, ~50% chance of foul vs terminal
+                    if self.rng.random() < 0.45:
+                        continue  # Foul ball — count stays at X-2
+                    else:
+                        return  # Terminal strikeout — model handles
+            else:
+                # Terminal event: ball in play, HBP, or other resolution
+                return
+
+        # If max_pitches exceeded, just use current count
+        return
 
     def _attribute_stats(
         self,
@@ -333,6 +397,10 @@ class SimulationEngine:
     def _precompute_matchups(self, context):
         """
         Vectorized batch inference with strict feature alignment and role-specific mapping.
+        
+        Builds a 3D cache: (batter_id, pitcher_id, count_state) -> prob_array
+        when the model was trained with count features (cnt_*).
+        Falls back to flat 2D cache for backward compatibility with older models.
         """
         matchup_rows = []
         keys = []
@@ -347,6 +415,10 @@ class SimulationEngine:
         away_pitchers = [context.away_starter.pitcher_id] + [
             p.pitcher_id for p in context.away_relievers
         ]
+
+        # Detect if the model was trained with count features
+        model_has_count = self._model_has_count_features()
+        count_loop = COUNT_STATES if model_has_count else ["0-0"]
 
         # Helper to construct the feature matrix
         def build_matrix(batters, pitchers, batting_side):
@@ -377,46 +449,58 @@ class SimulationEngine:
                 for p_id in pitchers:
                     p_feats = context.pitcher_features.get(p_id, {})
 
-                    combined = {}
+                    # Build base feature row (shared across all counts)
+                    base_combined = {}
                     # 1. Apply Batter-specific features only
                     # We inject all available features and let the X_batch.reindex() 
                     # organically filter to the exact XGBoost signature.
                     for k, v in b_feats.items():
-                        combined[f"{b_prefix}{k}"] = v
+                        base_combined[f"{b_prefix}{k}"] = v
 
                     # 2. Apply Pitcher-specific features only
                     for k, v in p_feats.items():
-                        combined[f"{p_prefix}{k}"] = v
+                        base_combined[f"{p_prefix}{k}"] = v
 
                     # 3. Add Global Matchup Features (Strict schema)
                     for k in ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]:
                         if k in context.matchup_features:
-                            combined[k] = context.matchup_features[k]
+                            base_combined[k] = context.matchup_features[k]
 
                     # --- COMPATIBILITY SHIM (Populate legacy features) ---
                     # Populates missing legacy features expected by the currently
                     # deployed PA Outcome model without failing the new engine schema. 
                     # Once recalibrated, XGBoost validate_features will naturally ignore these.
                     for k, v in home_avg.items():
-                         combined[f"h_bat_{k}"] = v
+                         base_combined[f"h_bat_{k}"] = v
                     for k, v in away_avg.items():
-                         combined[f"a_bat_{k}"] = v
+                         base_combined[f"a_bat_{k}"] = v
                     
                     if "roll_re24" in p_feats:
-                         combined[f"pitcher_roll_re24_x"] = p_feats["roll_re24"]
-                         combined[f"pitcher_roll_re24_y"] = p_feats["roll_re24"]
+                         base_combined[f"pitcher_roll_re24_x"] = p_feats["roll_re24"]
+                         base_combined[f"pitcher_roll_re24_y"] = p_feats["roll_re24"]
                     if "roll_re24" in b_feats:
-                         combined[f"batter_roll_re24_x"] = b_feats["roll_re24"]
-                         combined[f"batter_roll_re24_y"] = b_feats["roll_re24"]
+                         base_combined[f"batter_roll_re24_x"] = b_feats["roll_re24"]
+                         base_combined[f"batter_roll_re24_y"] = b_feats["roll_re24"]
                          
                     for f in ["n_games_used", "window_games", "days_since_last_game", "fatigue_index_7d", "fatigue_index_14d"]:
                          if f in p_feats:
-                             combined[f"pitcher_{f}"] = p_feats[f]
+                             base_combined[f"pitcher_{f}"] = p_feats[f]
                          if f in b_feats:
-                             combined[f"batter_{f}"] = b_feats[f]
+                             base_combined[f"batter_{f}"] = b_feats[f]
 
-                    matchup_rows.append(combined)
-                    keys.append((b_id, p_id))
+                    # Iterate over count states (12x for count-aware, 1x for flat)
+                    for count_str in count_loop:
+                        combined = base_combined.copy()
+
+                        if model_has_count:
+                            # Inject one-hot count features
+                            for cs in COUNT_STATES:
+                                combined[f"cnt_{cs}"] = 1.0 if cs == count_str else 0.0
+                            keys.append((b_id, p_id, count_str))
+                        else:
+                            keys.append((b_id, p_id))
+
+                        matchup_rows.append(combined)
 
         # Build Both Halves
         build_matrix(away_batters, home_pitchers, "away")
@@ -470,7 +554,10 @@ class SimulationEngine:
                 for i, key in enumerate(keys):
                     self.matchup_cache[key] = prob_matrix[i]
 
-                logger.debug(f"Successfully batch-inferred {len(keys)} unique matchups.")
+                # Set count-aware flag so _sample_pa uses 3D lookups
+                self._count_aware = model_has_count
+                dim = "3D count-conditional" if model_has_count else "2D flat"
+                logger.debug(f"Successfully batch-inferred {len(keys)} matchups ({dim}).")
 
             except Exception as e:
                 logger.error(f"CRITICAL: Batch inference failed! {str(e)}")
@@ -479,6 +566,31 @@ class SimulationEngine:
                 )
         else:
             raise ValueError("The provided pa_model does not have a predict_proba method.")
+
+    def _model_has_count_features(self) -> bool:
+        """Check if the loaded PA model was trained with cnt_* count features."""
+        actual_model = (
+            self.pa_model.model if hasattr(self.pa_model, "model") else self.pa_model
+        )
+        base_estimator = None
+        if hasattr(self.pa_model, "get_base_xgb_estimator"):
+            base_estimator = self.pa_model.get_base_xgb_estimator()
+        elif hasattr(actual_model, "model"):
+            base_estimator = actual_model.model
+        else:
+            base_estimator = actual_model
+
+        feature_names = None
+        if hasattr(base_estimator, "feature_names_in_") and base_estimator.feature_names_in_ is not None:
+            feature_names = list(base_estimator.feature_names_in_)
+        elif hasattr(base_estimator, "feature_names") and base_estimator.feature_names is not None:
+            feature_names = list(base_estimator.feature_names)
+        elif hasattr(base_estimator, "get_booster"):
+            feature_names = base_estimator.get_booster().feature_names
+
+        if feature_names:
+            return any(f.startswith("cnt_") for f in feature_names)
+        return False
 
     def _sample_pitch_count(self, outcome: str) -> int:
         """

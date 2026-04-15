@@ -118,6 +118,7 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
             SELECT game_id, date AS game_date, inning, top_bot, outs_pre, outs_post,
                    br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
                    runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team,
+                   balls, strikes,
                    walk, k, hbp, single, double_flag, triple, hr
             FROM retrosheet_events
             WHERE EXTRACT(YEAR FROM date) IN ({years_str}) AND pa_flag = 1
