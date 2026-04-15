@@ -488,7 +488,7 @@ def train(
     """Train and persist a production Uranium model using best params."""
     session_factory = get_session_factory()
     engine = session_factory.kw["bind"]
-    years_str = "2024"
+    years_str = "2021,2022,2023,2024,2025"
 
     data = _load_ml_data(engine, years_str)
     pipeline = FeaturePipeline()

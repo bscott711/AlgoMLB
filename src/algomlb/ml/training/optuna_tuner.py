@@ -63,14 +63,14 @@ class XGBoostOptunaObjective:
     def __call__(self, trial: optuna.Trial) -> float:
         # Define search space strictly to prevent overfitting baseball noise
         params = {
-            "max_depth": trial.suggest_int("max_depth", 3, 8),
+            "max_depth": trial.suggest_int("max_depth", 3, 7),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
-            "min_child_weight": trial.suggest_int("min_child_weight", 5, 50),
-            "subsample": trial.suggest_float("subsample", 0.6, 0.9),
-            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 0.9),
-            "gamma": trial.suggest_float("gamma", 0.1, 5.0),
-            "max_delta_step": trial.suggest_int("max_delta_step", 1, 10),
-            "n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=100),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 15),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "gamma": trial.suggest_float("gamma", 0.0, 1.0),
+            "max_delta_step": trial.suggest_int("max_delta_step", 0, 5),
+            "n_estimators": trial.suggest_int("n_estimators", 100, 500, step=100),
             "n_jobs": -1,
             "random_state": 42,
             "verbosity": 0,
