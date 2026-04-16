@@ -93,7 +93,27 @@ revision message:
 	PYTHONPATH=src uv run alembic revision --autogenerate -m "{{message}}"
 
 # ==========================================
-# 4. PRODUCTION OPTIMIZATION (Alpha Search)
+# 4. DATABASE INFRASTRUCTURE (Docker)
+# ==========================================
+
+# Start the PostgreSQL database with external storage for WAL and Indices
+db-up:
+	@echo "🗄️ Starting PostgreSQL with External Storage Annex..."
+	docker run -d --name algomlb-db -p 5433:5432 \
+		-e POSTGRES_PASSWORD=password -e POSTGRES_DB=algomlb \
+		-v algomlb_pgdata:/var/lib/postgresql/data \
+		-v /home/opc/database_storage/pg_wal_recovery:/var/lib/postgresql/data/pg_wal \
+		-v /home/opc/database_storage/db_tablespace:/var/lib/postgresql/data/custom_tablespace \
+		postgres:16
+
+# Stop the database
+db-down:
+	@echo "🛑 Stopping Database..."
+	docker stop algomlb-db || true
+	docker rm -f algomlb-db || true
+
+# ==========================================
+# 5. PRODUCTION OPTIMIZATION (Alpha Search)
 # ==========================================
 
 # Run full Moneyline re-calibration (ML calibration + Strategy tuning)
