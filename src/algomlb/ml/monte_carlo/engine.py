@@ -6,9 +6,11 @@ from algomlb.ml.monte_carlo.state import (
     GameState,
     BatterSimState,
     PitcherSimState,
+    SimulationResult,
 )
 from algomlb.ml.monte_carlo.loader import MatchupContext
 from algomlb.ml.monte_carlo.bullpen import BullpenManager
+from algomlb.ml.monte_carlo.bullpen_orchestrator import BullpenOrchestrator, RelieverProfile
 from algomlb.ml.hook_model import HookModel
 
 # Define exactly what features belong to which entity based on training schema
@@ -97,8 +99,8 @@ class SimulationEngine:
             ]
 
     def simulate_game(
-        self, context: MatchupContext
-    ) -> Dict[int, BatterSimState | PitcherSimState]:
+        self, context: MatchupContext, bullpen_params: Optional[Dict[str, float]] = None
+    ) -> SimulationResult:
         """Simulates a single 9-inning game trial and returns the final player states."""
         state = GameState()
         bp_manager = self._setup_bullpen_manager(context)
@@ -108,6 +110,20 @@ class SimulationEngine:
             "home": context.home_starter.pitcher_id,
             "away": context.away_starter.pitcher_id,
         }
+        
+        # Initialize the Orchestrator for both sides
+        all_profiles = context.home_reliever_profiles + context.away_reliever_profiles
+        
+        # Bullpen Params (platoon_advantage, fatigue_decay, min_fatigue_floor)
+        bp_config = bullpen_params or {}
+        orchestrator = BullpenOrchestrator(
+            all_profiles, 
+            self.rng,
+            platoon_advantage=bp_config.get("platoon_advantage", 1.12),
+            fatigue_decay=bp_config.get("fatigue_decay", 0.003),
+            min_fatigue_floor=bp_config.get("min_fatigue_floor", 0.82)
+        )
+
         queues = {
             "home": [p.pitcher_id for p in context.home_relievers],
             "away": [p.pitcher_id for p in context.away_relievers],
@@ -125,22 +141,35 @@ class SimulationEngine:
                         state,
                         context,
                         bp_manager,
+                        orchestrator,
                         bat_registry,
                         pit_registry,
                         active_pitchers,
                         queues,
                         ptrs,
                     ):
-                        return {**bat_registry, **pit_registry}
+                        return SimulationResult(
+                            home_score=state.home_score,
+                            away_score=state.away_score,
+                            late_inning_runs=state.late_inning_runs,
+                            player_states={**bat_registry, **pit_registry},
+                            inning_count=state.inning
+                        )
 
             state.inning += 1
             if state.inning > 20:
                 break
 
-        return {**bat_registry, **pit_registry}
+        return SimulationResult(
+            home_score=state.home_score,
+            away_score=state.away_score,
+            late_inning_runs=state.late_inning_runs,
+            player_states={**bat_registry, **pit_registry},
+            inning_count=state.inning
+        )
 
     def _execute_pa(
-        self, state, context, bp_manager, b_reg, p_reg, active_p, queues, ptrs
+        self, state, context, bp_manager, orchestrator, b_reg, p_reg, active_p, queues, ptrs
     ) -> bool:
         """Executes a single plate appearance and returns True if a walk-off occurred."""
         p_side = "home" if state.top_half else "away"
@@ -153,8 +182,27 @@ class SimulationEngine:
         ) or 0
         if bp_manager.should_hook(p_reg[p_id], state, mgr_id):
             if queues[p_side]:
-                p_id = queues[p_side].pop(0)
-                active_p[p_side] = p_id
+                # 1.1 Use Orchestrator for intelligent selection
+                # We need upcoming batters for platoon matching (next 3)
+                upcoming_hands = []
+                bat_side_lineup = context.away_lineup if state.top_half else context.home_lineup
+                for i in range(3):
+                    idx = (ptrs[b_side] + i) % 9
+                    upcoming_hands.append(bat_side_lineup[idx].hand)
+
+                li = state.leverage_index if hasattr(state, "leverage_index") else 1.0
+                next_p = orchestrator.select_next(queues[p_side], upcoming_hands, li, state.inning)
+                
+                if next_p:
+                    p_id = next_p
+                    active_p[p_side] = p_id
+                    # Remove from queue if it was in there
+                    if p_id in queues[p_side]:
+                        queues[p_side].remove(p_id)
+                else:
+                    # Fallback to FIFO
+                    p_id = queues[p_side].pop(0)
+                    active_p[p_side] = p_id
 
         # 2. Batter Resolution
         batter = (context.away_lineup if state.top_half else context.home_lineup)[
@@ -164,7 +212,16 @@ class SimulationEngine:
 
         # 3. Simulate count and sample count-conditional outcome
         self._simulate_count(state)
-        outcome = self._sample_pa(batter.player_id, p_id, context, b_side, state.count_state)
+        outcome = self._sample_pa(
+            batter.player_id, 
+            p_id, 
+            context, 
+            b_side, 
+            state.count_state,
+            orchestrator,
+            batter.hand,
+            p_reg[p_id].pitches_thrown
+        )
         scored_ids = state.process_event(outcome, batter.player_id)
         self._attribute_stats(outcome, batter.player_id, p_id, scored_ids, b_reg, p_reg)
 
@@ -237,6 +294,9 @@ class SimulationEngine:
         context: MatchupContext,
         batting_side: str,
         count_state: str = "0-0",
+        orchestrator: Optional[BullpenOrchestrator] = None,
+        batter_hand: str = "R",
+        pitches_thrown: int = 0
     ) -> str:
         """
         Samples one outcome from the ML model.
@@ -263,7 +323,31 @@ class SimulationEngine:
                 f"Cache miss indicates inference architecture failure."
             )
 
-        # 3. Sample outcome
+        # 3. Apply Multipliers (Fatigue/Platoon)
+        if orchestrator:
+            k_adj, bb_adj, hr_adj = orchestrator.compute_platoon_fatigue_adjustment(
+                pitcher_id, batter_hand, pitches_thrown
+            )
+            
+            # Map outcome_map to indices for efficient modification
+            # Assuming outcome_map contains "strikeout", "walk", "home_run"
+            adj_probs = probs.copy()
+            for i, outcome in enumerate(self.outcome_map):
+                if outcome == "strikeout":
+                    adj_probs[i] *= k_adj
+                elif outcome == "walk":
+                    adj_probs[i] *= bb_adj
+                elif outcome == "home_run":
+                    adj_probs[i] *= hr_adj
+            
+            # 4. Renormalize or fail gracefully if all zeroed (unlikely)
+            p_sum = adj_probs.sum()
+            if p_sum > 0:
+                probs = adj_probs / p_sum
+            else:
+                logger.warning(f"Probability collapse for {pitcher_id} vs {batter_id}. Using base probs.")
+
+        # 5. Sample outcome
         return self.rng.choice(self.outcome_map, p=probs)
 
     def _simulate_count(self, state: GameState) -> None:
@@ -370,8 +454,8 @@ class SimulationEngine:
             p.runs_allowed += 1
 
     def run_trials(
-        self, context: MatchupContext, trials: int = 10000
-    ) -> List[Dict[int, BatterSimState | PitcherSimState]]:
+        self, context: MatchupContext, trials: int = 10000, bullpen_params: Optional[Dict[str, float]] = None
+    ) -> List[SimulationResult]:
         """Executes N Monte Carlo trials and returns a list of resulting player states per trial."""
         if context is None:
             raise ValueError(
@@ -390,7 +474,7 @@ class SimulationEngine:
         for i in range(trials):
             if i > 0 and i % 1000 == 0:
                 logger.debug(f"Completed {i} trials...")
-            all_trial_results.append(self.simulate_game(context))
+            all_trial_results.append(self.simulate_game(context, bullpen_params=bullpen_params))
         logger.success(f"Simulation of {trials} trials complete.")
         return all_trial_results
 

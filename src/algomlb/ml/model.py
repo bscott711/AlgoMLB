@@ -17,27 +17,22 @@ class MLBModel:
 
         # Default params for class imbalance and regularization
         # scale_pos_weight handles the slight Away-win bias if necessary
-        self.clf = XGBClassifier(
-            n_estimators=params.get("n_estimators", 100),
-            max_depth=params.get("max_depth", 3),
-            learning_rate=params.get("learning_rate", 0.1),
-            scale_pos_weight=params.get("scale_pos_weight", 1.0),
-            n_jobs=params.get("n_jobs", 1),
-            monotone_constraints=mono,
-            random_state=42,
-            **{
-                k: v
-                for k, v in params.items()
-                if k
-                not in [
-                    "n_estimators",
-                    "max_depth",
-                    "learning_rate",
-                    "scale_pos_weight",
-                    "n_jobs",
-                ]
-            },
-        )
+        # Only pass scale_pos_weight when explicitly set — it is invalid for
+        # multiclass objectives and XGBoost already defaults to 1.0.
+        _known = {"n_estimators", "max_depth", "learning_rate", "scale_pos_weight", "n_jobs"}
+        xgb_kwargs = {
+            "n_estimators": params.get("n_estimators", 100),
+            "max_depth": params.get("max_depth", 3),
+            "learning_rate": params.get("learning_rate", 0.1),
+            "n_jobs": params.get("n_jobs", 1),
+            "monotone_constraints": mono,
+            "random_state": 42,
+        }
+        if "scale_pos_weight" in params:
+            xgb_kwargs["scale_pos_weight"] = params["scale_pos_weight"]
+        # Forward any extra params (subsample, colsample_bytree, gamma, etc.)
+        xgb_kwargs.update({k: v for k, v in params.items() if k not in _known})
+        self.clf = XGBClassifier(**xgb_kwargs)
         self.calibrated_clf = None
         self.le = None
 

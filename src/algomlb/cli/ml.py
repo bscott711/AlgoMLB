@@ -134,7 +134,10 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
 
     # RE24: Now pre-computed in player_rolling_features (loaded into pitcher_gold/batter_gold)
     # The build_uranium_matrix method will handle joining these from the gold dataframes.
-    re24_df = pd.concat([pitcher_gold, batter_gold], ignore_index=True)
+    re24_df = pd.concat(
+        [pitcher_gold.dropna(axis=1, how="all"), batter_gold.dropna(axis=1, how="all")],
+        ignore_index=True,
+    )
 
     return {
         "games": games_df,
@@ -225,7 +228,7 @@ def tune(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     trials: int = typer.Option(100, "--trials", help="Number of Optuna trials."),
-    version: str = typer.Option("v1.0", "--version", help="Model version."),
+    version: str = typer.Option("v1.2", "--version", help="Model version."),
 ) -> None:
     """Optimize Uranium model hyperparameters via Optuna."""
     session_factory = get_session_factory()
@@ -309,7 +312,7 @@ def tune(
 def backtest(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
-    version: str = typer.Option("v1.0", "--version", help="Model version."),
+    version: str = typer.Option("v1.2", "--version", help="Model version."),
 ) -> None:
     """Run walk-forward backtesting with fixed hyperparameters."""
     import datetime
@@ -419,7 +422,7 @@ def backtest(
 def explain(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to explain."),
-    version: str = typer.Option("v1.0", "--version", help="Model version."),
+    version: str = typer.Option("v1.2", "--version", help="Model version."),
 ) -> None:
     """Generate and persist SHAP explanations for the model."""
     import datetime
@@ -484,7 +487,7 @@ def explain(
 def train(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
-    version: str = typer.Option("v1.0", "--version", help="Model version."),
+    version: str = typer.Option("v1.2", "--version", help="Model version."),
 ) -> None:
     """Train and persist a production Uranium model using best params."""
     session_factory = get_session_factory()
@@ -545,7 +548,7 @@ def elo_backfill(
 def fetch_history(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="Target column"),
-    version: str = typer.Option("v1.0", "--version", help="Model version"),
+    version: str = typer.Option("v1.2", "--version", help="Model version"),
 ) -> None:
     """Fetch past evaluation history for visual reporting."""
     session_factory = get_session_factory()
@@ -580,7 +583,7 @@ def simulate_game(
     game_pk: int = typer.Option(..., "--game-pk", help="Game PK to simulate."),
     trials: int = typer.Option(10000, "--trials", help="Number of Monte Carlo trials."),
     version: str = typer.Option(
-        "v1.0", "--version", help="Model version for pa_outcome."
+        "v1.2", "--version", help="Model version for pa_outcome."
     ),
     use_hook_model: bool = typer.Option(
         True,
@@ -630,9 +633,14 @@ def simulate_game(
                     "using heuristic pitcher substitutions."
                 )
 
-        # 4. Simulate
+        # 4. Load Bullpen Params from SQL
+        bp_params = loader.get_simulation_config("bullpen_v1.0")
+        if bp_params:
+            logger.info(f"⚡ Applying tuned bullpen parameters from SQL: {bp_params}")
+
+        # 5. Simulate
         engine = SimulationEngine(pa_model=model, hook_model=hook_model)
-        trial_results = engine.run_trials(context, trials=trials)
+        trial_results = engine.run_trials(context, trials=trials, bullpen_params=bp_params)
 
         # 4. Aggregate
         aggregator = SimulationAggregator()

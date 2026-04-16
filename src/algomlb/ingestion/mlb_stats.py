@@ -87,10 +87,13 @@ class MLBStatsAPIClient(BaseAPIClient):
                 # Extract venue name
                 venue_name = game_data.get("venue", {}).get("name")
 
+                # Extract canonical date from the date_entry (preferred over UTC gameDate rollover)
+                official_date = date_entry.get("date", s_str)
+
                 games_list.append(
                     Game(
                         game_id=game_id,
-                        date=game_data.get("gameDate", s_str)[:10],
+                        date=official_date,
                         game_datetime=game_data.get("gameDate"),
                         venue_name=venue_name,
                         home_team=home_team,

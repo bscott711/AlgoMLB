@@ -7,6 +7,7 @@ class BatterSimState(BaseModel):
 
     player_id: int
     player_name: Optional[str] = None
+    hand: str = "R"  # "L" or "R"
     pa_count: int = 0
     hits: int = 0
     singles: int = 0
@@ -31,6 +32,7 @@ class PitcherSimState(BaseModel):
 
     pitcher_id: int
     player_name: Optional[str] = None
+    hand: str = "R"  # "L" or "R"
     pitches_thrown: int = 0
     current_tto: int = 1
     runs_allowed: int = 0
@@ -62,6 +64,7 @@ class GameState(BaseModel):
     outs: int = 0
     home_score: int = 0
     away_score: int = 0
+    late_inning_runs: int = 0
     # Represents [1st Base, 2nd Base, 3rd Base]. Stores player_id if occupied, else None.
     bases: List[Optional[int]] = Field(default_factory=lambda: [None, None, None])
 
@@ -101,6 +104,9 @@ class GameState(BaseModel):
             self.away_score += runs
         else:
             self.home_score += runs
+
+        if self.inning >= 7:
+            self.late_inning_runs += runs
 
         return scored_ids
 
@@ -157,7 +163,22 @@ class GameState(BaseModel):
         return scored_ids
 
 
+class SimulationResult(BaseModel):
+    """Aggregate outcome of a single Monte Carlo trial."""
+
+    home_score: int
+    away_score: int
+    late_inning_runs: int
+    player_states: Dict[int, BatterSimState | PitcherSimState]
+    inning_count: int
+
+    @property
+    def total_runs(self) -> int:
+        return self.home_score + self.away_score
+
+
 BatterSimState.model_rebuild()
 PitcherSimState.model_rebuild()
 ManagerHookProfile.model_rebuild()
 GameState.model_rebuild()
+SimulationResult.model_rebuild()

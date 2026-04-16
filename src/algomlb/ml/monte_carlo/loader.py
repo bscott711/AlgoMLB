@@ -1,6 +1,6 @@
 import datetime
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 from pydantic import BaseModel
 from sqlalchemy import select, and_, or_, func, distinct, desc
@@ -16,6 +16,8 @@ from algomlb.db.models import (
     StatcastRawORM,
     TeamEloHistoryORM,
     TeamSabermetricsHistoryORM,
+    PitcherDailyUsageORM,
+    SimulationConfigORM,
 )
 from algomlb.domain import PlayerRole, GameStatus
 from algomlb.ml.monte_carlo.state import (
@@ -23,6 +25,7 @@ from algomlb.ml.monte_carlo.state import (
     PitcherSimState,
     ManagerHookProfile,
 )
+from algomlb.ml.monte_carlo.bullpen_orchestrator import RelieverProfile
 from algomlb.ingestion.lineup_ingester import LineupIngester
 
 
@@ -43,6 +46,8 @@ class MatchupContext(BaseModel):
     # Bullpen & Reliever features
     home_relievers: List[PitcherSimState]
     away_relievers: List[PitcherSimState]
+    home_reliever_profiles: List[RelieverProfile] = []
+    away_reliever_profiles: List[RelieverProfile] = []
 
     # Manager Data
     home_manager_id: Optional[int] = None
@@ -102,20 +107,23 @@ class MatchupLoader:
         if game.home_team_id is None or game.away_team_id is None:
             raise ValueError(f"Game {game.game_id} missing team IDs for bullpen fetch.")
 
-        home_relievers = self._fetch_bullpen(
+        home_relievers, h_profiles = self._fetch_bullpen(
             game.home_team_id,
             game.game_date,
             pitcher_features,
             home_starter.pitcher_id,
             away_starter.pitcher_id,
         )
-        away_relievers = self._fetch_bullpen(
+        away_relievers, a_profiles = self._fetch_bullpen(
             game.away_team_id,
             game.game_date,
             pitcher_features,
             home_starter.pitcher_id,
             away_starter.pitcher_id,
         )
+
+        # 8. Enrich with Handedness (Platoon data)
+        self._enrich_handedness(home_batters + away_batters, [home_starter, away_starter] + home_relievers + away_relievers)
 
         # 8. Build Context
         context = MatchupContext(
@@ -129,6 +137,8 @@ class MatchupLoader:
             pitcher_features=pitcher_features,
             home_relievers=home_relievers,
             away_relievers=away_relievers,
+            home_reliever_profiles=h_profiles,
+            away_reliever_profiles=a_profiles,
             home_manager_id=h_mgr_id,
             away_manager_id=a_mgr_id,
             manager_profiles=mgr_profiles,
@@ -146,6 +156,14 @@ class MatchupLoader:
             f"Successfully loaded matchup for {game.away_team} @ {game.home_team}"
         )
         return context
+
+    def get_simulation_config(self, config_key: str = "bullpen_v1.0") -> Dict[str, Any]:
+        """Fetch a specific configuration record from the database."""
+        stmt = select(SimulationConfigORM.config_value).where(
+            SimulationConfigORM.config_key == config_key
+        )
+        res = self.session.execute(stmt).scalar()
+        return res if res else {}
 
     def _get_game_metadata(self, game_pk: int) -> GameResultORM:
         """Fetch basic game info, trying both ID and Game PK string."""
@@ -392,7 +410,7 @@ class MatchupLoader:
         existing_features: Dict[int, Dict[str, float]],
         h_starter_id: int,
         a_starter_id: int,
-    ) -> List[PitcherSimState]:
+    ) -> Tuple[List[PitcherSimState], List[RelieverProfile]]:
         """
         Retrieves the top available relievers for a team by checking recent game logs.
         """
@@ -419,17 +437,46 @@ class MatchupLoader:
 
         p_ids = self.session.execute(p_stmt).scalars().all()
 
-        # 3. Fetch latest rolling features for these potential relievers
+        # 4. Derive Roles and Usage from pre-aggregated usage table
+        usage_stmt = select(PitcherDailyUsageORM).where(
+            PitcherDailyUsageORM.pitcher_id.in_([str(pid) for pid in p_ids]),
+            PitcherDailyUsageORM.game_date < game_date,
+            PitcherDailyUsageORM.game_date >= game_date - timedelta(days=20)
+        ).order_by(PitcherDailyUsageORM.pitcher_id, PitcherDailyUsageORM.game_date.desc())
+        
+        usage_records = self.session.execute(usage_stmt).scalars().all()
+        
+        # Aggregate by pitcher
+        pitcher_stats = {}
+        for r in usage_records:
+            pid = int(r.pitcher_id)
+            if pid not in pitcher_stats:
+                pitcher_stats[pid] = {
+                    "last_date": r.game_date,
+                    "last_pitches": r.pitches_thrown,
+                    "total_apps": 0,
+                    "games_finished": 0,
+                    "late_inning_apps": 0,
+                    "avg_pitches": []
+                }
+            ps = pitcher_stats[pid]
+            ps["total_apps"] += 1
+            ps["avg_pitches"].append(r.pitches_thrown)
+            if r.is_game_finished:
+                ps["games_finished"] += 1
+            if r.max_inning >= 7:
+                ps["late_inning_apps"] += 1
+
         relievers = []
+        profiles = []
         for pid in p_ids:
-            if len(relievers) >= 6:
+            if len(relievers) >= 8: # Depth for simulation
                 break
 
-            # Exclude the starting pitcher
             if pid == h_starter_id or pid == a_starter_id:
                 continue
 
-            # Fetch the latest PITCHER features for this arm
+            # Fetch the latest PITCHER features
             stmt = (
                 select(PlayerRollingFeaturesORM)
                 .where(
@@ -446,8 +493,64 @@ class MatchupLoader:
                 relievers.append(PitcherSimState(pitcher_id=r.player_id))
                 if r.player_id not in existing_features:
                     existing_features[r.player_id] = self._extract_features(r)
+                
+                # Derive Profile
+                stats = pitcher_stats.get(r.player_id, {})
+                role = "middle"
+                if stats:
+                    apps = stats["total_apps"]
+                    avg_p = sum(stats["avg_pitches"]) / apps if apps > 0 else 0
+                    if stats["games_finished"] >= 2:
+                        role = "closer"
+                    elif stats["late_inning_apps"] >= 3:
+                        role = "setup"
+                    elif avg_p > 40:
+                        role = "long"
+                
+                last_outing = stats.get("last_date")
+                rest_days = (game_date - last_outing).days if last_outing else 10
+                pitches_yesterday = stats.get("last_pitches", 0) if rest_days == 1 else 0
+                
+                profiles.append(RelieverProfile(
+                    player_id=r.player_id,
+                    hand="R", # Enriched later
+                    role=role,
+                    last_outing_date=last_outing,
+                    pitches_yesterday=pitches_yesterday,
+                    rest_days=rest_days
+                ))
 
-        return relievers
+        return relievers, profiles
+
+    def _enrich_handedness(
+        self, batters: List[BatterSimState], pitchers: List[PitcherSimState]
+    ) -> None:
+        """Fetch p_throws and stand from StatcastRawORM for matches."""
+        batter_ids = list(set([b.player_id for b in batters]))
+        pitcher_ids = list(set([p.pitcher_id for p in pitchers]))
+
+        p_hands = {
+            r.pitcher: r.p_throws
+            for r in self.session.execute(
+                select(StatcastRawORM.pitcher, StatcastRawORM.p_throws)
+                .where(StatcastRawORM.pitcher.in_(pitcher_ids))
+                .distinct()
+            ).all()
+        }
+
+        b_hands = {
+            r.batter: r.stand
+            for r in self.session.execute(
+                select(StatcastRawORM.batter, StatcastRawORM.stand)
+                .where(StatcastRawORM.batter.in_(batter_ids))
+                .distinct()
+            ).all()
+        }
+
+        for b in batters:
+            b.hand = b_hands.get(b.player_id, "R")
+        for p in pitchers:
+            p.hand = p_hands.get(p.pitcher_id, "R")
 
     def _fetch_global_features(self, game: GameResultORM) -> Dict[str, float]:
         """Fetch materialized team-level features (Elo, Pythag) up to the game date."""

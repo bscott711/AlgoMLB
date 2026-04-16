@@ -1,0 +1,6 @@
+nohup: ignoring input
+[32m12:53:56[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m12:54:24[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+[32m12:54:53[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.2.json[0m
+[32m12:54:53[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m522[0m — [1mFitting production model for pa_outcome...[0m
+[32m13:44:18[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m530[0m — [32m[1mProduction model saved to .data/models/pa_outcome_v1.2.joblib[0m

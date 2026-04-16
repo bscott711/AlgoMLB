@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from typing import Dict, List, TYPE_CHECKING
-from algomlb.ml.monte_carlo.state import BatterSimState, PitcherSimState
+from algomlb.ml.monte_carlo.state import BatterSimState, PitcherSimState, SimulationResult
 
 if TYPE_CHECKING:
     from algomlb.ml.monte_carlo.loader import MatchupContext
@@ -14,7 +14,7 @@ class SimulationAggregator:
         self,
         game_pk: int,
         season: int,
-        trial_results: List[Dict[int, BatterSimState | PitcherSimState]],
+        trial_results: List[SimulationResult],
         context: "MatchupContext",
     ) -> pd.DataFrame:
         """
@@ -52,28 +52,12 @@ class SimulationAggregator:
 
         return pd.DataFrame(records)
 
-    def _process_trial(self, trial, player_stats, team_wins, home_ids, away_ids):
+    def _process_trial(self, trial: SimulationResult, player_stats, team_wins, home_ids, away_ids):
         """Processes a single trial to accumulate player stats and determine game winner."""
-        h_score, a_score = 0, 0
-        for p_id, state in trial.items():
+        # 1. Process All Players from the flattened player_states dict
+        for p_id, state in trial.player_states.items():
             if p_id not in player_stats:
-                player_stats[p_id] = {
-                    k: []
-                    for k in [
-                        "H",
-                        "HR",
-                        "RBI",
-                        "R",
-                        "K_batter",
-                        "W_batter",
-                        "HRR",
-                        "TB",
-                        "K_pitcher",
-                        "W_pitcher",
-                        "Hits_allowed",
-                        "Outs",
-                    ]
-                }
+                player_stats[p_id] = self._init_player_stats()
 
             ps = player_stats[p_id]
             if isinstance(state, BatterSimState):
@@ -85,20 +69,29 @@ class SimulationAggregator:
                 ps["W_batter"].append(float(state.walks))
                 ps["HRR"].append(float(state.hrr))
                 ps["TB"].append(float(state.total_bases))
-                if p_id in home_ids:
-                    h_score += state.runs
-                elif p_id in away_ids:
-                    a_score += state.runs
             elif isinstance(state, PitcherSimState):
                 ps["K_pitcher"].append(float(state.strikeouts))
                 ps["W_pitcher"].append(float(state.walks_allowed))
                 ps["Hits_allowed"].append(float(state.hits_allowed))
                 ps["Outs"].append(float(state.outs_recorded))
 
+        # 2. Winning Team
+        h_score = trial.home_score
+        a_score = trial.away_score
         if h_score > a_score:
             team_wins["home"] += 1
         elif a_score > h_score:
             team_wins["away"] += 1
+
+    def _init_player_stats(self):
+        """Initializes the metrics dictionary for a player."""
+        return {
+            k: []
+            for k in [
+                "H", "HR", "RBI", "R", "K_batter", "W_batter",
+                "HRR", "TB", "K_pitcher", "W_pitcher", "Hits_allowed", "Outs"
+            ]
+        }
 
     def _create_record(self, player_id, stat_name, values, game_pk, season):
         """Helper to create a standardized prop result record for a player/stat pair."""

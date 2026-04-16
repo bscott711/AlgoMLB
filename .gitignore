@@ -108,3 +108,9 @@ data.zip
 # Model output logs and databases
 models/*.log
 models/*.db
+
+# PostgreSQL Emergency Recovery & Annex Volumes
+algoepl_backup/
+pg_wal_recovery/
+db_recovery_wal/
+db_tablespace/
