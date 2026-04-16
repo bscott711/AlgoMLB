@@ -345,12 +345,14 @@ class MatchupLoader:
         return bat_feats, pit_feats
 
     def _extract_features(self, row: PlayerRollingFeaturesORM) -> Dict[str, float]:
-        """Extracts all numeric 'roll_' and 'ema_' features from the ORM row."""
+        """Extracts all numeric rolling, EMA, and metadata features from the ORM row."""
         feats = {}
+        # Columns that the PA model expects but don't match the rolling/ema prefixes
+        _extra_cols = {"n_games_used", "days_since_last_game", "window_games"}
         for col in row.__table__.columns:
             if col.name.startswith(
                 ("roll_", "ema_", "std_", "seasonal_", "fatigue_", "delta_")
-            ):
+            ) or col.name in _extra_cols:
                 val = getattr(row, col.name)
                 feats[col.name] = float(val) if val is not None else 0.0
         return feats

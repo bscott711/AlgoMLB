@@ -1,0 +1,153 @@
+[32m15:08:04[0m | [1mINFO    [0m | [36malgomlb.ml.monte_carlo.loader[0m:[36m76[0m — [1mLoading matchup data for game_pk=824291...[0m
+[32m15:08:05[0m | [32m[1mSUCCESS [0m | [36malgomlb.ml.monte_carlo.loader[0m:[36m155[0m — [32m[1mSuccessfully loaded matchup for Kansas City Royals @ Detroit Tigers[0m
+[32m15:08:05[0m | [1mINFO    [0m | [36malgomlb.ml.monte_carlo.engine[0m:[36m433[0m — [1mStarting 100 Monte Carlo trials for game 824291...[0m
+[32m15:08:06[0m | [32m[1mSUCCESS [0m | [36malgomlb.ml.monte_carlo.engine[0m:[36m445[0m — [32m[1mSimulation of 100 trials complete.[0m
+=== RECENT COMPLETED GAMES ===
+  game_id=824291 2026-04-15 Kansas City Royals@Detroit Tigers score=1-2
+  game_id=824855 2026-04-15 Arizona Diamondbacks@Baltimore Orioles score=8-5
+  game_id=823071 2026-04-15 Cleveland Guardians@St. Louis Cardinals score=3-5
+  game_id=823722 2026-04-15 Boston Red Sox@Minnesota Twins score=9-5
+  game_id=824209 2026-04-15 Colorado Rockies@Houston Astros score=1-3
+
+Using game_pk=824291, actual: 1-2
+
+Home lineup: 9 batters
+Away lineup: 9 batters
+Batter features loaded: 18 players
+Pitcher features loaded: 16 players
+
+=== MODEL: .data/models/pa_outcome_v1.2.joblib ===
+Model type: <class 'algomlb.ml.model.MLBModel'>
+Has .le: True
+Label classes: ['double', 'hbp', 'home_run', 'out_in_play', 'single', 'strikeout', 'triple', 'walk']
+Has calibrated_clf: True
+Base estimator type: <class 'xgboost.sklearn.XGBClassifier'>
+Expected features count: 58
+First 30 features: [np.str_('pitcher_n_games_used'), np.str_('pitcher_days_since_last_game'), np.str_('pitcher_roll_pitches'), np.str_('pitcher_roll_strikes_pct'), np.str_('pitcher_roll_whiff_pct'), np.str_('pitcher_roll_k_pct'), np.str_('pitcher_roll_bb_pct'), np.str_('pitcher_roll_avg_release_speed'), np.str_('pitcher_roll_avg_pfx_x'), np.str_('pitcher_roll_avg_pfx_z'), np.str_('pitcher_roll_avg_pitcher_xwoba'), np.str_('pitcher_roll_pitcher_xwoba_shrunk'), np.str_('pitcher_ema_pitcher_xwoba_3g'), np.str_('pitcher_ema_pitcher_xwoba_7g'), np.str_('pitcher_ema_edge_pct_3g'), np.str_('pitcher_ema_velo_degradation_3g'), np.str_('pitcher_std_pitcher_xwoba_15g'), np.str_('pitcher_std_edge_pct_15g'), np.str_('pitcher_std_release_pos_z_15g'), np.str_('pitcher_delta_spin_rate_3g'), np.str_('pitcher_delta_extension_3g'), np.str_('pitcher_delta_fb_velo_3g'), np.str_('pitcher_roll_re24'), np.str_('batter_n_games_used'), np.str_('batter_days_since_last_game'), np.str_('batter_roll_pas'), np.str_('batter_roll_hits_per_pa'), np.str_('batter_roll_k_pct_batter'), np.str_('batter_roll_bb_pct_batter'), np.str_('batter_roll_barrel_pct')]
+Has cnt_ features: True
+Feature prefixes: {'away_': 1, 'batter_': 20, 'cnt_': 12, 'elo_': 1, 'home_': 1, 'pitcher_': 23}
+
+=== SAMPLE MATCHUP: batter 805808 vs pitcher 607625 ===
+Batter features: 45, keys: ['days_since_last_game', 'delta_extension_3g', 'delta_fb_velo_3g', 'delta_spin_rate_3g', 'ema_attack_angle_3g', 'ema_bat_speed_3g', 'ema_batter_xwoba_3g', 'ema_batter_xwoba_7g', 'ema_chase_pct_3g', 'ema_edge_pct_3g', 'ema_iz_whiff_pct_3g', 'ema_pitcher_xwoba_3g', 'ema_pitcher_xwoba_7g', 'ema_velo_degradation_3g', 'fatigue_index_14d']
+Pitcher features: 45, keys: ['days_since_last_game', 'delta_extension_3g', 'delta_fb_velo_3g', 'delta_spin_rate_3g', 'ema_attack_angle_3g', 'ema_bat_speed_3g', 'ema_batter_xwoba_3g', 'ema_batter_xwoba_7g', 'ema_chase_pct_3g', 'ema_edge_pct_3g', 'ema_iz_whiff_pct_3g', 'ema_pitcher_xwoba_3g', 'ema_pitcher_xwoba_7g', 'ema_velo_degradation_3g', 'fatigue_index_14d']
+
+Features matched: 46 / 58
+Features MISSING (filled with 0.0): 12
+Missing features: [np.str_('cnt_0-0'), np.str_('cnt_0-1'), np.str_('cnt_0-2'), np.str_('cnt_1-0'), np.str_('cnt_1-1'), np.str_('cnt_1-2'), np.str_('cnt_2-0'), np.str_('cnt_2-1'), np.str_('cnt_2-2'), np.str_('cnt_3-0'), np.str_('cnt_3-1'), np.str_('cnt_3-2')]
+ZERO columns: 15, NON-ZERO: 43
+
+Non-zero feature values:
+  pitcher_n_games_used                          = 2.000000
+  pitcher_days_since_last_game                  = 5.000000
+  pitcher_roll_pitches                          = 180.000000
+  pitcher_roll_strikes_pct                      = 0.500000
+  pitcher_roll_whiff_pct                        = 0.100000
+  pitcher_roll_k_pct                            = 0.055556
+  pitcher_roll_bb_pct                           = 0.011111
+  pitcher_roll_avg_release_speed                = 85.019417
+  pitcher_roll_avg_pfx_x                        = -0.016193
+  pitcher_roll_avg_pfx_z                        = 0.314764
+  pitcher_roll_avg_pitcher_xwoba                = 0.331664
+  pitcher_roll_pitcher_xwoba_shrunk             = 0.323332
+  pitcher_ema_pitcher_xwoba_3g                  = 0.331664
+  pitcher_ema_pitcher_xwoba_7g                  = 0.379186
+  pitcher_ema_edge_pct_3g                       = 0.395473
+  pitcher_ema_velo_degradation_3g               = 3.133974
+  pitcher_std_pitcher_xwoba_15g                 = 0.134413
+  pitcher_std_edge_pct_15g                      = 0.010075
+  pitcher_std_release_pos_z_15g                 = 0.008438
+  pitcher_roll_re24                             = -3.417000
+  batter_n_games_used                           = 14.000000
+  batter_days_since_last_game                   = 1.000000
+  batter_roll_pas                               = 60.000000
+  batter_roll_hits_per_pa                       = 0.250000
+  batter_roll_k_pct_batter                      = 0.133333
+  batter_roll_bb_pct_batter                     = 0.116667
+  batter_roll_barrel_pct                        = 0.066667
+  batter_roll_avg_launch_speed                  = 84.969700
+  batter_roll_avg_launch_angle                  = 17.793707
+  batter_roll_avg_batter_xwoba                  = 0.376104
+  batter_roll_batter_xwoba_shrunk               = 0.361339
+  batter_ema_batter_xwoba_3g                    = 0.383935
+  batter_ema_batter_xwoba_7g                    = 0.360457
+  batter_ema_bat_speed_3g                       = 70.460064
+  batter_ema_attack_angle_3g                    = 11.804082
+  batter_ema_chase_pct_3g                       = 0.514026
+  batter_ema_iz_whiff_pct_3g                    = 0.004272
+  batter_std_batter_xwoba_15g                   = 0.223647
+  batter_std_launch_angle_15g                   = 10.451977
+  batter_roll_re24                              = 1.707000
+  home_team_elo_pre                             = 1471.687629
+  away_team_elo_pre                             = 1501.137937
+  elo_diff                                      = -29.450309
+
+=== PREDICTED PROBABILITIES vs MLB BASELINE ===
+     double         : model=0.0464  real≈0.047  Δ=-0.0006
+     hbp            : model=0.0115  real≈0.012  Δ=-0.0005
+     home_run       : model=0.0344  real≈0.033  Δ=+0.0014
+     out_in_play    : model=0.4738  real≈0.437  Δ=+0.0368
+     single         : model=0.1525  real≈0.155  Δ=-0.0025
+  ⚠️ strikeout      : model=0.1224  real≈0.227  Δ=-0.1046
+     triple         : model=0.0035  real≈0.004  Δ=-0.0005
+  ⚠️ walk           : model=0.1555  real≈0.085  Δ=+0.0705
+
+  OBP (model): 0.4038
+  Out rate:    0.5962
+
+=== RUNNING 100 TRIAL SIMULATION ===
+Home: mean=4.95, std=3.17, range=[0,15]
+Away: mean=5.45, std=3.81, range=[0,18]
+Total: mean=10.40
+Actual: 1-2
+
+=== PLAYER: xR, xH ===
+  [HOME] Kevin McGonigle          : xR=0.780  xH=1.220
+  [HOME] Gleyber Torres           : xR=0.570  xH=1.180
+  [HOME] Colt Keith               : xR=0.640  xH=1.070
+  [HOME] Riley Greene             : xR=0.480  xH=1.070
+  [HOME] Spencer Torkelson        : xR=0.480  xH=1.060
+  [HOME] Kerry Carpenter          : xR=0.510  xH=0.940
+  [HOME] Zach McKinstry           : xR=0.500  xH=0.910
+  [HOME] Javier Báez              : xR=0.500  xH=0.980
+  [HOME] Jake Rogers              : xR=0.490  xH=0.740
+  [AWAY] Maikel Garcia            : xR=0.740  xH=1.150
+  [AWAY] Bobby Witt Jr.           : xR=0.710  xH=1.030
+  [AWAY] Vinnie Pasquantino       : xR=0.720  xH=1.080
+  [AWAY] Salvador Perez           : xR=0.600  xH=0.960
+  [AWAY] Carter Jensen            : xR=0.640  xH=1.160
+  [AWAY] Michael Massey           : xR=0.580  xH=0.980
+  [AWAY] Jac Caglianone           : xR=0.570  xH=1.070
+  [AWAY] Lane Thomas              : xR=0.440  xH=0.900
+  [AWAY] Kyle Isbel               : xR=0.450  xH=0.960
+
+Team xR sums: Home=4.95, Away=5.45
+Sim means:    Home=4.95, Away=5.45
+GAP:          Home=0.00, Away=0.00
+
+=== SINGLE TRIAL TRACE (trial 0) ===
+Score: Away 1 - Home 4, innings=9
+  Kevin McGonigle          : PA=5 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=0
+  Gleyber Torres           : PA=4 H=2(1B=1 2B=1 3B=0 HR=0) R=2 RBI=0 BB=1 K=0
+  Colt Keith               : PA=4 H=2(1B=1 2B=0 3B=0 HR=1) R=1 RBI=4 BB=0 K=1
+  Riley Greene             : PA=4 H=2(1B=1 2B=1 3B=0 HR=0) R=0 RBI=0 BB=0 K=1
+  Spencer Torkelson        : PA=4 H=1(1B=1 2B=0 3B=0 HR=0) R=0 RBI=0 BB=1 K=0
+  Kerry Carpenter          : PA=4 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=1 K=0
+  Zach McKinstry           : PA=4 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=1 K=1
+  Javier Báez              : PA=4 H=1(1B=1 2B=0 3B=0 HR=0) R=1 RBI=0 BB=0 K=0
+  Jake Rogers              : PA=4 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=1
+  Maikel Garcia            : PA=5 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=3
+  Bobby Witt Jr.           : PA=5 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=2
+  Vinnie Pasquantino       : PA=5 H=1(1B=1 2B=0 3B=0 HR=0) R=0 RBI=0 BB=2 K=1
+  Salvador Perez           : PA=5 H=1(1B=1 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=2
+  Carter Jensen            : PA=4 H=1(1B=0 2B=0 3B=0 HR=1) R=1 RBI=1 BB=0 K=1
+  Michael Massey           : PA=4 H=1(1B=1 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=1
+  Jac Caglianone           : PA=4 H=2(1B=2 2B=0 3B=0 HR=0) R=0 RBI=0 BB=0 K=0
+  Lane Thomas              : PA=4 H=1(1B=1 2B=0 3B=0 HR=0) R=0 RBI=0 BB=1 K=1
+  Kyle Isbel               : PA=4 H=0(1B=0 2B=0 3B=0 HR=0) R=0 RBI=0 BB=2 K=0
+
+  TOTALS: PA=77 H=15 HR=2 BB=9 K=15
+  Hit rate: 0.195
+  K rate:   0.195
+  BB rate:  0.117
+
+=== DIAGNOSIS COMPLETE ===
