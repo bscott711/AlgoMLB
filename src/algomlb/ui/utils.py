@@ -80,7 +80,7 @@ def load_simulation_results(session: Session, game_pk: int) -> pd.DataFrame:
 
 
 def run_and_persist_simulation(
-    session: Session, game_pk: int, trials: int, version: str = "v1.2"
+    session: Session, game_pk: int, trials: int, version: str = "v1.3"
 ) -> pd.DataFrame:
     """Run a new simulation and save results to the database."""
     # 1. Ensure Lineups Exist (Auto-Ingest if missing)
@@ -112,8 +112,10 @@ def run_and_persist_simulation(
             f"CRITICAL: MatchupLoader returned None for game {game_pk}. This should not happen. Check backend logs."
         )
 
-    # 3. Load model
+    # 3. Load model (try requested version, fallback to v1.2)
     model_path = Path(f".data/models/pa_outcome_{version}.joblib")
+    if not model_path.exists() and version == "v1.3":
+        model_path = Path(".data/models/pa_outcome_v1.2.joblib")
     if not model_path.exists():
         raise FileNotFoundError(f"Model not found at {model_path}")
     model = MLBModel.load(model_path)

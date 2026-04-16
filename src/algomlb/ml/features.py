@@ -153,13 +153,10 @@ class FeaturePipeline:
         if "game_pk" not in pas_df.columns and "game_id" in pas_df.columns:
             pas_df["game_pk"] = pas_df["game_id"]
 
-        # 1b. Derive count_state from Retrosheet balls/strikes columns
-        if "balls" in pas_df.columns and "strikes" in pas_df.columns:
-            pas_df["count_state"] = (
-                pas_df["balls"].fillna(0).astype(int).astype(str)
-                + "-"
-                + pas_df["strikes"].fillna(0).astype(int).astype(str)
-            )
+        # NOTE: count_state / cnt_* features were removed in v1.3.
+        # The model's count features encoded terminal counts (walks only at
+        # 3-ball, Ks only at 2-strike), creating tautological correlations
+        # that made PA outcome predictions unrealistic in production.
 
         pitcher_gold_df = self._align_types(pitcher_gold_df.copy())
         batter_gold_df = self._align_types(batter_gold_df.copy())
@@ -196,15 +193,6 @@ class FeaturePipeline:
         # Removed 5 (Lineup Aggregates). PA outcomes are isolated to the specific pitcher/batter duel
         # without polluting the matrix with generalized team hitting metrics (h_bat_ / a_bat_).
 
-        # 5b. One-hot encode count_state for count-conditional outcome modeling
-        COUNT_STATES = [
-            "0-0", "0-1", "0-2", "1-0", "1-1", "1-2",
-            "2-0", "2-1", "2-2", "3-0", "3-1", "3-2",
-        ]
-        if "count_state" in df.columns:
-            for cs in COUNT_STATES:
-                df[f"cnt_{cs}"] = (df["count_state"] == cs).astype("float32")
-
         # 6. Resolve Target
         if "pa_outcome" in df.columns:
             y = df["pa_outcome"]
@@ -215,13 +203,13 @@ class FeaturePipeline:
             return pd.DataFrame(), pd.Series()
 
         # 7. Finalize Features (Harden against Metadata Leak)
-        keep_prefixes = ["pitcher_", "batter_", "cnt_"]
+        keep_prefixes = ["pitcher_", "batter_"]
         extra = ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]
         
         feature_cols = [
             c for c in df.columns 
             if (any(c.startswith(p) for p in keep_prefixes) or c in extra)
-            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "date", "role", "fatigue_index_", "_window_games"])
+            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "game_date", "role", "baseline_quality", "shrinkage_applied"])
         ]
 
         X = df[feature_cols].select_dtypes(include=["number"]).astype("float32")

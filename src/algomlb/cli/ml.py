@@ -228,7 +228,7 @@ def tune(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     trials: int = typer.Option(100, "--trials", help="Number of Optuna trials."),
-    version: str = typer.Option("v1.2", "--version", help="Model version."),
+    version: str = typer.Option("v1.3", "--version", help="Model version."),
 ) -> None:
     """Optimize Uranium model hyperparameters via Optuna."""
     session_factory = get_session_factory()
@@ -312,7 +312,7 @@ def tune(
 def backtest(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
-    version: str = typer.Option("v1.2", "--version", help="Model version."),
+    version: str = typer.Option("v1.3", "--version", help="Model version."),
 ) -> None:
     """Run walk-forward backtesting with fixed hyperparameters."""
     import datetime
@@ -422,7 +422,7 @@ def backtest(
 def explain(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to explain."),
-    version: str = typer.Option("v1.2", "--version", help="Model version."),
+    version: str = typer.Option("v1.3", "--version", help="Model version."),
 ) -> None:
     """Generate and persist SHAP explanations for the model."""
     import datetime
@@ -487,7 +487,7 @@ def explain(
 def train(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
-    version: str = typer.Option("v1.2", "--version", help="Model version."),
+    version: str = typer.Option("v1.3", "--version", help="Model version."),
 ) -> None:
     """Train and persist a production Uranium model using best params."""
     session_factory = get_session_factory()
@@ -583,7 +583,7 @@ def simulate_game(
     game_pk: int = typer.Option(..., "--game-pk", help="Game PK to simulate."),
     trials: int = typer.Option(10000, "--trials", help="Number of Monte Carlo trials."),
     version: str = typer.Option(
-        "v1.2", "--version", help="Model version for pa_outcome."
+        "v1.3", "--version", help="Model version for pa_outcome."
     ),
     use_hook_model: bool = typer.Option(
         True,
