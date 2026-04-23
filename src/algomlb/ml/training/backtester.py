@@ -132,7 +132,7 @@ class OOFAccumulator:
         all_oof_results = []
 
         for i, (train_df, test_df) in enumerate(folds):
-            logger.info(f"Processing Fold {i + 1}/{len(folds)}...")
+            logger.info(f"Processing Fold {i + 1}...")
 
             # Setup data
             X_train, y_train = train_df[self.features], train_df[self.target]

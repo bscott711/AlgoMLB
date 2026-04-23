@@ -61,16 +61,17 @@ class XGBoostOptunaObjective:
                 self.num_class = len(self.le.classes_)
 
     def __call__(self, trial: optuna.Trial) -> float:
-        # Define search space strictly to prevent overfitting baseball noise
+        # v1.4 Signal Injection: Looser regularization to restore player differentiation
         params = {
-            "max_depth": trial.suggest_int("max_depth", 3, 7),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
-            "min_child_weight": trial.suggest_int("min_child_weight", 1, 15),
+            "max_depth": trial.suggest_int("max_depth", 4, 10),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+            "min_child_weight": trial.suggest_float("min_child_weight", 0.1, 8.0),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "gamma": trial.suggest_float("gamma", 0.0, 1.0),
+            "gamma": trial.suggest_float("gamma", 0.0, 2.0),
             "max_delta_step": trial.suggest_int("max_delta_step", 0, 5),
-            "n_estimators": trial.suggest_int("n_estimators", 100, 500, step=100),
+            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=100),
+            "tree_method": "hist",
             "n_jobs": -1,
             "random_state": 42,
             "verbosity": 0,
@@ -83,7 +84,9 @@ class XGBoostOptunaObjective:
         else:
             params["objective"] = "binary:logistic"
 
-        fold_losses = []
+        trial_metrics = []
+
+        from sklearn.metrics import roc_auc_score
 
         for i, (train_idx, test_idx) in enumerate(self.folds):
             X_train, y_train = self.X[train_idx], self.y[train_idx]
@@ -96,28 +99,44 @@ class XGBoostOptunaObjective:
             # Predict probabilities
             y_prob = model.predict_proba(X_test)
 
-            # Calculate step loss
-            if self.metric == "mlogloss":
-                # Explicitly pass all labels to handle folds missing rare outcomes
-                labels = (
-                    np.arange(self.num_class) if self.num_class is not None else None
-                )
-                step_loss = log_loss(y_test, y_prob, labels=labels)
-            else:
-                # y_prob is (N, 2), we want P(class=1)
-                step_loss = brier_score_loss(y_test, y_prob[:, 1])
+            # 1. LogLoss (Calibration)
+            labels = np.arange(self.num_class) if self.num_class is not None else None
+            curr_logloss = log_loss(y_test, y_prob, labels=labels)
 
-            fold_losses.append(step_loss)
+            # 2. AUC (Discrimination) - Composite Step
+            # For PA outcome, AUC ensures we rank high-K/high-HR matchups correctly.
+            if self.num_class and self.num_class > 2:
+                try:
+                    # Optimized: Using a random subsample for AUC to speed up trials if test set is massive
+                    if len(y_test) > 50000:
+                        sub_idx = np.random.choice(len(y_test), 50000, replace=False)
+                        y_t_sub, y_p_sub = y_test[sub_idx], y_prob[sub_idx]
+                    else:
+                        y_t_sub, y_p_sub = y_test, y_prob
+                    
+                    # Ensure all classes are represented in the subsample for AUC
+                    if len(np.unique(y_t_sub)) == self.num_class:
+                        curr_auc = roc_auc_score(y_t_sub, y_p_sub, multi_class="ovr", average="macro")
+                    else:
+                        # Fallback to full set if subsample is missing classes
+                        curr_auc = roc_auc_score(y_test, y_prob, multi_class="ovr", average="macro")
+                except Exception:
+                    curr_auc = 0.5
+            else:
+                curr_auc = float(roc_auc_score(y_test, y_prob[:, 1]))
+
+            # Composite Score: We want to minimize (LogLoss + [1 - AUC])
+            composite_score = curr_logloss + (1.0 - curr_auc)
+            trial_metrics.append(composite_score)
 
             # Report intermediate values for pruning
-            trial.report(step_loss, i)
+            trial.report(composite_score, i)
 
             # Prune if the current trial is unpromising
             if trial.should_prune():
                 raise optuna.TrialPruned()
 
-        avg_loss = float(np.mean(fold_losses))
-        return avg_loss
+        return float(np.mean(trial_metrics))
 
 
 def run_optuna_study(

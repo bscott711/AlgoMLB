@@ -18,32 +18,64 @@ from algomlb.db.session import get_engine
 def compute_fold_metrics(
     y_true: np.ndarray | pd.Series,
     y_prob: np.ndarray,
+    labels: Optional[List[Any]] = None,
 ) -> dict:
     """Return accuracy, AUC, log loss, and Brier score for a single fold."""
     from sklearn.metrics import (
         accuracy_score,
-        brier_score_loss,
         log_loss,
         roc_auc_score,
     )
+    from sklearn.preprocessing import LabelEncoder
 
-    y_true = np.asarray(y_true).astype(int)
+    y_true_raw = np.asarray(y_true)
     y_prob = np.asarray(y_prob, dtype=float)
 
-    # Multiclass metrics (log_loss handles it automatically)
+    # Robust encoding for Accuracy/AUC if y_true is strings
+    if not np.issubdtype(y_true_raw.dtype, np.number):
+        le = LabelEncoder()
+        if labels is not None:
+            le.classes_ = np.array(labels)
+            # Filter y_true to only include known labels to prevent transform errors
+            y_true = le.transform(y_true_raw)
+        else:
+            y_true = le.fit_transform(y_true_raw)
+    else:
+        y_true = y_true_raw.astype(int)
+
+    # Multiclass metrics
     if y_prob.ndim == 2 and y_prob.shape[1] > 2:
+        num_classes = y_prob.shape[1]
         y_pred = np.argmax(y_prob, axis=1)
         # For ECE/Calibration on multiclass, we use Confidence Calibration (Top-1)
         p_conf = np.max(y_prob, axis=1)
         y_correct = (y_pred == y_true).astype(int)
         ece = calculate_ece(y_correct, p_conf)
 
+        # Multiclass Brier score: Mean square error of probability vectors
+        # Brier = mean(sum((y_i - p_i)^2))
+        y_true_onehot = np.zeros_like(y_prob)
+        y_true_indices = y_true.astype(int)
+        # Handle cases where y_true might have indices outside the y_prob range
+        valid_mask = y_true_indices < num_classes
+        y_true_onehot[np.arange(len(y_true))[valid_mask], y_true_indices[valid_mask]] = 1
+        brier = np.mean(np.sum((y_true_onehot - y_prob) ** 2, axis=1))
+
+        # Multiclass AUC (OvR)
+        try:
+            # We must specify labels to ensure AUC matches the prob matrix dimensions
+            auc_labels = labels if labels is not None else np.unique(y_true)
+            auc = float(roc_auc_score(y_true, y_prob, multi_class="ovr", average="macro", labels=auc_labels))
+        except Exception as e:
+            logger.warning(f"AUC calculation failed: {e}")
+            auc = 0.5
+
         return {
             "accuracy": float(accuracy_score(y_true, y_pred)),
             "log_loss": float(log_loss(y_true, y_prob)),
             "ece": float(ece),
-            "auc": 0.0,  # Multiclass AUC requires per-class or OvR, skipping for now
-            "brier": 0.0,
+            "auc": auc,
+            "brier": float(brier),
         }
 
     # Safety: handle 2D binary inputs passed to 1D metric functions
@@ -51,6 +83,8 @@ def compute_fold_metrics(
         y_prob = y_prob[:, 1]
     elif y_prob.ndim != 1:
         raise ValueError(f"compute_fold_metrics expects 1D array, got {y_prob.shape}")
+
+    from sklearn.metrics import brier_score_loss
 
     y_pred = (y_prob >= 0.5).astype(int)
     return {

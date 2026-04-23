@@ -363,28 +363,31 @@ def backtest(
     y_true = oof_df[target].to_numpy()
 
     # Robustly handle p_model being either a scalar or a vector (binary/multiclass)
+    from algomlb.ml.eval import compute_fold_metrics
     if isinstance(oof_df["p_model"].iloc[0], (list, np.ndarray)):
-        prob_matrix = np.stack(oof_df["p_model"].tolist())
-        if prob_matrix.shape[1] > 2:
-            # Multiclass handling
-            from sklearn.metrics import log_loss, accuracy_score
-
-            y_pred = np.argmax(prob_matrix, axis=1)
-            metrics = {
-                "accuracy": float(accuracy_score(y_true, y_pred)),
-                "log_loss": float(log_loss(y_true, prob_matrix)),
-                "brier": 0.0,
-                "auc": 0.0,
-            }
-            p_pos = prob_matrix  # Calibration bins will likely need adjustment for multiclass
-        else:
-            # Binary probabilities [p_neg, p_pos]
-            p_pos = prob_matrix[:, 1]
-            metrics = compute_fold_metrics(y_true, p_pos)
+        p_pos = np.stack(oof_df["p_model"].tolist())
     else:
-        # Scalar probabilities
         p_pos = oof_df["p_model"].to_numpy()
-        metrics = compute_fold_metrics(y_true, p_pos)
+
+    # Align labels with the model's LabelEncoder to ensure Accuracy/AUC are calculated correctly
+    model_path = Path(f".data/models/{target}_{version}.joblib")
+    labels = None
+    if model_path.exists():
+        from algomlb.ml.model import MLBModel
+        loaded_model = MLBModel.load(model_path)
+        if hasattr(loaded_model, "le") and loaded_model.le is not None:
+            labels = loaded_model.le.classes_.tolist()
+
+    metrics = compute_fold_metrics(y_true, p_pos, labels=labels)
+    # Re-extract encoded y_true for calibration bins if it was strings
+    if not np.issubdtype(y_true.dtype, np.number):
+        from sklearn.preprocessing import LabelEncoder
+        le = LabelEncoder()
+        if labels is not None:
+            le.classes_ = np.array(labels)
+            y_true = le.transform(y_true)
+        else:
+            y_true = le.fit_transform(y_true)
 
     cal_bins = compute_calibration_bins(y_true, p_pos)
 
