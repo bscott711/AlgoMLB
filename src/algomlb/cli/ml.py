@@ -229,6 +229,7 @@ def tune(
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     trials: int = typer.Option(100, "--trials", help="Number of Optuna trials."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
+    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
 ) -> None:
     """Optimize Uranium model hyperparameters via Optuna."""
     session_factory = get_session_factory()
@@ -268,6 +269,10 @@ def tune(
     y_frame = y.to_frame(name=target)
     combined_df = cast(pd.DataFrame, pd.concat([X, y_frame], axis=1))
     combined_df = combined_df.reset_index()
+
+    if fast:
+        logger.info("FAST MODE enabled. Truncating combined_df to 2000 rows.")
+        combined_df = combined_df.head(2000)
 
     study = run_optuna_study(
         combined_df, X.columns.tolist(), target, n_trials=trials, study_name=study_name
@@ -313,6 +318,7 @@ def backtest(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
+    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
 ) -> None:
     """Run walk-forward backtesting with fixed hyperparameters."""
     import datetime
@@ -350,7 +356,12 @@ def backtest(
     combined_df = cast(pd.DataFrame, pd.concat([X, y.to_frame(name=target)], axis=1))
     combined_df = combined_df.reset_index()
 
+    if fast:
+        logger.info("FAST MODE enabled. Truncating combined_df to 2000 rows.")
+        combined_df = combined_df.head(2000)
+
     params = load_optimized_params(target, version)
+    from algomlb.ml.model import MLBModel
     accumulator = OOFAccumulator(
         model_class=MLBModel, features=X.columns.tolist(), target=target
     )
@@ -373,7 +384,6 @@ def backtest(
     model_path = Path(f".data/models/{target}_{version}.joblib")
     labels = None
     if model_path.exists():
-        from algomlb.ml.model import MLBModel
         loaded_model = MLBModel.load(model_path)
         if hasattr(loaded_model, "le") and loaded_model.le is not None:
             labels = loaded_model.le.classes_.tolist()
@@ -426,6 +436,7 @@ def explain(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to explain."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
+    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
 ) -> None:
     """Generate and persist SHAP explanations for the model."""
     import datetime
@@ -456,6 +467,12 @@ def explain(
         )
 
     params = load_optimized_params(target, version)
+
+    if fast:
+        logger.info("FAST MODE enabled. Truncating data to 2000 rows.")
+        X = X.head(2000)
+        y = y.head(2000)
+
     model = MLBModel(**params)
     model.fit(X, y)
 
@@ -491,6 +508,7 @@ def train(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
+    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
 ) -> None:
     """Train and persist a production Uranium model using best params."""
     session_factory = get_session_factory()
@@ -520,6 +538,12 @@ def train(
         )
 
     params = load_optimized_params(target, version)
+
+    if fast:
+        logger.info("FAST MODE enabled. Truncating data to 2000 rows.")
+        X = X.head(2000)
+        y = y.head(2000)
+
     model = MLBModel(**params)
 
     logger.info(f"Fitting production model for {target}...")

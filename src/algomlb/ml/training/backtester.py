@@ -128,8 +128,13 @@ class OOFAccumulator:
         """
         Runs walk-forward backtesting and returns a DataFrame of OOF predictions.
         """
-        folds = splitter.split(df)
+        folds = list(splitter.split(df))
         all_oof_results = []
+
+        if not folds:
+            logger.warning("TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.")
+            split_idx = int(len(df) * 0.8)
+            folds = [(df.iloc[:split_idx], df.iloc[split_idx:])]
 
         for i, (train_df, test_df) in enumerate(folds):
             logger.info(f"Processing Fold {i + 1}...")

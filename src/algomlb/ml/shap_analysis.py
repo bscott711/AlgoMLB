@@ -59,14 +59,19 @@ def compute_global_shap(
 
     # shap_values may be a list (multiclass) or ndarray (binary)
     if isinstance(shap_values, list):
-        # For binary classification, take the positive class
-        sv = np.array(shap_values[1])
+        # For multiclass, average across classes
+        sv_list_abs = [np.abs(np.array(s)) for s in shap_values]
+        mean_abs = np.mean([s.mean(axis=0) for s in sv_list_abs], axis=0)
+        mean_val = np.mean([np.array(s).mean(axis=0) for s in shap_values], axis=0)
     else:
         sv = np.array(shap_values)
-
-    # Aggregate
-    mean_abs = np.abs(sv).mean(axis=0)
-    mean_val = sv.mean(axis=0)
+        if sv.ndim == 3:
+            # Multiclass: (n_samples, n_features, n_classes)
+            mean_abs = np.abs(sv).mean(axis=0).mean(axis=1)
+            mean_val = sv.mean(axis=0).mean(axis=1)
+        else:
+            mean_abs = np.abs(sv).mean(axis=0)
+            mean_val = sv.mean(axis=0)
 
     result = pd.DataFrame(
         {

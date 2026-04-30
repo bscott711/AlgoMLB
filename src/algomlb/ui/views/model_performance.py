@@ -86,40 +86,47 @@ def load_global_shap(
         return pd.DataFrame()
 
 
-# ── Load eval history ─────────────────────────────────────────────────────
-
-eval_df = load_eval_history()
-
-if eval_df.empty:
-    st.warning(
-        "No evaluation history found. Run `algomlb ml train` or "
-        "`algomlb ml walk-forward` after creating the `uranium_eval_history` table."
-    )
-    st.info("Tip: Run `alembic upgrade head` to create the new diagnostic tables.")
-    st.stop()
-
-
 # ── Sidebar controls ─────────────────────────────────────────────────────
 
 with st.sidebar:
     st.header("🔧 Evaluation Controls")
 
+    model_targets = ["pa_outcome", "home_win", "total_runs_actual", "is_strike"]
+    selected_target = st.selectbox("Model Target", model_targets)
+
+# ── Load eval history ─────────────────────────────────────────────────────
+
+eval_df = load_eval_history(selected_target)
+
+if eval_df.empty:
+    st.warning(
+        f"No evaluation history found for target: {selected_target}. Run `algomlb ml train` or "
+        "`algomlb ml walk-forward` after creating the `uranium_eval_history` table."
+    )
+    st.info("Tip: Run `alembic upgrade head` to create the new diagnostic tables.")
+    st.stop()
+
+with st.sidebar:
     model_versions = sorted(eval_df["model_version"].unique().tolist())
-    selected_model = st.selectbox("Model Version", model_versions)
+    selected_model = st.selectbox(
+        "Model Version",
+        model_versions,
+        index=len(model_versions) - 1 if model_versions else 0
+    )
 
     df_mv = eval_df[eval_df["model_version"] == selected_model]
     dates = sorted(df_mv["fold_date"].unique().tolist())
     selected_date = st.selectbox(
         "Fold Date",
         options=dates,
-        index=len(dates) - 1,
+        index=len(dates) - 1 if dates else 0,
     )
 
     # Ensure selected_model is a valid string for typed calls
     model_version_str = str(selected_model) if selected_model else ""
 
     # SHAP dataset selector
-    shap_df_all = load_global_shap(model_version_str)
+    shap_df_all = load_global_shap(model_version_str, model_target=selected_target)
     shap_dates = (
         sorted(shap_df_all["fold_date"].unique().tolist())
         if not shap_df_all.empty
@@ -200,7 +207,7 @@ st.markdown("---")
 
 st.markdown(f"### 🎯 Calibration Curve — Fold {selected_date}")
 
-cal_df = load_calibration(model_version_str, selected_date)
+cal_df = load_calibration(model_version_str, selected_date, model_target=selected_target)
 
 if cal_df.empty:
     st.info("No calibration bins found for this model/date. Run training to populate.")

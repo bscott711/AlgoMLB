@@ -1,0 +1,18 @@
+📊 Launching Baseball Bot Dashboard (Port 8502)...
+uv run streamlit run src/algomlb/ui/app.py --server.port 8502 --server.add
+ress 0.0.0.0 --server.headless false
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8502
+  Network URL: http://10.0.0.38:8502
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,40 @@
+Starting Tune (Fast)...
+[32m16:15:44[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m16:16:16[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+[32m16:16:46[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m274[0m — [1mFAST MODE enabled. Truncating combined_df to 2000 rows.[0m
+[I 2026-04-29 16:16:46,986] Using an existing study with name 'pa_outcome_v1.6' instead of creating a new one.
+[32m16:16:47[0m | [33m[1mWARNING [0m | [36malgomlb.ml.training.optuna_tuner[0m:[36m52[0m — [33m[1mTimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.[0m
+[32m16:16:47[0m | [1mINFO    [0m | [36malgomlb.ml.training.optuna_tuner[0m:[36m177[0m — [1mStarting Optuna optimization session: pa_outcome_v1.6[0m
+  0%|          | 0/3 [00:00<?, ?it/s]                                       0%|          | 0/3 [00:07<?, ?it/s]Best trial: 3. Best value: 2.00505:   0%|          | 0/3 [00:07<?, ?it/s]Best trial: 3. Best value: 2.00505:  33%|███▎      | 1/3 [00:07<00:14,  7.11s/it]                                                                                 Best trial: 3. Best value: 2.00505:  33%|███▎      | 1/3 [00:14<00:14,  7.11s/it]Best trial: 3. Best value: 2.00505:  33%|███▎      | 1/3 [00:14<00:14,  7.11s/it]Best trial: 3. Best value: 2.00505:  67%|██████▋   | 2/3 [00:14<00:07,  7.25s/it]                                                                                 Best trial: 3. Best value: 2.00505:  67%|██████▋   | 2/3 [00:32<00:07,  7.25s/it]Best trial: 3. Best value: 2.00505:  67%|██████▋   | 2/3 [00:32<00:07,  7.25s/it]Best trial: 3. Best value: 2.00505: 100%|██████████| 3/3 [00:32<00:00, 12.19s/it]Best trial: 3. Best value: 2.00505: 100%|██████████| 3/3 [00:32<00:00, 10.84s/it]
+[32m16:17:19[0m | [32m[1mSUCCESS [0m | [36malgomlb.ml.training.optuna_tuner[0m:[36m180[0m — [32m[1mBest value: 2.0050[0m
+[32m16:17:19[0m | [1mINFO    [0m | [36malgomlb.ml.training.optuna_tuner[0m:[36m181[0m — [1mBest hyperparameters: {'max_depth': 9, 'learning_rate': 0.08048858541070564, 'min_child_weight': 1.528105905118897, 'subsample': 0.6281062403082709, 'colsample_bytree': 0.6972021916376645, 'gamma': 0.03698078226684154, 'max_delta_step': 1, 'n_estimators': 500}[0m
+[32m16:17:19[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m282[0m — [32m[1mTuning complete for pa_outcome. Best Params: {'max_depth': 9, 'learning_rate': 0.08048858541070564, 'min_child_weight': 1.528105905118897, 'subsample': 0.6281062403082709, 'colsample_bytree': 0.6972021916376645, 'gamma': 0.03698078226684154, 'max_delta_step': 1, 'n_estimators': 500}[0m
+[32m16:17:19[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m290[0m — [32m[1mOptimized parameters persisted to .data/models/optuna_best_params_pa_outcome_v1.6.json[0m
+[I 2026-04-29 16:16:54,108] Trial 9 finished with value: 2.021975250022107 and parameters: {'max_depth': 4, 'learning_rate': 0.06190982306883195, 'min_child_weight': 0.04722822859648885, 'subsample': 0.7189592025068473, 'colsample_bytree': 0.803915971965996, 'gamma': 0.07893857026047219, 'max_delta_step': 3, 'n_estimators': 200}. Best is trial 3 with value: 2.0050496964027644.
+[I 2026-04-29 16:17:01,466] Trial 10 finished with value: 2.0216957483801923 and parameters: {'max_depth': 8, 'learning_rate': 0.1058038040762804, 'min_child_weight': 1.7457837177059687, 'subsample': 0.9065674364280503, 'colsample_bytree': 0.6239135098487052, 'gamma': 0.23314708022659641, 'max_delta_step': 2, 'n_estimators': 200}. Best is trial 3 with value: 2.0050496964027644.
+[I 2026-04-29 16:17:19,530] Trial 11 finished with value: 2.021324498156437 and parameters: {'max_depth': 6, 'learning_rate': 0.04801070420584719, 'min_child_weight': 1.3316845654523615, 'subsample': 0.8590828402310557, 'colsample_bytree': 0.8054453356101853, 'gamma': 0.44116188302264236, 'max_delta_step': 4, 'n_estimators': 500}. Best is trial 3 with value: 2.0050496964027644.
+Starting Backtest (Fast)...
+[32m16:17:25[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m16:18:18[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+[32m16:18:46[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m360[0m — [1mFAST MODE enabled. Truncating combined_df to 2000 rows.[0m
+[32m16:18:46[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.6.json[0m
+[32m16:18:46[0m | [33m[1mWARNING [0m | [36malgomlb.ml.training.backtester[0m:[36m135[0m — [33m[1mTimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.[0m
+[32m16:18:46[0m | [1mINFO    [0m | [36malgomlb.ml.training.backtester[0m:[36m140[0m — [1mProcessing Fold 1...[0m
+[32m16:18:50[0m | [1mINFO    [0m | [36malgomlb.ml.eval[0m:[36m294[0m — [1mPersisted eval results for pa_outcome/v1.6/2026-04-29: Acc=0.4750 AUC=0.5000, 20 calibration bins.[0m
+[32m16:18:50[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m416[0m — [32m[1mBacktest complete for pa_outcome. Metrics: {'accuracy': 0.475, 'log_loss': 1.4468143639300366, 'ece': 0.0218749976789695, 'auc': 0.5, 'brier': 0.6939796873990179}[0m
+Starting Explain (Fast)...
+[32m16:18:55[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2024,2025...[0m
+[32m16:19:11[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 31 teams, 9900 rows.[0m
+[32m16:19:22[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.6.json[0m
+[32m16:19:22[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m472[0m — [1mFAST MODE enabled. Truncating data to 2000 rows.[0m
+[32m16:19:27[0m | [1mINFO    [0m | [36malgomlb.ml.shap_analysis[0m:[36m54[0m — [1mComputing SHAP values on 2000 samples, 50 features...[0m
+[32m16:19:29[0m | [1mINFO    [0m | [36malgomlb.ml.shap_analysis[0m:[36m125[0m — [1mPersisted 50 SHAP features for pa_outcome/v1.6/2026-04-29.[0m
+[32m16:19:29[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m490[0m — [32m[1mExplanation complete for pa_outcome.[0m
+Starting Train (Fast)...
+[32m16:19:34[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m84[0m — [1mFetching features for years: 2021,2022,2023,2024,2025...[0m
+[32m16:20:05[0m | [1mINFO    [0m | [36malgomlb.ml.sabermetrics[0m:[36m107[0m — [1mComputed Pythagorean features for 32 teams, 24716 rows.[0m
+[32m16:20:33[0m | [1mINFO    [0m | [36malgomlb.ml.hyperopt[0m:[36m267[0m — [1mLoading optimised parameters from .data/models/optuna_best_params_pa_outcome_v1.6.json[0m
+[32m16:20:33[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m543[0m — [1mFAST MODE enabled. Truncating data to 2000 rows.[0m
+[32m16:20:33[0m | [1mINFO    [0m | [36malgomlb.cli.ml[0m:[36m549[0m — [1mFitting production model for pa_outcome...[0m
+[32m16:20:37[0m | [32m[1mSUCCESS [0m | [36malgomlb.cli.ml[0m:[36m557[0m — [32m[1mProduction model saved to .data/models/pa_outcome_v1.6.joblib[0m
+Pipeline complete!

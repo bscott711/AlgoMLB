@@ -967,6 +967,7 @@ class UraniumShapGlobalORM(Base):
     fold_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     feature_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     mean_abs_shap: Mapped[float] = mapped_column(Float, nullable=False)
+    mean_shap: Mapped[Optional[float]] = mapped_column(Float)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     __table_args__ = (UniqueConstraint('model_target', 'model_version', 'fold_date', 'feature_name', name='uq_uranium_shap_global_target_version_fold'), {'extend_existing': True})
 

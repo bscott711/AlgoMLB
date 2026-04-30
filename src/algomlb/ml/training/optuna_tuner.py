@@ -48,6 +48,11 @@ class XGBoostOptunaObjective:
             test_idx = df_indices[len(train_df) : len(train_df) + len(test_df)]
             self.folds.append((train_idx, test_idx))
 
+        if not self.folds:
+            logger.warning("TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.")
+            split_idx = int(len(df) * 0.8)
+            self.folds.append((df_indices[:split_idx], df_indices[split_idx:]))
+
         # Hardening: Fit LabelEncoder once globally for multiclass
         self.le = None
         self.num_class = None
@@ -65,10 +70,10 @@ class XGBoostOptunaObjective:
         params = {
             "max_depth": trial.suggest_int("max_depth", 4, 10),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
-            "min_child_weight": trial.suggest_float("min_child_weight", 0.1, 8.0),
+            "min_child_weight": trial.suggest_float("min_child_weight", 0.01, 2.0),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "gamma": trial.suggest_float("gamma", 0.0, 2.0),
+            "gamma": trial.suggest_float("gamma", 0.0, 0.5),
             "max_delta_step": trial.suggest_int("max_delta_step", 0, 5),
             "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=100),
             "tree_method": "hist",

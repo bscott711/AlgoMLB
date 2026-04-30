@@ -18,7 +18,36 @@ def render_optuna_view():
         options=["pa_outcome", "home_win", "total_runs_actual", "is_strike"],
         index=0,
     )
-    version_filter = st.sidebar.text_input("Model Version", value="v1.0")
+
+    engine = get_engine()
+    # Get available versions for this target
+    versions_query = text("SELECT DISTINCT model_version FROM uranium_eval_history WHERE model_target = :target")
+    try:
+        versions_df = pd.read_sql(versions_query, engine, params={"target": target_filter})
+        available_versions = sorted(versions_df["model_version"].tolist())
+    except Exception:
+        available_versions = []
+
+    try:
+        storage_url = "sqlite:///models/optuna_history.db"
+        study_summaries = optuna.get_all_study_summaries(storage=storage_url)
+        for s in study_summaries:
+            if s.study_name.startswith(target_filter + "_"):
+                version = s.study_name[len(target_filter) + 1:]
+                if version not in available_versions:
+                    available_versions.append(version)
+    except Exception:
+        pass
+
+    available_versions = sorted(list(set(available_versions)))
+    if not available_versions:
+        available_versions = ["v1.0"]
+
+    version_filter = st.sidebar.selectbox(
+        "Model Version",
+        options=available_versions,
+        index=len(available_versions) - 1,
+    )
 
     tabs = st.tabs(
         [
