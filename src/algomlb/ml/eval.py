@@ -63,9 +63,18 @@ def compute_fold_metrics(
 
         # Multiclass AUC (OvR)
         try:
-            # We must specify labels to ensure AUC matches the prob matrix dimensions
-            auc_labels = labels if labels is not None else np.unique(y_true)
-            auc = float(roc_auc_score(y_true, y_prob, multi_class="ovr", average="macro", labels=auc_labels))
+            # Filter labels to only include those present in y_true
+            # Scikit-learn's roc_auc_score fails if a label in 'labels' has zero samples in y_true
+            present_labels = np.unique(y_true)
+            if labels is not None:
+                auc_labels = [lbl for lbl in labels if lbl in present_labels]
+            else:
+                auc_labels = present_labels
+
+            if len(auc_labels) > 1:
+                auc = float(roc_auc_score(y_true, y_prob, multi_class="ovr", average="macro", labels=auc_labels))
+            else:
+                auc = 0.5
         except Exception as e:
             logger.warning(f"AUC calculation failed: {e}")
             auc = 0.5

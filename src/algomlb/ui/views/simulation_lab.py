@@ -31,7 +31,7 @@ def show_simulation_lab():
     st.markdown("---")
 
     session = get_session_factory()()
-    game_row, trials, run_sim = _render_sidebar(session)
+    game_row, trials, version, run_sim = _render_sidebar(session)
 
     if game_row is None:
         session.close()
@@ -52,12 +52,12 @@ def show_simulation_lab():
         session.close()
         return
 
-    sim_df = _get_simulation_data(session, int(game_row["game_id"]), trials, run_sim)
+    sim_df = _get_simulation_data(session, int(game_row["game_id"]), trials, version, run_sim)
 
     if not sim_df.empty:
         _render_matchup_header(game_row, ctx, sim_df)
         st.markdown("---")
-        _render_win_probability(sim_df, game_row)
+        _render_win_probability(sim_df, game_row, ctx)
         _render_tabs(session, sim_df, int(game_row["game_id"]), game_row, ctx)
     else:
         _render_matchup_header(game_row, ctx)
@@ -86,9 +86,10 @@ def _render_sidebar(session):
         game_row = games_df[games_df["display"] == sel_display].iloc[0]
 
         st.divider()
+        version = st.selectbox("Model Version", options=["v1.6", "v1.5"], index=0)
         trials = st.slider("Monte Carlo Trials", 1000, 20000, 10000, step=1000)
         run_sim = st.button("🚀 Run New Simulation", width="stretch")
-        return game_row, trials, run_sim
+        return game_row, trials, version, run_sim
 
 
 def _render_matchup_header(game_row, ctx=None, sim_df=None):
@@ -118,12 +119,17 @@ def _render_matchup_header(game_row, ctx=None, sim_df=None):
     a_proj_score = "?"
     h_proj_score = "?"
     if sim_df is not None and not sim_df.empty:
-        r_props = sim_df[sim_df["stat_type"] == "R"]
+        r_props = sim_df[sim_df["stat_type"] == "R"].copy()
         if not r_props.empty and ctx:
-            h_pids = [b.player_id for b in ctx.home_lineup]
-            a_pids = [b.player_id for b in ctx.away_lineup]
-            h_proj_score = round(r_props[r_props["player_id"].isin(h_pids)]["mean"].sum(), 1)
-            a_proj_score = round(r_props[r_props["player_id"].isin(a_pids)]["mean"].sum(), 1)
+            # Type-hardened ID matching
+            h_pids = [int(b.player_id) for b in ctx.home_lineup]
+            a_pids = [int(b.player_id) for b in ctx.away_lineup]
+            
+            # Ensure sim_df IDs are also treated as ints for the join
+            r_props["player_id_int"] = r_props["player_id"].astype(int)
+            
+            h_proj_score = round(r_props[r_props["player_id_int"].isin(h_pids)]["mean"].sum(), 1)
+            a_proj_score = round(r_props[r_props["player_id_int"].isin(a_pids)]["mean"].sum(), 1)
 
     col1, col2, col3 = st.columns([2, 1, 2])
     with col1:
@@ -157,12 +163,12 @@ def _render_matchup_header(game_row, ctx=None, sim_df=None):
         )
 
 
-def _get_simulation_data(session, game_pk, trials, run_sim):
+def _get_simulation_data(session, game_pk, trials, version, run_sim):
     """Load existing results or execute a new simulation."""
     if run_sim:
-        with st.spinner(f"Executing {trials} Markov Chain trials..."):
+        with st.spinner(f"Executing {trials} Markov Chain trials using {version}..."):
             try:
-                return run_and_persist_simulation(session, game_pk, trials)
+                return run_and_persist_simulation(session, game_pk, trials, version=version)
             except Exception as e:
                 st.error(f"Simulation failed: {e}")
                 return pd.DataFrame()
@@ -199,7 +205,7 @@ def _fetch_actual_player_stats(session, game_pk):
     return b_df, p_df
 
 
-def _render_win_probability(sim_df, game_row):
+def _render_win_probability(sim_df, game_row, ctx):
     """Display the win probability section with model comparison."""
     win_props = sim_df[sim_df["stat_type"] == "WIN"]
     if not win_props.empty:
@@ -217,10 +223,17 @@ def _render_win_probability(sim_df, game_row):
         
         with c2:
             st.markdown("#### ⚛️ Uranium Win Model")
-            # Try to fetch from existing GameResultORM or a live model run?
-            # For now, we'll label it as the production baseline
-            st.metric(f"{game_row['home_team']} Model%", "52.4%") # Placeholder or fetch
-            st.caption("Official Top-Down XGBoost Model v1.0")
+            # Fetch the real top-down prediction from the model
+            try:
+                uranium_win_prob = ui_utils.get_uranium_prediction(ctx)
+                # If away win prob is needed (the sim shows away usually in standard MLB view), 
+                # but the sim lab seems to show Home Win% by default.
+                st.metric(f"{game_row['home_team']} Model%", f"{uranium_win_prob:.1%}")
+                st.progress(uranium_win_prob)
+                st.caption("Official Top-Down XGBoost Model v1.0")
+            except Exception as e:
+                st.error(f"Top-down prediction failed: {e}")
+
 
         st.divider()
 

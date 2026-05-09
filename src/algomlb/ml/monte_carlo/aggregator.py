@@ -22,6 +22,9 @@ class SimulationAggregator:
         Includes Batter props, Pitcher props, and Team Win/Loss probabilities.
         """
         # 1. Delegate Prop Calculation to specialized PropAggregator
+        import importlib
+        from algomlb.ml.monte_carlo import prop_aggregator
+        importlib.reload(prop_aggregator)
         from algomlb.ml.monte_carlo.prop_aggregator import PropAggregator
         
         prop_engine = PropAggregator(trial_results)

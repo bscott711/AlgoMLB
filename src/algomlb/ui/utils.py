@@ -80,7 +80,7 @@ def load_simulation_results(session: Session, game_pk: int) -> pd.DataFrame:
 
 
 def run_and_persist_simulation(
-    session: Session, game_pk: int, trials: int, version: str = "v1.5"
+    session: Session, game_pk: int, trials: int, version: str = "v1.6"
 ) -> pd.DataFrame:
     """Run a new simulation and save results to the database."""
     # 1. Ensure Lineups Exist (Auto-Ingest if missing)
@@ -112,10 +112,10 @@ def run_and_persist_simulation(
             f"CRITICAL: MatchupLoader returned None for game {game_pk}. This should not happen. Check backend logs."
         )
 
-    # 3. Load model (v1.5 is the new production standard)
+    # 3. Load model (v1.6 is the new production standard)
     model_path = Path(f".data/models/pa_outcome_{version}.joblib")
     if not model_path.exists():
-        # Fallback to the unversioned link if v1.5 explicitly isn't found
+        # Fallback to the unversioned link if v1.6 explicitly isn't found
         model_path = Path(".data/models/pa_outcome.joblib")
     
     if not model_path.exists():
@@ -158,3 +158,67 @@ def run_and_persist_simulation(
 
     session.commit()
     return results_df
+
+
+def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
+    """Run a top-down win probability prediction using the production Uranium model."""
+    from algomlb.ml.model import MLBModel
+    from pathlib import Path
+    import pandas as pd
+
+    model_path = Path(".data/models/uranium_win_model.joblib")
+    if not model_path.exists():
+        model_path = Path(".data/models/home_win_v1.0.joblib")
+
+    if not model_path.exists():
+        # Fallback to Elo if no top-down model exists
+        h_elo = context.matchup_features.get("home_team_elo_pre", 1500)
+        a_elo = context.matchup_features.get("away_team_elo_pre", 1500)
+        return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400))
+
+    model = MLBModel.load(model_path)
+
+    # 1. Build Feature Row
+    row = {}
+
+    # Global Matchup Features
+    row.update(context.matchup_features)
+
+    # Starting Pitcher Features
+    h_sp_id = context.home_starter.pitcher_id
+    a_sp_id = context.away_starter.pitcher_id
+
+    for k, v in context.pitcher_features.get(h_sp_id, {}).items():
+        row[f"h_sp_{k}"] = v
+    for k, v in context.pitcher_features.get(a_sp_id, {}).items():
+        row[f"a_sp_{k}"] = v
+
+    # Team Hitting (Mean of lineup)
+    def agg_batting(pids, prefix):
+        res = {}
+        count = 0
+        for pid in pids:
+            feats = context.batter_features.get(pid, {})
+            for k, v in feats.items():
+                res[f"{prefix}{k}"] = res.get(f"{prefix}{k}", 0) + v
+            count += 1
+        if count > 0:
+            for k in res:
+                res[k] /= count
+        return res
+
+    row.update(agg_batting([b.player_id for b in context.home_lineup], "h_bat_"))
+    row.update(agg_batting([b.player_id for b in context.away_lineup], "a_bat_"))
+
+    # 2. Run Prediction
+    X = pd.DataFrame([row])
+
+    # Reindex to match model features
+    base_est = model.get_base_xgb_estimator()
+    if hasattr(base_est, "feature_names_in_"):
+        expected = base_est.feature_names_in_
+        X = X.reindex(columns=expected, fill_value=0.0)
+
+    probs = model.predict_proba(X)[0]
+    # We want home win prob (index 1 usually)
+    return float(probs[1]) if len(probs) > 1 else float(probs[0])
