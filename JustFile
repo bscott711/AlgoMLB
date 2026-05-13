@@ -296,6 +296,11 @@ sync-daily:
 	@echo "🔄 Running comprehensive Daily Sync..."
 	uv run algomlb sync daily
 
+# Ingest Live Odds (Quick sync)
+sync-odds:
+	@echo "💸 Syncing latest market odds..."
+	PYTHONPATH=src uv run algomlb ingest odds
+
 # ==========================================
 # 9. SCHEDULER (OPC Automation)
 # ==========================================
@@ -330,7 +335,15 @@ check-scheduler:
 	@systemctl --user list-timers algomlb-sync.timer --no-pager
 	@echo ""
 	@echo "📝 Latest Logs:"
-	@journalctl --user -u algomlb-sync.service -n 50 --no-pager
+# ==========================================
+# 10. SIMULATION (Monte Carlo & Uranium)
+# ==========================================
+
+# Batch simulate all games for a specific date
+# Usage: just sim-day 2026-05-13
+sim-day date:
+	@echo "🤖 Batch simulating all games for {{date}}..."
+	PYTHONPATH=src uv run python src/algomlb/cli/main.py ml sim-day {{date}}
 
 # ==========================================
 # 10. NOTEBOOKLM RESEARCH (AI Analysis)

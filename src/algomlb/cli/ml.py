@@ -847,3 +847,111 @@ def backfill_manager_hooks(
                 data={"start_year": start_year, "end_year": end_year},
             )
         )
+
+
+@app.command(name="sim-day")
+def sim_day(
+    target_date: str = typer.Argument(..., help="The date to simulate (YYYY-MM-DD)."),
+    trials: int = typer.Option(10000, "--trials", help="Number of trials per game."),
+) -> None:
+    """Batch simulate all games for a specific day."""
+    from algomlb.db.models import GameResultORM
+    from datetime import datetime
+    from algomlb.ml.monte_carlo.aggregator import SimulationAggregator
+
+    d = datetime.strptime(target_date, "%Y-%m-%d").date()
+    session_factory = get_session_factory()
+    db = session_factory()
+
+    try:
+        from algomlb.ml.model import MLBModel
+        from algomlb.ml.hook_model import HookModel
+        from pathlib import Path
+
+        # 1. Load Models
+        pa_path = Path(".data/models/pa_outcome.joblib")
+        if not pa_path.exists():
+            pa_path = Path(".data/models/pa_outcome_v1.6.joblib")
+        
+        logger.info(f"🧬 Loading PA model from {pa_path}...")
+        pa_model = MLBModel.load(pa_path)
+        
+        hook_path = Path(".data/models/hook_model_v1.0.joblib")
+        hook_model = None
+        if hook_path.exists():
+            logger.info(f"🎣 Loading Hook model from {hook_path}...")
+            hook_model = HookModel.load(hook_path)
+
+        # 2. Find all games for this date
+        games = (
+            db.query(GameResultORM)
+            .filter(GameResultORM.game_date == d)
+            .all()
+        )
+
+        if not games:
+            logger.warning(f"No games found for {target_date}")
+            return
+
+        logger.info(f"Found {len(games)} games for {target_date}. Starting batch simulation...")
+
+        loader = MatchupLoader(db)
+        engine = SimulationEngine(pa_model=pa_model, hook_model=hook_model)
+        agg = SimulationAggregator()
+
+        for game in games:
+            try:
+                # Type-hardened ID
+                game_id_int = int(game.game_id)
+                logger.info(f"🚀 Simulating {game.away_team} @ {game.home_team} (pk={game_id_int})...")
+                
+                # Load context
+                context = loader.load_matchup(game_id_int)
+                
+                # Load Bullpen Params from SQL (Alignment with 'simulate' command)
+                bp_params = loader.get_simulation_config("bullpen_v1.0")
+
+                # Run engine (Note: method is run_trials, not run_simulation)
+                results = engine.run_trials(context, trials=trials, bullpen_params=bp_params)
+                
+                # Aggregate
+                agg = SimulationAggregator()
+                results_df = agg.aggregate_results(
+                    game_id_int, context.game_date.year, results, context
+                )
+                
+                # Persist
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                import sqlalchemy as sa
+
+                records = results_df.to_dict(orient="records")
+                for rec in records:
+                    stmt = pg_insert(UraniumSimulatedPlayerPropsORM).values([rec])
+                    upsert = stmt.on_conflict_do_update(
+                        index_elements=["game_pk", "player_id", "stat_type"],
+                        set_={
+                            "season": stmt.excluded.season,
+                            "mean": stmt.excluded.mean,
+                            "median": stmt.excluded.median,
+                            "prob_over_0_5": stmt.excluded.prob_over_0_5,
+                            "prob_over_1_5": stmt.excluded.prob_over_1_5,
+                            "prob_over_2_5": stmt.excluded.prob_over_2_5,
+                            "prob_over_3_5": stmt.excluded.prob_over_3_5,
+                            "prob_over_4_5": stmt.excluded.prob_over_4_5,
+                            "p10": stmt.excluded.p10,
+                            "p90": stmt.excluded.p90,
+                            "trials": stmt.excluded.trials,
+                            "simulated_at": sa.func.now(),
+                        },
+                    )
+                    db.execute(upsert)
+                
+                db.commit()
+                logger.success(f"✅ Finished and Persisted {game.away_team} @ {game.home_team}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to simulate game {game.game_id}: {e}")
+                db.rollback()
+
+    finally:
+        db.close()

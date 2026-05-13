@@ -155,6 +155,11 @@ class MatchupLoader:
         logger.success(
             f"Successfully loaded matchup for {game.away_team} @ {game.home_team}"
         )
+        # Audit talent data coverage
+        h_coverage = len([p for p in context.home_lineup if p.player_id in context.batter_features])
+        a_coverage = len([p for p in context.away_lineup if p.player_id in context.batter_features])
+        logger.info(f"🧬 Talent Coverage: Home {h_coverage}/9, Away {a_coverage}/9")
+        
         return context
 
     def get_simulation_config(self, config_key: str = "bullpen_v1.0") -> Dict[str, Any]:

@@ -57,7 +57,7 @@ def show_simulation_lab():
     if not sim_df.empty:
         _render_matchup_header(game_row, ctx, sim_df)
         st.markdown("---")
-        _render_win_probability(sim_df, game_row, ctx)
+        _render_win_probability(session, sim_df, game_row, ctx)
         _render_tabs(session, sim_df, int(game_row["game_id"]), game_row, ctx)
     else:
         _render_matchup_header(game_row, ctx)
@@ -205,7 +205,7 @@ def _fetch_actual_player_stats(session, game_pk):
     return b_df, p_df
 
 
-def _render_win_probability(sim_df, game_row, ctx):
+def _render_win_probability(session, sim_df, game_row, ctx):
     """Display the win probability section with model comparison."""
     win_props = sim_df[sim_df["stat_type"] == "WIN"]
     if not win_props.empty:
@@ -228,6 +228,29 @@ def _render_win_probability(sim_df, game_row, ctx):
                 uranium_win_prob, is_fallback = ui_utils.get_uranium_prediction(ctx)
                 st.metric(f"{game_row['home_team']} Model%", f"{uranium_win_prob:.1%}")
                 st.progress(uranium_win_prob)
+                
+                # --- NEW: EV Analysis ---
+                from algomlb.db.models import LiveOddsORM
+                market_odds = (
+                    session.query(LiveOddsORM)
+                    .filter(LiveOddsORM.game_result_id == str(game_row["game_id"]))
+                    .filter(LiveOddsORM.market_type.in_(['moneyline', 'h2h']))
+                    .order_by(LiveOddsORM.timestamp.desc())
+                    .first()
+                )
+                
+                if market_odds:
+                    # Implied probability from decimal or American odds
+                    # Assuming price is decimal odds for now (e.g. 1.91)
+                    implied_prob = 1.0 / market_odds.price if market_odds.price > 0 else 0.5
+                    edge = uranium_win_prob - implied_prob
+                    
+                    color = "green" if edge > 0.05 else "red" if edge < -0.05 else "gray"
+                    st.markdown(f"**Market Implied**: {implied_prob:.1%}")
+                    st.markdown(f"**Edge**: <span style='color:{color}; font-weight:bold;'>{edge:+.1%}</span>", unsafe_allow_html=True)
+                else:
+                    st.caption("No live odds found for this matchup.")
+                
                 if is_fallback:
                     st.warning("⚠️ Model missing; using Elo fallback")
                 else:
