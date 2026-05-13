@@ -225,12 +225,13 @@ def _render_win_probability(sim_df, game_row, ctx):
             st.markdown("#### ⚛️ Uranium Win Model")
             # Fetch the real top-down prediction from the model
             try:
-                uranium_win_prob = ui_utils.get_uranium_prediction(ctx)
-                # If away win prob is needed (the sim shows away usually in standard MLB view), 
-                # but the sim lab seems to show Home Win% by default.
+                uranium_win_prob, is_fallback = ui_utils.get_uranium_prediction(ctx)
                 st.metric(f"{game_row['home_team']} Model%", f"{uranium_win_prob:.1%}")
                 st.progress(uranium_win_prob)
-                st.caption("Official Top-Down XGBoost Model v1.0")
+                if is_fallback:
+                    st.warning("⚠️ Model missing; using Elo fallback")
+                else:
+                    st.caption("Official Top-Down XGBoost Model v1.0")
             except Exception as e:
                 st.error(f"Top-down prediction failed: {e}")
 

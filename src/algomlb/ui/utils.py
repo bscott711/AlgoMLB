@@ -166,16 +166,20 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
     from pathlib import Path
     import pandas as pd
 
-    model_path = Path(".data/models/uranium_win_model.joblib")
+    model_path = Path(".data/models/home_win_v1.0.joblib")
     if not model_path.exists():
-        model_path = Path(".data/models/home_win_v1.0.joblib")
+        model_path = Path(".data/models/uranium_win_model.joblib")
 
     if not model_path.exists():
         # Fallback to Elo if no top-down model exists
         h_elo = context.matchup_features.get("home_team_elo_pre", 1500)
         a_elo = context.matchup_features.get("away_team_elo_pre", 1500)
-        return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400))
+        from loguru import logger
+        logger.warning(f"⚛️ No Uranium model found. Falling back to Elo: Home={h_elo}, Away={a_elo}")
+        return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400)), True
 
+    from loguru import logger
+    logger.info(f"⚛️ Loading Uranium model from {model_path}")
     model = MLBModel.load(model_path)
 
     # 1. Build Feature Row
@@ -183,17 +187,33 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
 
     # Global Matchup Features
     row.update(context.matchup_features)
+    from loguru import logger
+    logger.info(f"⚛️ Matchup Features: { {k: v for k, v in context.matchup_features.items() if 'elo' in k or 'pythag' in k} }")
 
     # Starting Pitcher Features
     h_sp_id = context.home_starter.pitcher_id
     a_sp_id = context.away_starter.pitcher_id
 
-    for k, v in context.pitcher_features.get(h_sp_id, {}).items():
-        row[f"h_sp_{k}"] = v
-    for k, v in context.pitcher_features.get(a_sp_id, {}).items():
-        row[f"a_sp_{k}"] = v
+    # Map missing features that the model might expect
+    h_pit_feats = context.pitcher_features.get(h_sp_id, {}).copy()
+    a_pit_feats = context.pitcher_features.get(a_sp_id, {}).copy()
 
-    # Team Hitting (Mean of lineup)
+    # If model expects roll_era but we have roll_ra_per_game (or nothing), provide a fallback
+    for feats in [h_pit_feats, a_pit_feats]:
+        if "roll_era" not in feats:
+            feats["roll_era"] = feats.get("roll_ra_per_game", 4.50)
+        # Map RE24 variants the model might expect
+        if "roll_re24" in feats:
+            # Model expects variants like _x and _y due to historic join suffixes
+            feats["roll_re24_x"] = feats["roll_re24"]
+            feats["roll_re24_y"] = feats["roll_re24"]
+
+    for k, v in h_pit_feats.items():
+        row[f"h_sp_{k}"] = v
+    for k, v in a_pit_feats.items():
+        row[f"a_sp_{k}"] = v
+    
+    # Team Hitting RE24 mapping
     def agg_batting(pids, prefix):
         res = {}
         count = 0
@@ -205,6 +225,9 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
         if count > 0:
             for k in res:
                 res[k] /= count
+                # Map hitting RE24 variant
+                if k == f"{prefix}roll_re24":
+                    res[f"{k}_{'home' if 'h_' in prefix else 'away'}_re24_agg"] = res[k]
         return res
 
     row.update(agg_batting([b.player_id for b in context.home_lineup], "h_bat_"))
@@ -217,8 +240,13 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
     base_est = model.get_base_xgb_estimator()
     if hasattr(base_est, "feature_names_in_"):
         expected = base_est.feature_names_in_
+        # Log missing features
+        missing = [f for f in expected if f not in X.columns]
+        if missing:
+            logger.warning(f"⚛️ Model expected features missing from context: {missing}")
         X = X.reindex(columns=expected, fill_value=0.0)
 
     probs = model.predict_proba(X)[0]
+    logger.info(f"⚛️ Prediction complete. Raw probs: {probs}")
     # We want home win prob (index 1 usually)
-    return float(probs[1]) if len(probs) > 1 else float(probs[0])
+    return (float(probs[1]) if len(probs) > 1 else float(probs[0])), False

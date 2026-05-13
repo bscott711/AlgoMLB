@@ -354,14 +354,22 @@ def backfill_team_sabermetrics_history(engine_in=None) -> None:
     # 2. Compute Features
     logger.info(f"Computing Pythagorean features for {len(games)} historical games...")
     pyth_df = compute_pythagorean_features(games)
+    
+    # Ensure game_pk is present for DB insertion
+    if "game_id" in pyth_df.columns and "game_pk" not in pyth_df.columns:
+        pyth_df["game_pk"] = pyth_df["game_id"].astype(int)
 
-    # 3. Preparation for DB (map game_id back to game_pk if needed, although they are mostly synonymous here)
+    # 3. Preparation for DB
     from algomlb.db.models import TeamSabermetricsHistoryORM
 
     # 4. Batch Upsert (PostgreSQL optimized)
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-    records = pyth_df.to_dict(orient="records")
+    valid_cols = [
+        "game_pk", "game_date", "team_id", "is_home", 
+        "pythag_win_pct", "roll_run_diff", "roll_rs_per_game", "roll_ra_per_game"
+    ]
+    records = pyth_df[valid_cols].to_dict(orient="records")
     batch_size = 500
     
     logger.info(f"Upserting {len(records)} sabermetric rows into team_sabermetrics_history...")
