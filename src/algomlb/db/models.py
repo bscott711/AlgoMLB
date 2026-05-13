@@ -72,9 +72,23 @@ class BankrollLedgerORM(Base):
     timestamp: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     stake: Mapped[float] = mapped_column(Float, nullable=False)
     odds: Mapped[float] = mapped_column(Float, nullable=False)
+    selection: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Team name
+    edge: Mapped[Optional[float]] = mapped_column(Float, nullable=True)          # Model Edge %
     status: Mapped[TransactionStatus] = mapped_column(Enum(TransactionStatus), nullable=False, default=TransactionStatus.PENDING)
     pnl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     game_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+
+class ModelPredictionORM(Base):
+    """Archive of all model projections for historical calibration and CLV analysis."""
+    __tablename__ = 'model_predictions'
+    __table_args__ = {'extend_existing': True}
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    home_win_prob: Mapped[float] = mapped_column(Float, nullable=False)
+    market_home_implied_at_prediction: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
 class PitchEventORM(Base):
     """Statcast pitch-level data; one row per pitch."""

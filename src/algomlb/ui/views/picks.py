@@ -77,7 +77,8 @@ def render_picks_view():
                         "Edge %": edge,
                         "Selection": game.home_team if edge > 0 else game.away_team,
                         "EV %": abs(edge),
-                        "Price": market_odds.price if market_odds.outcome == (game.home_team if edge > 0 else game.away_team) else (1 / (1 - implied_prob) if implied_prob < 1 else 0)
+                        "Price": market_odds.price if market_odds.outcome == (game.home_team if edge > 0 else game.away_team) else (1 / (1 - implied_prob) if implied_prob < 1 else 0),
+                        "Updated": market_odds.timestamp.strftime("%H:%M")
                     })
             except Exception as e:
                 continue
