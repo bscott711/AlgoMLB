@@ -223,7 +223,8 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
                 res[f"{prefix}{k}"] = res.get(f"{prefix}{k}", 0) + v
             count += 1
         if count > 0:
-            for k in res:
+            # Use list(res.keys()) to avoid 'dictionary changed size during iteration'
+            for k in list(res.keys()):
                 res[k] /= count
                 # Map hitting RE24 variant
                 if k == f"{prefix}roll_re24":
