@@ -128,6 +128,7 @@ class TransactionStatus(StrEnum):
     """Status of a bankroll transaction."""
 
     PENDING = "PENDING"
+    PLACED = "PLACED"
     SETTLED = "SETTLED"
     CANCELLED = "CANCELLED"
     ADJUSTMENT = "ADJUSTMENT"

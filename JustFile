@@ -345,8 +345,36 @@ sim-day date:
 	@echo "🤖 Batch simulating all games for {{date}}..."
 	PYTHONPATH=src uv run python src/algomlb/cli/main.py ml sim-day {{date}}
 
+# Shortcut to simulate today's slate
+sim-today:
+	just sim-day $(date +%Y-%m-%d)
+
 # ==========================================
-# 10. NOTEBOOKLM RESEARCH (AI Analysis)
+# 11. STRATEGY & SOCIAL (FadeGoblin)
+# ==========================================
+
+# Run the COMPLETE DAILY PIPELINE (Ingest -> Sim -> Strategy -> Post)
+# This is the master command for 6:00 AM Mountain Time
+uranium-day:
+	@echo "🏟️ Launching Master Daily Pipeline..."
+	PYTHONPATH=src uv run python scripts/daily_uranium_pipeline.py
+
+# Settle bets for a specific date
+settle-day date:
+	@echo "💰 Settling bets for {{date}}..."
+	uv run algomlb settle --date {{date}}
+
+# Settle yesterday's bets
+settle-yesterday:
+	just settle-day $(date -d "yesterday" +%Y-%m-%d)
+
+# Trigger a FadeGoblin Sniper post manually (if +EV bets exist)
+post-sniper:
+	@echo "👺 Triggering manual Sniper post..."
+	uv run bot --mode sniper
+
+# ==========================================
+# 12. NOTEBOOKLM RESEARCH (AI Analysis)
 # ==========================================
 
 # Run any notebooklm command (e.g., just lm auth check)
