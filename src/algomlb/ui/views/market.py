@@ -29,13 +29,15 @@ query = """
         ORDER BY game_id, timestamp DESC
     ),
     closing_odds AS (
-        SELECT DISTINCT ON (game_result_id, outcome)
-            game_result_id as game_id,
-            outcome,
-            price as closing_price
-        FROM live_odds
-        WHERE market_type = 'h2h'
-        ORDER BY game_result_id, outcome, timestamp DESC
+        SELECT DISTINCT ON (co.game_result_id, co.outcome)
+            co.game_result_id as game_id,
+            co.outcome,
+            co.price as closing_price
+        FROM live_odds co
+        JOIN game_results gr ON co.game_result_id = gr.game_id
+        WHERE co.market_type = 'h2h' 
+          AND co.timestamp <= gr.game_datetime
+        ORDER BY co.game_result_id, co.outcome, co.timestamp DESC
     ),
     game_meta AS (
         SELECT game_id, home_team, away_team, game_date, status

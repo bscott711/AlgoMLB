@@ -44,6 +44,7 @@ dependencies = [
     "numba>=0.60.0",
     "rich>=14.3.3",
     "statsmodels>=0.14.6",
+    "fadegoblin",
 ]
 
 [project.scripts]
@@ -115,3 +116,4 @@ exclude_lines = [
 
 [tool.uv.sources]
 jitsu = { git = "https://github.com/bscott711/jitsu.git" }
+fadegoblin = { git = "https://github.com/bscott711/fadegoblin" }

@@ -31,11 +31,12 @@ class BettingService:
 
                 model_prob, _ = ui_utils.get_uranium_prediction(ctx)
                 
-                # Market Odds
+                # Market Odds (Strictly Pre-Game for CLV)
                 market_odds = (
                     self.session.query(LiveOddsORM)
                     .filter(LiveOddsORM.game_result_id == str(game.game_id))
                     .filter(LiveOddsORM.market_type.in_(['moneyline', 'h2h']))
+                    .filter(LiveOddsORM.timestamp <= game.game_datetime)
                     .order_by(LiveOddsORM.timestamp.desc())
                     .first()
                 )
