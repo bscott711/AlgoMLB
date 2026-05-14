@@ -349,14 +349,19 @@ sim-day date:
 sim-today:
 	just sim-day $(date +%Y-%m-%d)
 
+# Run Uranium Monte Carlo simulations for today's slate (Background/Heavy)
+sim-uranium:
+	@echo "🛸 Running high-fidelity Uranium MC simulations..."
+	just sim-today
+
 # ==========================================
 # 11. STRATEGY & SOCIAL (FadeGoblin)
 # ==========================================
 
-# Run the COMPLETE DAILY PIPELINE (Ingest -> Sim -> Strategy -> Post)
-# This is the master command for 6:00 AM Mountain Time
+# Run the FAST DAILY PIPELINE (Ingest -> Strategy -> Post)
+# This is the master command for 6:00 AM Mountain Time (EXCLUDES slow MC sims)
 uranium-day:
-	@echo "🏟️ Launching Master Daily Pipeline..."
+	@echo "🏟️ Launching Fast Daily Pipeline..."
 	PYTHONPATH=src uv run python scripts/daily_uranium_pipeline.py
 
 # Settle bets for a specific date

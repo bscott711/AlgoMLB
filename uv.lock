@@ -832,7 +832,7 @@ wheels = [
 [[package]]
 name = "fadegoblin"
 version = "0.3.0"
-source = { git = "https://github.com/bscott711/fadegoblin#c23135a039f3c1f303f572f013c2b701515240f1" }
+source = { git = "https://github.com/bscott711/fadegoblin#ceb2c54f7529ef0f79b7973045449c81de594968" }
 dependencies = [
     { name = "atproto" },
     { name = "pandas" },

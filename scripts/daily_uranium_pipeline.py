@@ -2,42 +2,67 @@ import datetime
 import os
 import subprocess
 import sys
+import time
+from dotenv import load_dotenv
 from loguru import logger
 from algomlb.db.session import get_session_factory
 from algomlb.strategy.betting_service import BettingService
+from algomlb.db.models import BankrollLedgerORM
+from algomlb.domain import TransactionStatus
+
+# Load project .env at the start
+load_dotenv()
 
 # Configure logger
 logger.remove()
 logger.add(sys.stderr, format="<g>{time:HH:mm:ss}</g> | <level>{level: <8}</level> | <cyan>{message}</cyan>")
 
-def run_command(command: list[str], description: str) -> bool:
-    """Helper to run shell commands and log status."""
+def run_command(command: list[str], description: str, background: bool = False) -> bool:
+    """Helper to run shell commands and log status with environment passthrough."""
     logger.info(f"🚀 {description}...")
     try:
-        # We use uv run to ensure the virtualenv is used correctly
+        # Explicitly pass current environment (including loaded .env)
+        env = os.environ.copy()
+        
         full_command = ["uv", "run"] + command
-        result = subprocess.run(full_command, check=True, capture_output=True, text=True)
-        logger.success(f"✅ {description} complete.")
-        return True
+        if background:
+            subprocess.Popen(full_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+            logger.info(f"🛰️ {description} sent to background.")
+            return True
+        else:
+            result = subprocess.run(full_command, check=True, capture_output=True, text=True, env=env)
+            # Log the inner output for debugging if it's the bot
+            if "bot" in command:
+                logger.debug(f"Bot Output:\n{result.stdout}")
+            logger.success(f"✅ {description} complete.")
+            return True
     except subprocess.CalledProcessError as e:
         logger.error(f"❌ {description} failed!")
         logger.error(f"Error: {e.stderr}")
         return False
 
+def count_pending_bets():
+    """Counts how many bets are currently PENDING in the ledger."""
+    session = get_session_factory()()
+    try:
+        count = session.query(BankrollLedgerORM).filter(BankrollLedgerORM.status == TransactionStatus.PENDING).count()
+        return count
+    finally:
+        session.close()
+
 def place_today_bets():
-    """Finds +EV bets and populates the bankroll_ledger based on Uranium sims."""
+    """Finds +EV bets using FAST TOP-DOWN predictions and populates the ledger."""
     today = datetime.date.today()
-    logger.info(f"📈 Analyzing +EV edges for {today}...")
+    logger.info(f"📈 Analyzing +EV edges for {today} [FAST TOP-DOWN]...")
     
     session = get_session_factory()()
     try:
         service = BettingService(session)
-        # This will compare the fresh Uranium sims with the latest odds pulled in sync-daily
         placed = service.place_daily_bets(today)
         if placed > 0:
-            logger.success(f"✅ Strategy: Locked in {placed} +EV bets as PENDING in the ledger.")
+            logger.success(f"✅ Strategy: Locked in {placed} NEW +EV bets as PENDING in the ledger.")
         else:
-            logger.warning("Strategy: No edges found above the threshold today.")
+            logger.info("Strategy: No new edges found (or already placed).")
         return placed
     except Exception as e:
         logger.error(f"❌ Failed to place bets: {e}")
@@ -47,35 +72,30 @@ def place_today_bets():
 
 def main():
     today_str = datetime.date.today().strftime("%Y-%m-%d")
-    logger.info(f"🏟️ --- AlgoMLB MASTER PIPELINE START [{today_str}] --- 🏟️")
+    logger.info(f"🏟️ --- AlgoMLB FAST PIPELINE START [{today_str}] --- 🏟️")
 
-    # 1. Sync Everything (Lineups, Statcast, Weather, Odds, Settlement)
-    # This gets the board ready for simulation.
+    # 1. Sync Daily Data & Settle (Lineups, Weather, Odds)
     if not run_command(["algomlb", "sync", "daily"], "Syncing data & settling yesterday"):
         logger.warning("Pipeline continuing despite minor sync issues...")
 
-    # 2. Run Uranium Monte Carlo simulations
-    # This generates the "True Probabilities" we need for strategy.
-    if not run_command(["python", "-m", "src.algomlb.cli.main", "ml", "sim-day", today_str], "Running Uranium MC Simulations"):
-        logger.error("🛑 CRITICAL: Simulations failed. Strategy layer cannot proceed.")
-        return
+    # 2. Strategy Layer: Find +EV Edges using Fast Top-Down Models
+    place_today_bets()
 
-    # 3. Strategy Layer: Find +EV Edges and lock into Ledger
-    # This bridges the model output to the bankroll.
-    placed_count = place_today_bets()
+    # 3. Check for ANY Pending Bets (New or Existing)
+    pending_count = count_pending_bets()
 
     # 4. Social Layer: FadeGoblin Timeline Post
-    if placed_count > 0:
-        logger.info(f"👺 Found {placed_count} targets. Alerting the Goblin...")
-        # uv run bot --mode sniper will pick up the PENDING bets we just created
+    if pending_count > 0:
+        logger.info(f"👺 Found {pending_count} pending targets. Triggering the Goblin...")
+        # Now passing full env to 'bot'
         if run_command(["bot", "--mode", "sniper"], "FadeGoblin Sniper Post"):
             logger.success("🚀 Social post is LIVE on Bluesky!")
         else:
             logger.error("❌ Social post failed.")
     else:
-        logger.info("💤 No +EV targets found. Goblin is staying in the cave.")
+        logger.info("💤 No +EV targets found in ledger. Goblin is staying in the cave.")
 
-    logger.info(f"🏁 --- AlgoMLB DAILY PIPELINE COMPLETE --- 🏁")
+    logger.info(f"🏁 --- AlgoMLB FAST PIPELINE COMPLETE --- 🏁")
 
 if __name__ == "__main__":
     main()
