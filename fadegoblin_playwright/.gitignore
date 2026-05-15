@@ -1,0 +1,26 @@
+# --- Fadegoblin Project Shield ---
+
+# Environment Secrets (CRITICAL)
+.env
+.env.local
+.python-version
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Project Specific (Images & Data)
+*.jpg
+temp_meme.jpg
+
+# OS & IDE Clutter
+.DS_Store
+.vscode/
+.ruff_cache/
