@@ -74,6 +74,18 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     date_str = datetime.now().strftime("%b %d, %Y")
     draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
 
+    # ── Squad Signals (Top Right) ─────────────────────────────────────
+    all_unique_badges = []
+    for leg in legs:
+        for b in leg.get("badges", []):
+            if b not in all_unique_badges:
+                all_unique_badges.append(b)
+    
+    if all_unique_badges:
+        signal_text = " • ".join(all_unique_badges)
+        bbox_sig = draw.textbbox((0, 0), signal_text, font=font_date)
+        draw.text((table_x2 - PADDING - (bbox_sig[2]-bbox_sig[0]), table_y1 + 15), signal_text, fill=ACCENT_GREEN, font=font_date)
+
     # ── Grid Rendering ────────────────────────────────────────────────
     start_y = table_y1 + HEADER_HEIGHT
     
@@ -85,6 +97,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         y = start_y + row * (ROW_HEIGHT + 4)
         
         is_potd = i == potd_index
+        badges = leg.get("badges", [])
         
         # Row box
         fill = POTD_BG if is_potd else (30, 30, 45, 180)
@@ -120,6 +133,11 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         else:
             draw.text((x + 10, text_y), game_text, fill=TEXT_WHITE, font=font_row)
             
+        # Draw small badge indicator if Sharp or High Conf
+        if any(b for b in badges if "POTD" not in b):
+            badge_emoji = "💎" if "HIGH CONFIDENCE" in badges else "🕵️‍♂️"
+            draw.text((x + COL_WIDTH - 45, y + 2), badge_emoji, font=_load_font(8))
+
         # Odds (aligned to right of column box)
         odds_str = str(leg["odds"])
         bbox_odds = draw.textbbox((0, 0), odds_str, font=font_row)
@@ -128,7 +146,8 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
 
     # ── Footer ────────────────────────────────────────────────────────
     footer_y = table_y2 - 20
-    draw.text((table_x1 + PADDING, footer_y), "@fadegoblin  •  AlgoMLB", fill=TEXT_DIM, font=font_footer)
+    draw.text((table_x1 + PADDING, footer_y), "@TheFadeGoblin  •  AlgoMLB", fill=TEXT_DIM, font=font_footer)
+
 
     output_path = config.BASE_DIR / "temp_card.png"
     img.save(str(output_path), "PNG")

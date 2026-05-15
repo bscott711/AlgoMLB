@@ -112,22 +112,29 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
             chosen_theme = random.choice(themes)
             print(f"   💡 Chosen Concept: {chosen_theme}")
 
+    # --- BADGE CONTEXT ---
+    badges = potd_leg.get("badges", [])
+    badges_str = " | ".join(badges)
+    badges_info = f"\nSYSTEM SIGNALS: {badges_str}\n(Note: Sharp Move means smart money is with us. High Confidence means model prob is elite.)\n" if badges else ""
+
     # --- FINAL TWEET GENERATION ---
     full_prompt = (
         f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor.\n"
         f"Persona: {selected_style['prompt']}\n"
         f"Task: Write a short, unhinged social media post announcing your PLAY OF THE DAY.\n"
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
-        f"The pick is: {pick_line} at {potd_leg['odds']}\n\n"
+        f"The pick is: {pick_line} at {potd_leg['odds']}\n"
+        f"{badges_info}\n"
         f"RULES FOR THE TWEET:\n"
-        f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 200 characters.\n"
+        f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 220 characters.\n"
         f"2. DO NOT write a clinical summary. Write a punchy, unhinged rant.\n"
-        f"3. WEAVE the exact pick naturally into your manic rant.\n"
+        f"3. WEAVE the exact pick AND the system signals (badges) naturally into your manic rant.\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
         f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
         f"Output ONLY the final in-character text, nothing else."
     )
+
 
     quote = get_ai_text(full_prompt)
 
