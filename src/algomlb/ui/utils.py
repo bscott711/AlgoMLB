@@ -182,70 +182,67 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
     logger.info(f"⚛️ Loading Uranium model from {model_path}")
     model = MLBModel.load(model_path)
 
+    # Get the model's expected feature names for whitelist-based mapping
+    base_est = model.get_base_xgb_estimator()
+    expected_features = list(base_est.feature_names_in_) if hasattr(base_est, "feature_names_in_") else []
+
+    # Derive whitelists from model expectations
+    sp_keys = {f.replace("h_sp_", "") for f in expected_features if f.startswith("h_sp_")}
+    bat_keys = {f.replace("h_bat_", "") for f in expected_features if f.startswith("h_bat_")}
+
     # 1. Build Feature Row
     row = {}
 
-    # Global Matchup Features
+    # Global Matchup Features (Elo, Pythagorean, team rolling)
     row.update(context.matchup_features)
-    from loguru import logger
-    logger.info(f"⚛️ Matchup Features: { {k: v for k, v in context.matchup_features.items() if 'elo' in k or 'pythag' in k} }")
 
-    # Starting Pitcher Features
+    # Starting Pitcher Features (whitelist-filtered)
     h_sp_id = context.home_starter.pitcher_id
     a_sp_id = context.away_starter.pitcher_id
 
-    # Map missing features that the model might expect
-    h_pit_feats = context.pitcher_features.get(h_sp_id, {}).copy()
-    a_pit_feats = context.pitcher_features.get(a_sp_id, {}).copy()
+    for prefix, pid in [("h_sp_", h_sp_id), ("a_sp_", a_sp_id)]:
+        raw_feats = context.pitcher_features.get(pid, {})
+        # Map RE24 variants the model expects (historic join suffixes)
+        if "roll_re24" in raw_feats:
+            raw_feats["roll_re24_x"] = raw_feats["roll_re24"]
+            raw_feats["roll_re24_y"] = raw_feats["roll_re24"]
+        for k in sp_keys:
+            if k in raw_feats:
+                row[f"{prefix}{k}"] = float(raw_feats[k])
 
-    # If model expects roll_era but we have roll_ra_per_game (or nothing), provide a fallback
-    for feats in [h_pit_feats, a_pit_feats]:
-        if "roll_era" not in feats:
-            feats["roll_era"] = feats.get("roll_ra_per_game", 4.50)
-        # Map RE24 variants the model might expect
-        if "roll_re24" in feats:
-            # Model expects variants like _x and _y due to historic join suffixes
-            feats["roll_re24_x"] = feats["roll_re24"]
-            feats["roll_re24_y"] = feats["roll_re24"]
-
-    for k, v in h_pit_feats.items():
-        row[f"h_sp_{k}"] = v
-    for k, v in a_pit_feats.items():
-        row[f"a_sp_{k}"] = v
-    
-    # Team Hitting RE24 mapping
-    def agg_batting(pids, prefix):
-        res = {}
+    # Team Batting Features (aggregated across lineup, whitelist-filtered)
+    for prefix, lineup in [
+        ("h_bat_", context.home_lineup),
+        ("a_bat_", context.away_lineup),
+    ]:
+        agg = {}
         count = 0
-        for pid in pids:
-            feats = context.batter_features.get(pid, {})
-            for k, v in feats.items():
-                res[f"{prefix}{k}"] = res.get(f"{prefix}{k}", 0) + v
+        side = "home" if prefix == "h_bat_" else "away"
+        for batter in lineup:
+            feats = context.batter_features.get(batter.player_id, {})
+            if not feats:
+                continue
+            for k in bat_keys:
+                # Handle the RE24 agg variant separately
+                if k == f"roll_re24_{side}_re24_agg":
+                    src_key = "roll_re24"
+                else:
+                    src_key = k
+                if src_key in feats:
+                    agg[k] = agg.get(k, 0.0) + float(feats[src_key])
             count += 1
         if count > 0:
-            # Use list(res.keys()) to avoid 'dictionary changed size during iteration'
-            for k in list(res.keys()):
-                res[k] /= count
-                # Map hitting RE24 variant
-                if k == f"{prefix}roll_re24":
-                    res[f"{k}_{'home' if 'h_' in prefix else 'away'}_re24_agg"] = res[k]
-        return res
-
-    row.update(agg_batting([b.player_id for b in context.home_lineup], "h_bat_"))
-    row.update(agg_batting([b.player_id for b in context.away_lineup], "a_bat_"))
+            for k in agg:
+                row[f"{prefix}{k}"] = agg[k] / count
 
     # 2. Run Prediction
     X = pd.DataFrame([row])
 
-    # Reindex to match model features
-    base_est = model.get_base_xgb_estimator()
-    if hasattr(base_est, "feature_names_in_"):
-        expected = base_est.feature_names_in_
-        # Log missing features
-        missing = [f for f in expected if f not in X.columns]
+    if expected_features:
+        missing = [f for f in expected_features if f not in X.columns]
         if missing:
-            logger.warning(f"⚛️ Model expected features missing from context: {missing}")
-        X = X.reindex(columns=expected, fill_value=0.0)
+            logger.warning(f"⚛️ {len(missing)}/{len(expected_features)} features missing: {missing[:5]}...")
+        X = X.reindex(columns=expected_features, fill_value=0.0)
 
     probs = model.predict_proba(X)[0]
     logger.info(f"⚛️ Prediction complete. Raw probs: {probs}")

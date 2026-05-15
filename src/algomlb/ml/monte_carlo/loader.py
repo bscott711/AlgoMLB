@@ -313,10 +313,15 @@ class MatchupLoader:
         home_starter_id: int,
         away_starter_id: int,
     ) -> Tuple[Dict[int, Dict[str, float]], Dict[int, Dict[str, float]]]:
-        """Bulk fetch rolling features for all relevant players."""
+        """Bulk fetch rolling features for all relevant players.
+        
+        Prioritizes rows with n_games_used > 0 to avoid feeding the model
+        null/zero features from inactive rolling windows.
+        """
         player_ids = [b.player_id for b in (home_batters + away_batters)]
         player_ids.extend([home_starter_id, away_starter_id])
 
+        # First try: get latest row WITH actual data (n_games_used > 0)
         subq = (
             select(
                 PlayerRollingFeaturesORM.player_id,
@@ -324,6 +329,7 @@ class MatchupLoader:
             )
             .where(PlayerRollingFeaturesORM.player_id.in_(player_ids))
             .where(PlayerRollingFeaturesORM.game_date <= game.game_date)
+            .where(PlayerRollingFeaturesORM.n_games_used > 0)
             .group_by(PlayerRollingFeaturesORM.player_id)
             .subquery()
         )
@@ -337,6 +343,36 @@ class MatchupLoader:
         )
 
         feature_rows = self.session.execute(stmt).scalars().all()
+        
+        # Fallback: for any players not found above, try without the n_games_used filter
+        found_ids = {row.player_id for row in feature_rows}
+        missing_ids = [pid for pid in player_ids if pid not in found_ids]
+        
+        if missing_ids:
+            logger.warning(
+                f"⚠️ {len(missing_ids)} players have no rolling features with n_games_used > 0. "
+                f"Falling back to latest available row."
+            )
+            fallback_subq = (
+                select(
+                    PlayerRollingFeaturesORM.player_id,
+                    func.max(PlayerRollingFeaturesORM.game_date).label("latest_date"),
+                )
+                .where(PlayerRollingFeaturesORM.player_id.in_(missing_ids))
+                .where(PlayerRollingFeaturesORM.game_date <= game.game_date)
+                .group_by(PlayerRollingFeaturesORM.player_id)
+                .subquery()
+            )
+            fallback_stmt = select(PlayerRollingFeaturesORM).join(
+                fallback_subq,
+                and_(
+                    PlayerRollingFeaturesORM.player_id == fallback_subq.c.player_id,
+                    PlayerRollingFeaturesORM.game_date == fallback_subq.c.latest_date,
+                ),
+            )
+            fallback_rows = self.session.execute(fallback_stmt).scalars().all()
+            feature_rows = list(feature_rows) + list(fallback_rows)
+
         if not feature_rows:
             raise ValueError(f"No rolling features found for game {game.game_id}.")
 

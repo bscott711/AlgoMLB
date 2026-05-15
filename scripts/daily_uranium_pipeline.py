@@ -78,16 +78,31 @@ def main():
     if not run_command(["algomlb", "sync", "daily"], "Syncing data & settling yesterday"):
         logger.warning("Pipeline continuing despite minor sync issues...")
 
-    # 2. Strategy Layer: Find +EV Edges using Fast Top-Down Models
+    # 2. Process Silver Layer (Statcast → Player Game Logs)
+    #    Rolling features depend on this upstream data.
+    if not run_command(
+        ["algomlb", "process", "silver", "--incremental"],
+        "Processing Silver Layer (incremental)",
+    ):
+        logger.warning("⚠️ Silver processing had issues. Rolling features may be stale.")
+
+    # 3. Refresh Rolling Features (CRITICAL for model accuracy)
+    #    Without this, pitcher/batter features go stale and the model predicts on zeros.
+    if not run_command(
+        ["algomlb", "process", "rolling", "--date", today_str],
+        "Computing rolling features for today",
+    ):
+        logger.error("⚠️ Rolling features failed! Model predictions may be degraded.")
+
+    # 4. Strategy Layer: Find +EV Edges using Fast Top-Down Models
     place_today_bets()
 
-    # 3. Check for ANY Pending Bets (New or Existing)
+    # 4. Check for ANY Pending Bets (New or Existing)
     pending_count = count_pending_bets()
 
-    # 4. Social Layer: FadeGoblin Timeline Post
+    # 5. Social Layer: FadeGoblin Timeline Post
     if pending_count > 0:
         logger.info(f"👺 Found {pending_count} pending targets. Triggering the Goblin...")
-        # Now passing full env to 'bot'
         if run_command(["bot", "--mode", "sniper"], "FadeGoblin Sniper Post"):
             logger.success("🚀 Social post is LIVE on Bluesky!")
         else:

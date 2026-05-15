@@ -118,6 +118,12 @@ def silver(
     game_date: Optional[str] = typer.Option(
         None, "--date", help="Process a single game date (YYYY-MM-DD)."
     ),
+    start_date: Optional[str] = typer.Option(
+        None, "--start", help="Start date for range processing (YYYY-MM-DD)."
+    ),
+    end_date: Optional[str] = typer.Option(
+        None, "--end", help="End date for range processing (YYYY-MM-DD, inclusive)."
+    ),
     year: Optional[int] = typer.Option(
         None, "--year", help="Process an entire year (full backfill)."
     ),
@@ -133,6 +139,7 @@ def silver(
         process_silver_incremental,
         summarize_to_silver,
         fetch_prior_year_stats,
+        _upsert_silver,
     )
 
     if incremental:
@@ -141,6 +148,40 @@ def silver(
         )
         process_silver_incremental(batch_size=batch_size)
         typer.echo("Incremental processing check complete.")
+        return
+
+    # Date range processing (--start / --end)
+    if start_date is not None:
+        s = date.fromisoformat(start_date)
+        e = date.fromisoformat(end_date) if end_date else s
+        engine = get_engine()
+
+        # Only query dates that actually have Statcast data
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            query = text("""
+                SELECT DISTINCT game_date
+                FROM statcast_raw
+                WHERE game_date >= :start AND game_date <= :end
+                ORDER BY game_date
+            """)
+            dates_with_data = conn.execute(query, {"start": s, "end": e}).fetchall()
+
+        if not dates_with_data:
+            typer.echo(f"No Statcast data found between {s} and {e}.")
+            return
+
+        typer.echo(f"Processing {len(dates_with_data)} game-days from {s} to {e}...")
+        for row in dates_with_data:
+            current = row[0]
+            q = select(StatcastRawORM).where(StatcastRawORM.game_date == current)
+            df = pd.read_sql(q, engine)
+            if not df.empty:
+                prior = fetch_prior_year_stats(current.year - 1)
+                summarized = summarize_to_silver(df, prior)
+                _upsert_silver(summarized)
+                typer.echo(f"Summarized {current} to silver.")
+        typer.echo("Range processing complete.")
         return
 
     if year is not None:
@@ -165,8 +206,6 @@ def silver(
         for row in dates_with_data:
             current = row[0]
             typer.echo(f"Summarizing {current}...")
-            # Reuse logic for each date
-            from algomlb.ml.silver_processor import _upsert_silver
 
             query = select(StatcastRawORM).where(StatcastRawORM.game_date == current)
             df = pd.read_sql(query, engine)
@@ -182,8 +221,6 @@ def silver(
         query = select(StatcastRawORM).where(StatcastRawORM.game_date == d)
         df = pd.read_sql(query, engine)
         if not df.empty:
-            from algomlb.ml.silver_processor import _upsert_silver
-
             prior = fetch_prior_year_stats(d.year - 1)
             summarized = summarize_to_silver(df, prior)
             _upsert_silver(summarized)
@@ -192,5 +229,5 @@ def silver(
             typer.echo(f"No data found for {d}")
         return
 
-    typer.echo("Error: Provide --date, --year, or --incremental.")
+    typer.echo("Error: Provide --date, --start [--end], --year, or --incremental.")
     raise typer.Exit(code=1)
