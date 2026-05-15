@@ -14,8 +14,8 @@ def render_picks_view():
     session = session_factory()
     
     try:
-        # Default to the current day in our sim cycle
-        target_date = date(2026, 5, 13)
+        # Dynamic date instead of hardcoded 5/13
+        target_date = date.today()
         
         st.write(f"Scanned Slate for **{target_date}**")
         
@@ -92,8 +92,8 @@ def render_picks_view():
             
         # 2. Display Picks Table
         picks_df = pd.DataFrame(picks)
-        # Sort by absolute Edge to find the biggest discrepancies
-        picks_df = picks_df.sort_values("Edge %", ascending=False)
+        # Sort by absolute EV % to find the biggest discrepancies
+        picks_df = picks_df.sort_values("EV %", ascending=False)
         
         st.subheader("🔥 Top Market Inefficiencies")
         
@@ -109,14 +109,15 @@ def render_picks_view():
                 "Edge %": "{:+.1%}",
                 "EV %": "{:.1%}",
                 "Price": "{:.2f}"
-            }).applymap(color_edge, subset=["Edge %"]),
+            }).map(color_edge, subset=["Edge %"]),
             use_container_width=True
         )
         
         # 3. Featured Best Bet
         if not picks_df.empty:
             best_bet = picks_df.iloc[0]
-            st.success(f"🎯 **Best Bet**: {best_bet['Selection']} ML ({best_bet['Price']:.2f}) — Edge: {best_bet['Edge %']:.1%}")
+            st.success(f"🎯 **Best Bet**: {best_bet['Selection']} ({best_bet['Price']:.2f}) — EV: {best_bet['EV %']:.1%}")
+
 
     finally:
         session.close()

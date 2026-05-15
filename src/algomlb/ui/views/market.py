@@ -73,7 +73,7 @@ if not df_alpha.empty:
             "closing_implied": "{:.1%}",
             "market_move": "{:+.1%}",
             "closing_edge": "{:+.1%}"
-        }).applymap(color_clv, subset=["market_move"]),
+        }).map(color_clv, subset=["market_move"]),
         use_container_width=True
     )
 
