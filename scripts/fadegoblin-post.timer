@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer for FadeGoblin Daily Social Post
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 08:30 AM (after the morning sync)
+OnCalendar=*-*-* 08:30:00
+Unit=fadegoblin-post.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

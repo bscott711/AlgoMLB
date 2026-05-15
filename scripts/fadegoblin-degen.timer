@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer for FadeGoblin Daily Degen Post
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 11:30 AM (Peak morning degens)
+OnCalendar=*-*-* 11:30:00
+Unit=fadegoblin-degen.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

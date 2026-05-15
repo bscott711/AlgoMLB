@@ -1,0 +1,8 @@
+[
+  {"name": "auth_token", "value": "8bde6f31ba124ca32360865eecab09f02aa6cd91", "domain": ".x.com", "path": "/", "httpOnly": true, "secure": true, "sameSite": "None"},
+  {"name": "ct0", "value": "747fab1625481f0b34c6a46b6795199d423c38a5155ea2c6e2f6b685ded4b681172a1477b9f389123d1bbd1b804da167d5ecab99857cca5aaa095f6cdf60e687319399688d2205b2f9aca1d2f79d9378", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "Lax"},
+  {"name": "twid", "value": "u%3D1784408876458070016", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},
+  {"name": "guest_id", "value": "v1%3A177882102137835061", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},
+  {"name": "personalization_id", "value": "\"v1_sbPYc7oatcL0Inj0JhIudQ==\"", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},
+  {"name": "lang", "value": "en", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": false, "sameSite": "None"}
+]

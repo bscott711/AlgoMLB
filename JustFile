@@ -335,9 +335,58 @@ check-scheduler:
 	@systemctl --user list-timers algomlb-sync.timer --no-pager
 	@echo ""
 	@echo "📝 Latest Logs:"
+# Install the systemd user-level scheduler for the FadeGoblin bot
+install-bot-scheduler:
+	@echo "⚙️ Installing FadeGoblin Daily Post Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-post.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-post.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-post.timer
+	systemctl --user start fadegoblin-post.timer
+	@echo "✅ Bot scheduler installed! Use 'just check-bot-scheduler' to verify."
+
+# Uninstall the bot scheduler
+uninstall-bot-scheduler:
+	@echo "🛑 Uninstalling FadeGoblin Daily Post Scheduler..."
+	systemctl --user stop fadegoblin-post.timer || true
+	systemctl --user disable fadegoblin-post.timer || true
+	rm -f ~/.config/systemd/user/fadegoblin-post.service
+	rm -f ~/.config/systemd/user/fadegoblin-post.timer
+	systemctl --user daemon-reload
+	@echo "✅ Bot scheduler uninstalled."
+
+# Check the status of the bot scheduler
+check-bot-scheduler:
+	@echo "📡 Checking FadeGoblin Scheduler Status..."
+	@systemctl --user status fadegoblin-post.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-post.timer --no-pager
+
+# Install the systemd user-level scheduler for the FadeGoblin Degen bot
+install-degen-scheduler:
+	@echo "⚙️ Installing FadeGoblin Degen Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-degen.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-degen.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-degen.timer
+	systemctl --user start fadegoblin-degen.timer
+	@echo "✅ Degen scheduler installed! Use 'just check-degen-scheduler' to verify."
+
+# Check the status of the degen scheduler
+check-degen-scheduler:
+	@echo "📡 Checking FadeGoblin Degen Scheduler Status..."
+	@systemctl --user status fadegoblin-degen.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-degen.timer --no-pager
+
 # ==========================================
 # 10. SIMULATION (Monte Carlo & Uranium)
 # ==========================================
+
 
 # Batch simulate all games for a specific date
 # Usage: just sim-day 2026-05-13
@@ -375,8 +424,14 @@ settle-yesterday:
 
 # Trigger a FadeGoblin Sniper post manually (if +EV bets exist)
 post-sniper:
-	@echo "👺 Triggering manual Sniper post..."
-	uv run bot --mode sniper
+	@echo "👺 Triggering manual Sniper post with browser automation (Unique content)..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode sniper
+
+# Trigger a FadeGoblin Degen post manually (Random Parlay)
+post-degen:
+	@echo "🎲 Triggering manual Degen post with browser automation (Unique content)..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode degen
+
 
 # ==========================================
 # 12. NOTEBOOKLM RESEARCH (AI Analysis)
