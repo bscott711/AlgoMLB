@@ -68,18 +68,18 @@ MAX_EDGE_PCT = 15.0  # discard edges above this — likely stale/garbage data
 
 
 def edge_to_goblins(edge_pct: float) -> str:
-    """Converts edge % to a goblin confidence meter for display on the card.
+    """Converts edge % to a star-based confidence rating for display on the card.
 
-    1 goblin  = edge 1–3 %  (marginal edge, play with awareness)
-    2 goblins = edge 4–6 %  (solid +EV, reasonable confidence)
-    3 goblins = edge 7 %+   (strong edge, high conviction)
+    1 star  = edge 1–3%   (marginal edge)
+    2 stars = edge 3–6%   (solid edge)
+    3 stars = edge 6%+    (extreme edge)
     """
-    if edge_pct >= 7.0:
-        return "👺👺👺"
-    elif edge_pct >= 4.0:
-        return "👺👺"
+    if edge_pct >= 6.0:
+        return "★★★"
+    elif edge_pct >= 3.0:
+        return "★★"
     else:
-        return "👺"
+        return "★"
 
 
 def get_sniper_bets() -> tuple[list[dict], list[str]]:

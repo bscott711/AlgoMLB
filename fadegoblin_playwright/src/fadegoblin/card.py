@@ -17,7 +17,7 @@ FOOTER_HEIGHT = 28
 COL_WIDTH = (CARD_WIDTH - (PADDING * 3)) // 2
 
 # ── Colour palette ────────────────────────────────────────────────────
-BG_COLOR = (12, 12, 18, 235)
+BG_COLOR = (12, 12, 18, 190)
 POTD_BG = (15, 65, 35, 255)
 ACCENT_GREEN = (0, 255, 100)
 TEXT_WHITE = (240, 240, 245)
@@ -135,13 +135,20 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         odds_x = x + COL_WIDTH - (bbox_odds[2] - bbox_odds[0]) - 8
         draw.text((odds_x, matchup_y), odds_str, fill=TEXT_WHITE, font=font_row)
 
-        # ── Diagnostics row (line 2): implied % + goblin meter ─────
+        # ── Diagnostics row (line 2): implied % + edge % + rating ─────
         implied_pct = leg.get("implied")
+        edge_pct = leg.get("edge")
         goblins = leg.get("goblins", "")
+        
+        diag_parts = []
         if implied_pct is not None:
-            diag_text = f"impl {implied_pct}%  {goblins}"
-        else:
-            diag_text = goblins
+            diag_parts.append(f"impl {implied_pct}%")
+        if edge_pct is not None:
+            diag_parts.append(f"+{edge_pct}% EV")
+        if goblins:
+            diag_parts.append(goblins)
+            
+        diag_text = "  •  ".join(diag_parts)
         draw.text((x + 10, diag_y), diag_text, fill=TEXT_DIM, font=font_date)
 
     # ── Footer ────────────────────────────────────────────────────────
@@ -157,7 +164,7 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
     """Renders a nightly recap card showing the day's W/L/Push record."""
     picks = stats.get("picks", [])
     num_picks = len(picks)
-    num_rows = max(1, num_picks)
+    num_rows = math.ceil(num_picks / 2) if num_picks > 0 else 1
 
     table_content_h = num_rows * (ROW_HEIGHT + 4)
     base_table_height = HEADER_HEIGHT + table_content_h + FOOTER_HEIGHT + 20
@@ -229,7 +236,7 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
         draw.rounded_rectangle([x, y, x + COL_WIDTH, y + ROW_HEIGHT], radius=6, fill=row_fill)
 
         result_color = RESULT_COLORS.get(result, TEXT_DIM)
-        result_icon = {"WIN": "✅", "LOSS": "❌", "PUSH": "➡️", "?": "❓"}.get(result, "?")
+        result_icon = {"WIN": "✓", "LOSS": "✗", "PUSH": "–", "?": "?"}.get(result, "?")
 
         matchup_y = y + 6
         diag_y = y + 28
