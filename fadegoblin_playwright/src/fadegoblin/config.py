@@ -17,8 +17,9 @@ DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("DATABASE__URL")
 BOT_HANDLE = os.getenv("BOT_HANDLE")
 APP_PASSWORD = os.getenv("APP_PASSWORD")
 
-# --- Twitter/X Credentials (Browser Automation) ---
+# --- Twitter/X Credentials (Browser Automation + twikit fallback) ---
 TWITTER_USERNAME = os.getenv("TWITTER_USERNAME")
+TWITTER_EMAIL = os.getenv("TWITTER_EMAIL")
 TWITTER_PASSWORD = os.getenv("TWITTER_PASSWORD")
 
 # --- LLM / Image Generation ---

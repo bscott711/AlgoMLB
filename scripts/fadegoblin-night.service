@@ -1,0 +1,14 @@
+[Unit]
+Description=FadeGoblin Night POTD Preview Post (Twitter/X and Bluesky)
+After=network.target
+
+[Service]
+Type=oneshot
+User=opc
+Group=opc
+WorkingDirectory=/home/opc/AlgoMLB
+Environment="PATH=/home/opc/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/usr/bin/xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src /home/opc/AlgoMLB/.venv/bin/python /home/opc/AlgoMLB/fadegoblin_playwright/src/fadegoblin/main.py --mode preview
+
+[Install]
+WantedBy=default.target

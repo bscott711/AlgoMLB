@@ -3,9 +3,9 @@ Description=Daily schedule for AlgoMLB Data Ingestion
 Requires=algomlb-sync.service
 
 [Timer]
-# Run every day at 08:30 UTC (Approx 04:30 AM ET)
-# This allows West Coast games to complete and canonical API records to stabilize.
-OnCalendar=*-*-* 08:30:00
+# Run every day at 01:00 UTC (07:00 PM MDT / 06:00 PM MST)
+# Generates predictions for tomorrow's games before the 8 PM MT night preview card.
+OnCalendar=*-*-* 01:00:00
 # Spread the load to avoid hitting APIs at the exact same second
 RandomizedDelaySec=600
 # Keep the schedule persistent across reboots

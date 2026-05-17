@@ -383,6 +383,102 @@ check-degen-scheduler:
 	@echo "📅 Next Run:"
 	@systemctl --user list-timers fadegoblin-degen.timer --no-pager
 
+# Install the systemd user-level scheduler for the FadeGoblin Recap bot
+install-recap-scheduler:
+	@echo "⚙️ Installing FadeGoblin Recap Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-recap.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-recap.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-recap.timer
+	systemctl --user start fadegoblin-recap.timer
+	@echo "✅ Recap scheduler installed! Use 'just check-recap-scheduler' to verify."
+
+# Uninstall the recap scheduler
+uninstall-recap-scheduler:
+	@echo "🛑 Uninstalling FadeGoblin Recap Scheduler..."
+	systemctl --user stop fadegoblin-recap.timer || true
+	systemctl --user disable fadegoblin-recap.timer || true
+	rm -f ~/.config/systemd/user/fadegoblin-recap.service
+	rm -f ~/.config/systemd/user/fadegoblin-recap.timer
+	systemctl --user daemon-reload
+	@echo "✅ Recap scheduler uninstalled."
+
+# Check the status of the recap scheduler
+check-recap-scheduler:
+	@echo "📡 Checking FadeGoblin Recap Scheduler Status..."
+	@systemctl --user status fadegoblin-recap.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-recap.timer --no-pager
+
+# Install the systemd user-level scheduler for nightly bet settlement
+install-settle-scheduler:
+	@echo "⚙️ Installing AlgoMLB Nightly Settle Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/algomlb-settle.service ~/.config/systemd/user/
+	cp scripts/algomlb-settle.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable algomlb-settle.timer
+	systemctl --user start algomlb-settle.timer
+	@echo "✅ Settle scheduler installed! Use 'just check-settle-scheduler' to verify."
+
+# Uninstall the settle scheduler
+uninstall-settle-scheduler:
+	@echo "🛑 Uninstalling AlgoMLB Settle Scheduler..."
+	systemctl --user stop algomlb-settle.timer || true
+	systemctl --user disable algomlb-settle.timer || true
+	rm -f ~/.config/systemd/user/algomlb-settle.service
+	rm -f ~/.config/systemd/user/algomlb-settle.timer
+	systemctl --user daemon-reload
+	@echo "✅ Settle scheduler uninstalled."
+
+# Check the status of the settle scheduler
+check-settle-scheduler:
+	@echo "📡 Checking AlgoMLB Settle Scheduler Status..."
+	@systemctl --user status algomlb-settle.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers algomlb-settle.timer --no-pager
+
+# Install ALL FadeGoblin schedulers (sniper + degen + recap + settle + night)
+install-all-schedulers: install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler
+	@echo "✅ All FadeGoblin schedulers installed!"
+
+# Check ALL active timers
+check-all-timers:
+	@echo "📅 All Active Systemd Timers:"
+	@systemctl --user list-timers --all --no-pager
+
+# Install the systemd user-level scheduler for the 8 PM MT Night POTD Preview
+install-night-scheduler:
+	@echo "⚙️ Installing FadeGoblin Night POTD Preview Scheduler (8 PM MT)..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-night.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-night.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-night.timer
+	systemctl --user start fadegoblin-night.timer
+	@echo "✅ Night scheduler installed! Use 'just check-night-scheduler' to verify."
+
+# Uninstall the night scheduler
+uninstall-night-scheduler:
+	@echo "🛑 Uninstalling FadeGoblin Night Scheduler..."
+	systemctl --user stop fadegoblin-night.timer || true
+	systemctl --user disable fadegoblin-night.timer || true
+	rm -f ~/.config/systemd/user/fadegoblin-night.service
+	rm -f ~/.config/systemd/user/fadegoblin-night.timer
+	systemctl --user daemon-reload
+	@echo "✅ Night scheduler uninstalled."
+
+# Check the status of the night scheduler
+check-night-scheduler:
+	@echo "📡 Checking FadeGoblin Night Scheduler Status..."
+	@systemctl --user status fadegoblin-night.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-night.timer --no-pager
+
 # ==========================================
 # 10. SIMULATION (Monte Carlo & Uranium)
 # ==========================================
@@ -432,7 +528,39 @@ post-degen:
 	@echo "🎲 Triggering manual Degen post with browser automation (Unique content)..."
 	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode degen
 
+# Trigger a FadeGoblin Nightly Recap post manually (uses yesterday's results)
+post-recap:
+	@echo "📊 Triggering manual Recap post..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode recap
 
+# Trigger a recap for a specific date (e.g. just post-recap-date 2026-05-16)
+post-recap-date date:
+	@echo "📊 Triggering Recap post for {{date}}..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode recap --date {{date}}
+
+# Dry-run the recap (no actual posting)
+recap-dry:
+	@echo "🧪 Dry-run Recap post (no posting)..."
+	env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode recap --dry-run
+
+# Trigger a FadeGoblin Night POTD Preview post manually (tonight's upcoming pick)
+post-night:
+	@echo "🌙 Triggering manual Night POTD Preview post..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode preview
+
+# Dry-run the night preview (no actual posting)
+night-dry:
+	@echo "🧪 Dry-run Night Preview (no posting)..."
+	env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode preview --dry-run
+
+# ── DAILY SCHEDULE OVERVIEW (server is UTC / GMT) ───────────────────────
+# 01:00 UTC (7:00 PM MDT)   — 🔄 algomlb-sync        syncs tomorrow's games/odds & generates predictions
+# 02:00 UTC (8:00 PM MDT)   — 🌙 Night POTD preview  "tomorrow's lock" (marks preview POTD as PLACED)
+# 11:30 UTC (5:30 AM MDT)   — ⚙️  settle-yesterday    scores locked into DB
+# 12:00 UTC (6:00 AM MDT)   — 📊 Recap post          "here's yesterday's record"
+# 12:30 UTC (6:30 AM MDT)   — 🎯 Sniper card         "here's today's picks" (POTD + rest of the card)
+# 18:00 UTC (12:00 PM MDT)  — 🎲 Degen post          random parlay for lunch crowd
+# ─────────────────────────────────────────────────────────────────────────
 # ==========================================
 # 12. NOTEBOOKLM RESEARCH (AI Analysis)
 # ==========================================

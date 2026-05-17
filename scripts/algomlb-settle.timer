@@ -1,0 +1,15 @@
+[Unit]
+Description=Timer for AlgoMLB Settle Yesterday's Bets
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 11:30 UTC = 5:30 AM MDT / 4:30 AM MST
+# All MLB West Coast games finish by ~05:00 UTC (11 PM MT).
+# This fires 30 min after the last game ends, 30 min before the recap.
+OnCalendar=*-*-* 11:30:00
+Unit=algomlb-settle.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

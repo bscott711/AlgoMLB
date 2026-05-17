@@ -1,0 +1,15 @@
+[Unit]
+Description=Timer for FadeGoblin Night POTD Preview Post
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 02:00 UTC = 8:00 PM MDT / 7:00 PM MST
+# Evening hype post: teases tonight's POTD as games are about to start.
+# Reads today's top PLACED pick for any game still upcoming (game_datetime > NOW()).
+OnCalendar=*-*-* 02:00:00
+Unit=fadegoblin-night.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

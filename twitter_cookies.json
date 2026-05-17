@@ -1,6 +1,6 @@
 [
-  {"name": "auth_token", "value": "8bde6f31ba124ca32360865eecab09f02aa6cd91", "domain": ".x.com", "path": "/", "httpOnly": true, "secure": true, "sameSite": "None"},
-  {"name": "ct0", "value": "747fab1625481f0b34c6a46b6795199d423c38a5155ea2c6e2f6b685ded4b681172a1477b9f389123d1bbd1b804da167d5ecab99857cca5aaa095f6cdf60e687319399688d2205b2f9aca1d2f79d9378", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "Lax"},
+  {"name": "auth_token", "value": "90c11e74824ea256810fa55adcf576f4efe8d833", "domain": ".x.com", "path": "/", "httpOnly": true, "secure": true, "sameSite": "None"},
+  {"name": "ct0", "value": "c5095dcd7a030d539eda6c96ffe013965f888a3abfbc9f28406aa8f0c11c6fda24ba9f4829e784757d2649f186ad5ec760f5e6557e21983f3fa28d8b9f58cf4b7c8c966b95e1125c672fb7cc6aacb2f5", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "Lax"},
   {"name": "twid", "value": "u%3D1784408876458070016", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},
   {"name": "guest_id", "value": "v1%3A177882102137835061", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},
   {"name": "personalization_id", "value": "\"v1_sbPYc7oatcL0Inj0JhIudQ==\"", "domain": ".x.com", "path": "/", "httpOnly": false, "secure": true, "sameSite": "None"},

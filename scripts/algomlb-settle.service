@@ -1,0 +1,15 @@
+[Unit]
+Description=AlgoMLB Settle Yesterday's Bets
+After=network.target
+
+[Service]
+Type=oneshot
+User=opc
+Group=opc
+WorkingDirectory=/home/opc/AlgoMLB
+Environment="PATH=/home/opc/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+# settle --date defaults to yesterday inside the CLI implementation
+ExecStart=/home/opc/.local/bin/uv run algomlb settle --date $(date -d "yesterday" +%%Y-%%m-%%d)
+
+[Install]
+WantedBy=default.target

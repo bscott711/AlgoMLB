@@ -1,0 +1,15 @@
+[Unit]
+Description=Timer for FadeGoblin Nightly Recap Post
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Run every day at 12:00 UTC = 6:00 AM MDT / 5:00 AM MST
+# Settle fires at 11:30 UTC (5:30 AM MT), this fires 30 min later.
+# Posts yesterday's record before the morning card goes out at 12:30 UTC.
+OnCalendar=*-*-* 12:00:00
+Unit=fadegoblin-recap.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

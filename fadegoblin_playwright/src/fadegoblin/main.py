@@ -8,9 +8,14 @@ from atproto import Client, models
 
 from fadegoblin import config, browser_twitter
 from fadegoblin.betting import build_parlay
-from fadegoblin.card import render_bet_card
-from fadegoblin.ev_logic import get_sniper_bets, mark_bets_placed
-from fadegoblin.generator import generate_post_content, generate_sniper_post_content
+from fadegoblin.card import render_bet_card, render_recap_card
+from fadegoblin.ev_logic import get_sniper_bets, get_recap_stats, get_preview_potd, mark_bets_placed
+from fadegoblin.generator import (
+    generate_post_content,
+    generate_sniper_post_content,
+    generate_recap_post_content,
+    generate_preview_post_content,
+)
 from fadegoblin.image import download_goblin_image, generate_goblin_prompt
 from fadegoblin.odds import get_live_games
 from fadegoblin.prompts import FALLBACK_QUOTES
@@ -27,17 +32,33 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["degen", "sniper"],
+        choices=["degen", "sniper", "recap", "preview"],
         default="degen",
-        help="Run mode: 'degen' (random parlay) or 'sniper' (AlgoMLB DB picks)",
+        help=(
+            "Run mode: "
+            "'sniper' (morning card, marks bets PLACED), "
+            "'preview' (8 PM night hype, reads PLACED picks for tonight), "
+            "'recap' (morning recap of yesterday's results), "
+            "'degen' (random parlay)"
+        ),
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Date for recap mode (YYYY-MM-DD). Defaults to yesterday.",
+    )
     args = parser.parse_args()
 
     print(f"--- Starting FadeGoblin [{args.mode.upper()}] at {datetime.now()} ---")
 
     if args.mode == "sniper":
         _run_sniper(args.dry_run)
+    elif args.mode == "recap":
+        _run_recap(args.dry_run, args.date)
+    elif args.mode == "preview":
+        _run_preview(args.dry_run)
     else:
         _run_degen(args.dry_run)
 
@@ -117,6 +138,78 @@ def _run_sniper(dry_run: bool) -> None:
     post_texts = [post_text_1, post_text_2]
 
     _post_to_socials(post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update)
+
+
+def _run_preview(dry_run: bool) -> None:
+    """Preview Mode: night hype post for tomorrow's best upcoming game (8 PM MT).
+
+    Reads the top PENDING pick for tomorrow's slate, posts a fresh unhinged rant
+    as an evening preview, and transitions only this pick to PLACED status.
+    """
+    print("🌙 Mode: Preview. Checking for tomorrow's upcoming PENDING picks...")
+    potd_leg = get_preview_potd()
+
+    if not potd_leg:
+        print("💤 No upcoming PENDING picks found. Skipping preview.")
+        return
+
+    print(f"⭐ Tomorrow's feature: {potd_leg['pick']} {potd_leg['odds']} ({potd_leg['game']})")
+
+    # Generate a single goblin background image
+    prompt = generate_goblin_prompt()
+    bg_target = config.BASE_DIR / "temp_preview_bg.jpg"
+    goblin_bg = download_goblin_image(prompt, bg_target)
+
+    # Render a minimal single-pick card (reuse the bet card with 1 leg, potd_index=0)
+    preview_card_path = render_bet_card([potd_leg], potd_index=0, background_path=goblin_bg)
+
+    if goblin_bg and os.path.exists(goblin_bg) and goblin_bg != preview_card_path:
+        os.remove(goblin_bg)
+
+    # Two unique night-hype posts (one per platform, same persona pool)
+    post_text_1 = generate_preview_post_content(potd_leg)
+    post_text_2 = generate_preview_post_content(potd_leg)
+
+    # Transition the previewed POTD to PLACED
+    _post_to_socials(
+        [post_text_1, post_text_2],
+        [preview_card_path, preview_card_path],
+        dry_run,
+        db_ids_to_update=[potd_leg["id"]],
+    )
+
+
+
+def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
+    """Recap Mode: pull yesterday's placed bets, score them, post a recap card."""
+    print("📊 Mode: Recap. Pulling yesterday's results...")
+    stats = get_recap_stats(date_str)
+
+    if not stats or stats.get("total", 0) == 0:
+        print(f"💤 No placed bets found for {stats.get('date', 'the target date')}. Skipping recap.")
+        return
+
+    print(f"   Found {stats['total']} bets: {stats['wins']}W / {stats['losses']}L / {stats['pushes']}P")
+
+    # Generate ONE goblin background for the recap card
+    prompt = generate_goblin_prompt()
+    bg_target = config.BASE_DIR / "temp_recap_bg.jpg"
+    goblin_bg = download_goblin_image(prompt, bg_target)
+
+    recap_card_path = render_recap_card(stats, background_path=goblin_bg)
+
+    if goblin_bg and os.path.exists(goblin_bg) and goblin_bg != recap_card_path:
+        os.remove(goblin_bg)
+
+    # Generate TWO unique recap posts (one per platform, same persona pool)
+    post_text_1 = generate_recap_post_content(stats)
+    post_text_2 = generate_recap_post_content(stats)
+
+    _post_to_socials(
+        [post_text_1, post_text_2],
+        [recap_card_path, recap_card_path],
+        dry_run,
+    )
 
 
 def _post_to_socials(
