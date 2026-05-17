@@ -263,7 +263,7 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
     Returns a dict with keys:
         date, wins, losses, pushes, total, net_pnl (or None), picks (list of dicts)
     """
-    from datetime import date, timedelta
+    from datetime import date, timedelta, datetime
     from zoneinfo import ZoneInfo
 
     if not config.DATABASE_URL:
