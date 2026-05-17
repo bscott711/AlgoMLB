@@ -2,7 +2,6 @@ import datetime
 import os
 import subprocess
 import sys
-import time
 from dotenv import load_dotenv
 from loguru import logger
 from algomlb.db.session import get_session_factory
@@ -131,7 +130,7 @@ def main():
     else:
         logger.info("💤 No +EV targets found in ledger. Goblin is staying in the cave.")
 
-    logger.info(f"🏁 --- AlgoMLB FAST PIPELINE COMPLETE --- 🏁")
+    logger.info("🏁 --- AlgoMLB FAST PIPELINE COMPLETE --- 🏁")
 
 if __name__ == "__main__":
     main()

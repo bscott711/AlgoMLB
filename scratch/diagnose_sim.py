@@ -1,5 +1,5 @@
 """Diagnostic script to trace the root causes of unrealistic Monte Carlo projections."""
-import sys, os
+import sys
 sys.path.insert(0, "/home/opc/AlgoMLB/src")
 
 import numpy as np
@@ -158,7 +158,7 @@ if expected_features:
     probs = pa_model.predict_proba(row)
     outcome_map = list(pa_model.le.classes_) if pa_model.le else ["double", "hbp", "home_run", "out_in_play", "single", "strikeout", "triple", "walk"]
     
-    print(f"\n=== PREDICTED PROBABILITIES vs MLB BASELINE ===")
+    print("\n=== PREDICTED PROBABILITIES vs MLB BASELINE ===")
     expected_mlb = {
         "single": 0.155, "double": 0.047, "triple": 0.004,
         "home_run": 0.033, "walk": 0.085, "hbp": 0.012,
@@ -178,7 +178,7 @@ if expected_features:
 # 5. Simulation
 from algomlb.ml.monte_carlo.engine import SimulationEngine
 engine = SimulationEngine(pa_model, seed=42)
-print(f"\n=== RUNNING 100 TRIAL SIMULATION ===")
+print("\n=== RUNNING 100 TRIAL SIMULATION ===")
 results = engine.run_trials(ctx, trials=100)
 
 home_scores = [r.home_score for r in results]
@@ -195,7 +195,7 @@ df = agg.aggregate_results(game_pk, 2026, results, ctx)
 
 r_props = df[df['stat_type'] == 'R']
 h_props = df[df['stat_type'] == 'H']
-print(f"\n=== PLAYER: xR, xH ===")
+print("\n=== PLAYER: xR, xH ===")
 for b in ctx.home_lineup + ctx.away_lineup:
     pid = b.player_id
     name = b.player_name or str(pid)
@@ -213,7 +213,7 @@ print(f"Sim means:    Home={np.mean(home_scores):.2f}, Away={np.mean(away_scores
 print(f"GAP:          Home={np.mean(home_scores)-h_xr:.2f}, Away={np.mean(away_scores)-a_xr:.2f}")
 
 # 7. Single trial trace
-print(f"\n=== SINGLE TRIAL TRACE (trial 0) ===")
+print("\n=== SINGLE TRIAL TRACE (trial 0) ===")
 r0 = results[0]
 print(f"Score: Away {r0.away_score} - Home {r0.home_score}, innings={r0.inning_count}")
 from algomlb.ml.monte_carlo.state import BatterSimState as BSS

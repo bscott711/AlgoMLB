@@ -1,7 +1,6 @@
 """Verify training matrix has the right features for v1.3."""
 import sys
 sys.path.insert(0, "/home/opc/AlgoMLB/src")
-import pandas as pd
 from algomlb.db.session import get_session_factory
 from algomlb.ml.features import FeaturePipeline
 from algomlb.cli.ml import _load_ml_data
@@ -37,7 +36,7 @@ key_feats = [
     "pitcher_window_games",
     "batter_window_games",
 ]
-print(f"\nKey feature check:")
+print("\nKey feature check:")
 for f in key_feats:
     present = f in X.columns
     nz = (X[f] != 0).sum() if present else 0

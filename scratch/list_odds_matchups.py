@@ -1,4 +1,3 @@
-import sys
 from algomlb.db.session import get_session_factory
 from sqlalchemy import text
 

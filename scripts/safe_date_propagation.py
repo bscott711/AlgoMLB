@@ -1,6 +1,5 @@
-from sqlalchemy import text, select
+from sqlalchemy import text
 from algomlb.db.session import get_session_factory
-from algomlb.db.models import GameResultORM
 from algomlb.core.logger import logger
 
 def safe_propagation():

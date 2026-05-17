@@ -2,13 +2,11 @@
 import sys
 sys.path.insert(0, "/home/opc/AlgoMLB/src")
 
-import numpy as np
 import pandas as pd
 from pathlib import Path
 from algomlb.db.session import get_session_factory
-from algomlb.db.models import GameResultORM, PlayerRollingFeaturesORM
+from algomlb.db.models import PlayerRollingFeaturesORM
 from algomlb.ml.model import MLBModel
-from algomlb.domain import GameStatus
 from sqlalchemy import select, desc
 
 session = get_session_factory()()
@@ -26,7 +24,7 @@ expected_features = list(base.feature_names_in_)
 
 # Features the model needs that have "n_games_used" or "days_since_last_game"
 metadata_feats = [f for f in expected_features if 'n_games' in f or 'days_since' in f]
-print(f"\n=== Model metadata features ===")
+print("\n=== Model metadata features ===")
 for f in metadata_feats:
     print(f"  {f}")
 
@@ -47,7 +45,7 @@ if row:
             print(f"  {col.name:40s} = {val}")
 
 # 5. Examine the actual probabilities more carefully with ALL count states
-print(f"\n=== PROBABILITY ANALYSIS ACROSS COUNT STATES ===")
+print("\n=== PROBABILITY ANALYSIS ACROSS COUNT STATES ===")
 b_feats_row = {}
 # Use a generic batter 
 for feat in expected_features:
@@ -104,9 +102,9 @@ print(f"\n{'NO CNT':>5s}  {probs_no_cnt[outcome_map.index('out_in_play')]:>8.4f}
 print("⚠️  This is what the engine currently computes with all cnt_ = 0.0!")
 
 # 7. Check the _simulate_count method and see how count interacts
-print(f"\n\n=== KEY FINDING SUMMARY ===")
+print("\n\n=== KEY FINDING SUMMARY ===")
 print(f"1. Model has {len(expected_features)} features, {len([f for f in expected_features if f.startswith('cnt_')])} are count features")
-print(f"2. Engine's _model_has_count_features() should detect and enable 3D caching")
+print("2. Engine's _model_has_count_features() should detect and enable 3D caching")
 print(f"3. Walk prob at 0-0: {probs_no_cnt[outcome_map.index('walk')]:.4f} (baseline)")
 walk_0_0 = None
 walk_3_2 = None

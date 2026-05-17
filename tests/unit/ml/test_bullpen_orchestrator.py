@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from datetime import date
 from algomlb.ml.monte_carlo.bullpen_orchestrator import BullpenOrchestrator, RelieverProfile
 
 @pytest.fixture

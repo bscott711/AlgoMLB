@@ -1,5 +1,4 @@
 import cloudpickle
-import logging
 
 def check():
     path = "/home/opc/AlgoMLB/.data/models/pa_outcome_v1.1.pkl"

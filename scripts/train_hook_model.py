@@ -30,7 +30,6 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 # Ensure project src/ is importable when run directly

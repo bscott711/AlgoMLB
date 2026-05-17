@@ -1,7 +1,6 @@
-import numpy as np
 import pandas as pd
-from typing import Dict, List, TYPE_CHECKING
-from algomlb.ml.monte_carlo.state import BatterSimState, PitcherSimState, SimulationResult
+from typing import List, TYPE_CHECKING
+from algomlb.ml.monte_carlo.state import SimulationResult
 
 if TYPE_CHECKING:
     from algomlb.ml.monte_carlo.loader import MatchupContext

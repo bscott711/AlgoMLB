@@ -1,7 +1,6 @@
 import joblib
 from pathlib import Path
 import sys
-import xgboost as xgb
 
 def deep_inspect(name):
     path = Path(f".data/models/{name}.joblib")
@@ -26,7 +25,7 @@ def deep_inspect(name):
                 if hasattr(clf, "feature_names_in_"):
                     print(f"Features: {list(clf.feature_names_in_)}")
                 
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
 

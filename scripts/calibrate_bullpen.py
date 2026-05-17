@@ -1,6 +1,5 @@
 import optuna
 import numpy as np
-import pandas as pd
 from datetime import date
 from sqlalchemy import select, text
 from algomlb.db.session import get_session_factory
@@ -37,7 +36,7 @@ class BullpenCalibrationObjective:
         self.loader = MatchupLoader(self.session_factory())
         
         # Load Models
-        logger.info(f"Loading models for calibration...")
+        logger.info("Loading models for calibration...")
         pa_model_path = Path(f".data/models/pa_outcome_{pa_model_version}.joblib")
         pa_model = MLBModel.load(pa_model_path)
         

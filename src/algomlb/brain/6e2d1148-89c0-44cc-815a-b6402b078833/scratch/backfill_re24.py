@@ -2,7 +2,7 @@ import logging
 from datetime import date
 from sqlalchemy import select, text
 from algomlb.db.session import get_engine
-from algomlb.db.models import StatcastRawORM, StatcastPlayerGameLog
+from algomlb.db.models import StatcastRawORM
 from algomlb.ml.silver_processor import summarize_to_silver, _upsert_silver
 from algomlb.ml.rolling_service import RollingService
 from algomlb.ml.rolling_processor import RollingProcessor

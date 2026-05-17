@@ -41,6 +41,7 @@ def build_parlay(games: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str
                 if int_odds >= -350:
                     valid_legs.append(
                         {
+                            "sport": g["sport"],
                             "game": f"{g['away']} @ {g['home']}",
                             "pick": side,
                             "odds": int_odds,

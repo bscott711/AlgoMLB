@@ -3,8 +3,6 @@ from algomlb.db.session import get_session_factory
 from algomlb.ml.monte_carlo.engine import SimulationEngine
 from algomlb.ml.monte_carlo.loader import MatchupLoader
 from pathlib import Path
-import pandas as pd
-import numpy as np
 
 model = MLBModel.load(Path('.data/models/pa_outcome_v1.1.joblib'))
 session = get_session_factory()()

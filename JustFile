@@ -441,14 +441,43 @@ check-settle-scheduler:
 	@echo "📅 Next Run:"
 	@systemctl --user list-timers algomlb-settle.timer --no-pager
 
-# Install ALL FadeGoblin schedulers (sync + sniper + degen + recap + settle + night)
-install-all-schedulers: install-scheduler install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler
+# Install ALL FadeGoblin schedulers (sync + sniper + degen + recap + settle + night + followup)
+install-all-schedulers: install-scheduler install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler install-followup-scheduler
 	@echo "✅ All FadeGoblin schedulers installed!"
 
 # Check ALL active timers
 check-all-timers:
 	@echo "📅 All Active Systemd Timers:"
 	@systemctl --user list-timers --all --no-pager
+
+# Install the systemd user-level scheduler for the FadeGoblin Degen and POTD social followups
+install-followup-scheduler:
+	@echo "⚙️ Installing FadeGoblin Social Followup Scheduler (Every 2 Hours)..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-followup.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-followup.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-followup.timer
+	systemctl --user start fadegoblin-followup.timer
+	@echo "✅ Followup scheduler installed! Use 'just check-followup-scheduler' to verify."
+
+# Uninstall the followup scheduler
+uninstall-followup-scheduler:
+	@echo "🛑 Uninstalling FadeGoblin Social Followup Scheduler..."
+	systemctl --user stop fadegoblin-followup.timer || true
+	systemctl --user disable fadegoblin-followup.timer || true
+	rm -f ~/.config/systemd/user/fadegoblin-followup.service
+	rm -f ~/.config/systemd/user/fadegoblin-followup.timer
+	systemctl --user daemon-reload
+	@echo "✅ Followup scheduler uninstalled."
+
+# Check the status of the followup scheduler
+check-followup-scheduler:
+	@echo "📡 Checking FadeGoblin Social Followup Scheduler Status..."
+	@systemctl --user status fadegoblin-followup.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-followup.timer --no-pager
 
 # Install the systemd user-level scheduler for the 8 PM MT Night POTD Preview
 install-night-scheduler:
@@ -552,6 +581,16 @@ post-night:
 night-dry:
 	@echo "🧪 Dry-run Night Preview (no posting)..."
 	env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode preview --dry-run
+
+# Trigger a FadeGoblin Social Followup and Grading cycle manually
+post-followup:
+	@echo "⚖️ Grading completed slips and posting replies..."
+	xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode followup
+
+# Dry-run the followup cycle (no posting/database writes)
+followup-dry:
+	@echo "🧪 Dry-run Degen and POTD followup..."
+	env PYTHONPATH=fadegoblin_playwright/src .venv/bin/python fadegoblin_playwright/src/fadegoblin/main.py --mode followup --dry-run
 
 # ── DAILY SCHEDULE OVERVIEW (server is UTC / GMT) ───────────────────────
 # 01:00 UTC (7:00 PM MDT)   — 🔄 algomlb-sync        syncs tomorrow's games/odds & generates predictions

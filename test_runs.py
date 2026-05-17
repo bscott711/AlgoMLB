@@ -1,8 +1,6 @@
 import sys
 sys.path.append("/home/opc/AlgoMLB/src")
 from algomlb.ml.monte_carlo.state import GameState, BatterSimState, PitcherSimState
-from algomlb.ml.monte_carlo.engine import SimulationEngine
-from typing import List
 
 b_reg = {i: BatterSimState(player_id=i) for i in range(1, 10)}
 p_reg = {100: PitcherSimState(pitcher_id=100)}

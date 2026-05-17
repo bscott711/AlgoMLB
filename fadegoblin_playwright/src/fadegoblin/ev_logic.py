@@ -169,6 +169,8 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
 
         formatted_legs.append(
             {
+                "id": str(row["id"]),
+                "game_id": str(row["match_id"]),
                 "game": f"{away} @ {home}",
                 "pick": pick_name,
                 "odds": decimal_to_american(row["dec_odds"]),
@@ -201,7 +203,7 @@ def get_preview_potd() -> dict | None:
 
     query = text("""
         SELECT
-            b.transaction_id as id, b.selection as outcome,
+            b.transaction_id as id, b.game_id as game_id, b.selection as outcome,
             b.odds as dec_odds, b.edge as ev,
             g.home_team, g.away_team, g.game_datetime,
             m.home_win_prob
@@ -243,6 +245,8 @@ def get_preview_potd() -> dict | None:
         badges.append("💎 HIGH CONFIDENCE")
 
     return {
+        "id": str(row["id"]),
+        "game_id": str(row["game_id"]),
         "game": f"{away} @ {home}",
         "pick": pick_name,
         "odds": decimal_to_american(float(row["dec_odds"])),

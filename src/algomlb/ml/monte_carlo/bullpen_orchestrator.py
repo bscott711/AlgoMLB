@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Optional, Sequence, Dict
+from typing import Optional, Sequence
 
 import numpy as np
 from pydantic import BaseModel, Field

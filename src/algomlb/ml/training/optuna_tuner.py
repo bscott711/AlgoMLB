@@ -8,7 +8,7 @@ from datetime import datetime
 import optuna
 import pandas as pd
 import numpy as np
-from sklearn.metrics import log_loss, brier_score_loss
+from sklearn.metrics import log_loss
 from xgboost import XGBClassifier
 
 from algomlb.core.logger import logger

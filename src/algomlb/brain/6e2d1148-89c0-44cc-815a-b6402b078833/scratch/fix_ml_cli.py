@@ -1,4 +1,3 @@
-import sys
 
 path = 'src/algomlb/cli/ml.py'
 with open(path, 'r') as f:

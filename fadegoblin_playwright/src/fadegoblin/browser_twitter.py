@@ -124,7 +124,7 @@ def _refresh_cookies_sync() -> bool:
 def post_to_twitter_browser(
     tweet_text: str,
     image_path: Path | None = None,
-) -> None:
+) -> str | None:
     """Post a tweet by injecting authenticated cookies — no login needed.
 
     If the cookies are missing or expired, automatically attempts to refresh
@@ -135,9 +135,9 @@ def post_to_twitter_browser(
             print("⚠️  No twitter_cookies.json found.")
             if attempt == 0:
                 if not _refresh_cookies_sync():
-                    return
+                    return None
                 continue
-            return
+            return None
 
         with open(COOKIES_PATH) as f:
             cookies = json.load(f)
@@ -187,9 +187,9 @@ def post_to_twitter_browser(
                     if attempt == 0:
                         print("🔄 Refreshing session via twikit and retrying …")
                         if not _refresh_cookies_sync():
-                            return
+                            return None
                         break  # restart loop with fresh cookies
-                    return
+                    return None
 
                 # ── 2. Type the tweet ────────────────────────────────────
                 print("🐦 Drafting tweet …")
@@ -223,7 +223,23 @@ def post_to_twitter_browser(
                 # Wait for completion
                 page.wait_for_url("https://x.com/home", timeout=30000)
                 print("✅ Tweet posted successfully!")
-                return  # done — exit the retry loop
+                
+                # Navigate to profile to retrieve tweet ID
+                tweet_id = None
+                try:
+                    print(f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} ...")
+                    page.goto(f"https://x.com/{config.TWITTER_USERNAME}")
+                    _rand_sleep(3, 5)
+                    # Find the first link containing '/status/'
+                    first_link = page.locator("a[href*='/status/']").first
+                    href = first_link.get_attribute("href")
+                    if href:
+                        tweet_id = href.split("/status/")[-1].split("?")[0]
+                        print(f"🐦 Extracted latest tweet ID from profile: {tweet_id}")
+                except Exception as ex:
+                    print(f"⚠️ Could not extract tweet ID from profile: {ex}")
+
+                return tweet_id  # done — exit the retry loop
 
             except PlaywrightTimeoutError as e:
                 print(f"❌ Timed out: {e}", file=sys.stderr)
@@ -250,3 +266,138 @@ def post_to_twitter_browser(
 
                 if "browser" in locals():
                     browser.close()
+
+
+def reply_to_twitter_browser(
+    reply_text: str,
+    parent_tweet_id: str,
+) -> str | None:
+    """Replies to an existing tweet using Playwright browser automation."""
+    if not parent_tweet_id:
+        print("⚠️ No parent_tweet_id provided for Twitter reply.")
+        return None
+
+    for attempt in range(2):  # up to 2 attempts: fresh cookies → retry
+        if not COOKIES_PATH.exists():
+            print("⚠️  No twitter_cookies.json found.")
+            if attempt == 0:
+                if not _refresh_cookies_sync():
+                    return None
+                continue
+            return None
+
+        with open(COOKIES_PATH) as f:
+            cookies = json.load(f)
+
+        with sync_playwright() as p:
+            print(f"🐦 Launching browser to reply to tweet {parent_tweet_id} …")
+
+            browser = p.chromium.launch(
+                headless=False,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ],
+            )
+            ctx = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/121.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1280, "height": 800},
+                locale="en-US",
+            )
+            ctx.add_init_script(STEALTH_JS)
+            ctx.add_cookies(cookies)
+
+            page = ctx.new_page()
+            cookies_expired = False
+
+            try:
+                # ── 1. Navigate to target tweet ──────────────────────────
+                target_url = f"https://x.com/i/status/{parent_tweet_id}"
+                print(f"🐦 Navigating to target status URL: {target_url} …")
+                page.goto(target_url)
+                _rand_sleep(4, 6)
+
+                page.screenshot(path="twitter_debug_reply_page.png")
+
+                # Check if we got redirected to login
+                if "/login" in page.url or "/flow/login" in page.url:
+                    print("❌ Cookies expired — redirected to login.")
+                    cookies_expired = True
+                    browser.close()
+                    if attempt == 0:
+                        print("🔄 Refreshing session via twikit and retrying …")
+                        if not _refresh_cookies_sync():
+                            return None
+                        break
+                    return None
+
+                # ── 2. Click the reply/comment box ───────────────────────
+                print("🐦 Locating reply text area …")
+                textarea = page.wait_for_selector(
+                    '[data-testid="tweetTextarea_0"]', timeout=15000
+                )
+                textarea.click()
+                _rand_sleep(0.5, 1.0)
+
+                # Type the reply text
+                page.keyboard.insert_text(reply_text)
+                _rand_sleep(1, 2)
+
+                page.screenshot(path="twitter_debug_reply_drafted.png")
+
+                # ── 3. Click the Reply button ───────────────────────────
+                reply_btn = page.locator('[data-testid="tweetButtonInline"]').first
+                if reply_btn.is_visible():
+                    reply_btn.click()
+                else:
+                    page.get_by_role("button", name="Reply", exact=True).click()
+                
+                print("🐦 CLICKED REPLY …")
+                _rand_sleep(4, 6)
+                print("✅ Reply posted successfully on Twitter!")
+
+                # Grab the new reply ID by navigating to profile
+                reply_tweet_id = None
+                try:
+                    print(f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} to find reply ID...")
+                    page.goto(f"https://x.com/{config.TWITTER_USERNAME}")
+                    _rand_sleep(3, 5)
+                    first_link = page.locator("a[href*='/status/']").first
+                    href = first_link.get_attribute("href")
+                    if href:
+                        reply_tweet_id = href.split("/status/")[-1].split("?")[0]
+                        print(f"🐦 Extracted reply tweet ID: {reply_tweet_id}")
+                except Exception as ex:
+                    print(f"⚠️ Could not extract reply tweet ID: {ex}")
+
+                return reply_tweet_id
+
+            except PlaywrightTimeoutError as e:
+                print(f"❌ Timed out replying: {e}", file=sys.stderr)
+                page.screenshot(path="twitter_error_reply.png")
+                raise e
+            except Exception as e:
+                if cookies_expired:
+                    pass
+                else:
+                    print(f"❌ Error during Twitter reply automation: {e}", file=sys.stderr)
+                    if "page" in locals():
+                        page.screenshot(path="twitter_error_reply.png")
+                    raise e
+            finally:
+                if not cookies_expired:
+                    try:
+                        new_cookies = ctx.cookies()
+                        with open(COOKIES_PATH, "w") as f:
+                            json.dump(new_cookies, f, indent=2)
+                    except Exception as cookie_err:
+                        print(f"⚠️ Failed to save refreshed cookies: {cookie_err}")
+
+                if "browser" in locals():
+                    browser.close()
+

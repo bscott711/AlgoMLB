@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Dict
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd

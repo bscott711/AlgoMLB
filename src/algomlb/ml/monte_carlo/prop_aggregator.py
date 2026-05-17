@@ -1,7 +1,6 @@
 import numpy as np
-import pandas as pd
 from typing import List, Dict, Any
-from algomlb.ml.monte_carlo.state import SimulationResult, BatterSimState, PitcherSimState
+from algomlb.ml.monte_carlo.state import SimulationResult
 
 class PropAggregator:
     """Calculates granular prop probabilities and distributions from Monte Carlo trials."""

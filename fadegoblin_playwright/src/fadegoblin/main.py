@@ -28,18 +28,22 @@ def main() -> None:
         print(f"Error: {e}")
         return
 
+    from fadegoblin.db_slips import init_db
+    init_db()
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["degen", "sniper", "recap", "preview"],
+        choices=["degen", "sniper", "recap", "preview", "followup"],
         default="degen",
         help=(
             "Run mode: "
             "'sniper' (morning card, marks bets PLACED), "
             "'preview' (8 PM night hype, reads PLACED picks for tonight), "
             "'recap' (morning recap of yesterday's results), "
-            "'degen' (random parlay)"
+            "'degen' (random parlay), "
+            "'followup' (grade pending slips and post replies)"
         ),
     )
     parser.add_argument("--dry-run", action="store_true")
@@ -59,6 +63,9 @@ def main() -> None:
         _run_recap(args.dry_run, args.date)
     elif args.mode == "preview":
         _run_preview(args.dry_run)
+    elif args.mode == "followup":
+        from fadegoblin.followup import run_followup_cycle
+        run_followup_cycle(args.dry_run)
     else:
         _run_degen(args.dry_run)
 
@@ -95,7 +102,30 @@ def _run_degen(dry_run: bool) -> None:
             img_path = download_goblin_image(prompt, target_path)
             image_paths.append(img_path)
 
-    _post_to_socials(post_texts, image_paths, dry_run)
+    post_res = _post_to_socials(post_texts, image_paths, dry_run)
+
+    if not dry_run:
+        from fadegoblin.db_slips import save_slip
+        if chosen_legs_1:
+            save_slip(
+                slip_type="degen",
+                legs=chosen_legs_1,
+                final_odds=final_odds_1,
+                stake=10.0,
+                bsky_uri=post_res.get("bsky_uri"),
+                bsky_cid=post_res.get("bsky_cid"),
+                twitter_tweet_id=None
+            )
+        if chosen_legs_2:
+            save_slip(
+                slip_type="degen",
+                legs=chosen_legs_2,
+                final_odds=final_odds_2,
+                stake=10.0,
+                bsky_uri=None,
+                bsky_cid=None,
+                twitter_tweet_id=post_res.get("tweet_id")
+            )
 
 
 def _run_sniper(dry_run: bool) -> None:
@@ -137,7 +167,20 @@ def _run_sniper(dry_run: bool) -> None:
     post_text_2 = generate_sniper_post_content(potd_leg)
     post_texts = [post_text_1, post_text_2]
 
-    _post_to_socials(post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update)
+    post_res = _post_to_socials(post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update)
+
+    if not dry_run:
+        from fadegoblin.db_slips import has_potd_been_saved, save_slip
+        if not has_potd_been_saved(potd_leg["id"]):
+            save_slip(
+                slip_type="potd",
+                legs=[potd_leg],
+                final_odds=str(potd_leg["odds"]),
+                stake=10.0,
+                bsky_uri=post_res.get("bsky_uri"),
+                bsky_cid=post_res.get("bsky_cid"),
+                twitter_tweet_id=post_res.get("tweet_id")
+            )
 
 
 def _run_preview(dry_run: bool) -> None:
@@ -171,12 +214,24 @@ def _run_preview(dry_run: bool) -> None:
     post_text_2 = generate_preview_post_content(potd_leg)
 
     # Transition the previewed POTD to PLACED
-    _post_to_socials(
+    post_res = _post_to_socials(
         [post_text_1, post_text_2],
         [preview_card_path, preview_card_path],
         dry_run,
         db_ids_to_update=[potd_leg["id"]],
     )
+
+    if not dry_run:
+        from fadegoblin.db_slips import save_slip
+        save_slip(
+            slip_type="potd",
+            legs=[potd_leg],
+            final_odds=str(potd_leg["odds"]),
+            stake=10.0,
+            bsky_uri=post_res.get("bsky_uri"),
+            bsky_cid=post_res.get("bsky_cid"),
+            twitter_tweet_id=post_res.get("tweet_id")
+        )
 
 
 
@@ -218,8 +273,13 @@ def _post_to_socials(
     dry_run: bool,
     *,
     db_ids_to_update: list[str] | None = None,
-) -> None:
-    """Handles the upload to Bluesky and Twitter/X with unique content per platform."""
+) -> dict:
+    """Handles the upload to Bluesky and Twitter/X with unique content per platform.
+    
+    Returns a dict containing social media post identifiers:
+    {"bsky_uri": ..., "bsky_cid": ..., "tweet_id": ...}
+    """
+    res = {"bsky_uri": None, "bsky_cid": None, "tweet_id": None}
     
     # Ensure post_texts is a list
     if isinstance(post_texts, str):
@@ -233,7 +293,7 @@ def _post_to_socials(
         print("\n🚫 DRY RUN MODE ENABLED. SKIPPING UPLOAD.")
         print(f"📝 Bluesky Post:\n{post_texts[0]}")
         print(f"📝 Twitter Post:\n{post_texts[1]}")
-        return
+        return res
 
     success_bsky = False
     success_twitter = False
@@ -262,13 +322,15 @@ def _post_to_socials(
                     )
                     for blob in blobs
                 ]
-                client.send_post(
+                resp = client.send_post(
                     text=text,
                     embed=models.AppBskyEmbedImages.Main(images=images),
                 )
             else:
-                client.send_post(text=text)
+                resp = client.send_post(text=text)
 
+            res["bsky_uri"] = resp.uri
+            res["bsky_cid"] = resp.cid
             print("✅ Successfully posted to Bluesky!")
             success_bsky = True
         except Exception as e:
@@ -282,7 +344,8 @@ def _post_to_socials(
             # Twitter gets the SECOND image (if available, otherwise first)
             img_path = image_paths[1] if len(image_paths) > 1 else (image_paths[0] if image_paths else None)
             
-            browser_twitter.post_to_twitter_browser(text, img_path)
+            tweet_id = browser_twitter.post_to_twitter_browser(text, img_path)
+            res["tweet_id"] = tweet_id
             success_twitter = True 
         except Exception as e:
             print(f"❌ Error during Twitter browser automation: {e}")
@@ -296,6 +359,8 @@ def _post_to_socials(
     if (success_bsky or success_twitter) and db_ids_to_update:
         mark_bets_placed(db_ids_to_update)
         print(f"✅ Marked {len(db_ids_to_update)} EV bets as PLACED in database.")
+
+    return res
 
 
 

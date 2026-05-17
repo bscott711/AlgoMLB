@@ -1,7 +1,6 @@
 from algomlb.ml.model import MLBModel
 from algomlb.db.session import get_session_factory
 from algomlb.ml.monte_carlo.loader import MatchupLoader
-import pandas as pd
 from pathlib import Path
 
 model = MLBModel.load(Path('.data/models/pa_outcome_v1.1.joblib'))

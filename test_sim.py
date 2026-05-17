@@ -4,8 +4,6 @@ from algomlb.db.session import get_session_factory
 from algomlb.ml.monte_carlo.loader import MatchupLoader
 from algomlb.ml.monte_carlo.engine import SimulationEngine
 from algomlb.ml.monte_carlo.aggregator import SimulationAggregator
-from algomlb.ml.features import FeaturePipeline
-import algomlb.ml.models.pa_outcome as pa_outcome_model
 
 import joblib
 

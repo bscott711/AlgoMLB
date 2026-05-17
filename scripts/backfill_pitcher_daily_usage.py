@@ -1,6 +1,4 @@
 import pandas as pd
-import numpy as np
-from sqlalchemy import text, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from algomlb.db.session import get_session_factory
 from algomlb.db.models import PitcherDailyUsageORM

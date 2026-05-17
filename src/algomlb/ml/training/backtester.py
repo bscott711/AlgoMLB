@@ -5,7 +5,7 @@ Ensures strict chronological splitting and accumulates unbiased OOF predictions.
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any, List, Tuple, Protocol
+from typing import Any, List, Protocol
 
 import numpy as np
 import pandas as pd

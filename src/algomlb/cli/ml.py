@@ -38,8 +38,6 @@ from algomlb.ml.shap_analysis import (
 )
 from algomlb.ml.sabermetrics import (
     compute_pythagorean_features,
-    compute_re24_per_pa,
-    compute_rolling_re24,
 )
 from algomlb.ml.training.backtester import (
     OOFAccumulator,
@@ -736,7 +734,6 @@ def train_hook_model(
     ),
 ) -> None:
     """Train and persist the manager hook decision model from manager_hook_events."""
-    import sys as _sys
 
     from algomlb.ml.hook_model import HookModel, compute_leverage_index  # noqa: F401
 
