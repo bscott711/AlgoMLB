@@ -34,7 +34,32 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
-def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | None = None) -> Path:
+SLIP_TITLES = [
+    "💚 THE GOBLIN'S MANIC SLIP",
+    "💚 DEGEN ALLERGY THERAPY",
+    "💚 THE COLD SHOWER TICKET",
+    "💚 HIGH CONVICTION GARBAGE",
+    "💚 THE ALGO'S PARANOIA SLIP",
+    "💚 PURE UNADULTERATED COPE",
+    "💚 THE BANKROLL EXORCISM",
+    "💚 CHAOTIC NEUTRAL RATION",
+    "💚 100% ORGANIC HORSEPLAY",
+    "💚 THE SHARP MONEY HALLUCINATION",
+    "💚 THE BASE-7 PROPHECY SLIP",
+    "💚 RECKLESS SPECULATION SLIP",
+    "💚 FINANCIAL RUIN SPEEDRUN",
+    "💚 THE GOB'S SHAMANIC SLIP",
+    "💚 DUGOUT WATER CONDENSATION"
+]
+
+
+def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | None = None, title: str | None = None) -> Path:
+    if not title:
+        import random
+        day_seed = datetime.now().strftime("%Y-%m-%d")
+        rng = random.Random(day_seed)
+        title = rng.choice(SLIP_TITLES)
+
     num_legs = len(legs)
     num_rows = math.ceil(num_legs / 2)
     
@@ -70,7 +95,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     font_footer = _load_font(9)
 
     # ── Header ────────────────────────────────────────────────────────
-    draw.text((table_x1 + PADDING, table_y1 + 10), "💚 THE GOBLIN'S MANIC SLIP", fill=ACCENT_GREEN, font=font_title)
+    draw.text((table_x1 + PADDING, table_y1 + 10), title, fill=ACCENT_GREEN, font=font_title)
     date_str = datetime.now().strftime("%b %d, %Y")
     draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
 
