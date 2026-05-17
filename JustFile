@@ -441,8 +441,8 @@ check-settle-scheduler:
 	@echo "📅 Next Run:"
 	@systemctl --user list-timers algomlb-settle.timer --no-pager
 
-# Install ALL FadeGoblin schedulers (sniper + degen + recap + settle + night)
-install-all-schedulers: install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler
+# Install ALL FadeGoblin schedulers (sync + sniper + degen + recap + settle + night)
+install-all-schedulers: install-scheduler install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler
 	@echo "✅ All FadeGoblin schedulers installed!"
 
 # Check ALL active timers
@@ -559,7 +559,7 @@ night-dry:
 # 11:30 UTC (5:30 AM MDT)   — ⚙️  settle-yesterday    scores locked into DB
 # 12:00 UTC (6:00 AM MDT)   — 📊 Recap post          "here's yesterday's record"
 # 12:30 UTC (6:30 AM MDT)   — 🎯 Sniper card         "here's today's picks" (POTD + rest of the card)
-# 18:00 UTC (12:00 PM MDT)  — 🎲 Degen post          random parlay for lunch crowd
+# 16:00 UTC (10:00 AM MDT)  — 🎲 Degen post          random parlay for mid morning scroll
 # ─────────────────────────────────────────────────────────────────────────
 # ==========================================
 # 12. NOTEBOOKLM RESEARCH (AI Analysis)

@@ -4,9 +4,9 @@ RefuseManualStart=no
 RefuseManualStop=no
 
 [Timer]
-# Run every day at 18:00 UTC = 12:00 PM MDT / 11:00 AM MST
-# Noon post: random parlay for the lunch crowd / afternoon degens
-OnCalendar=*-*-* 18:00:00
+# Run every day at 16:00 UTC = 10:00 AM MDT / 9:00 AM MST
+# Mid-morning post: random parlay for the morning scroll / afternoon degens
+OnCalendar=*-*-* 16:00:00
 Unit=fadegoblin-degen.service
 Persistent=true
 

@@ -4,8 +4,6 @@ After=network.target
 
 [Service]
 Type=oneshot
-User=opc
-Group=opc
 WorkingDirectory=/home/opc/AlgoMLB
 Environment="PATH=/home/opc/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # settle --date defaults to yesterday inside the CLI implementation

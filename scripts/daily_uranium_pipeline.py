@@ -24,7 +24,11 @@ def run_command(command: list[str], description: str, background: bool = False) 
         # Explicitly pass current environment (including loaded .env)
         env = os.environ.copy()
         
-        full_command = ["uv", "run"] + command
+        if command[0] == "python" or command[0].endswith("python") or "xvfb-run" in command[0]:
+            full_command = command
+        else:
+            full_command = ["uv", "run"] + command
+
         if background:
             subprocess.Popen(full_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
             logger.info(f"🛰️ {description} sent to background.")
@@ -32,7 +36,7 @@ def run_command(command: list[str], description: str, background: bool = False) 
         else:
             result = subprocess.run(full_command, check=True, capture_output=True, text=True, env=env)
             # Log the inner output for debugging if it's the bot
-            if "bot" in command:
+            if "main.py" in command[1]:
                 logger.debug(f"Bot Output:\n{result.stdout}")
             logger.success(f"✅ {description} complete.")
             return True
@@ -40,6 +44,7 @@ def run_command(command: list[str], description: str, background: bool = False) 
         logger.error(f"❌ {description} failed!")
         logger.error(f"Error: {e.stderr}")
         return False
+
 
 def count_pending_bets():
     """Counts how many bets are currently PENDING in the ledger."""
@@ -103,8 +108,24 @@ def main():
     # 5. Social Layer: FadeGoblin Timeline Post
     if pending_count > 0:
         logger.info(f"👺 Found {pending_count} pending targets. Triggering the Goblin...")
-        if run_command(["bot", "--mode", "sniper"], "FadeGoblin Sniper Post"):
-            logger.success("🚀 Social post is LIVE on Bluesky!")
+        # Point to the local main.py file and set PYTHONPATH explicitly in the env
+        os.environ["PYTHONPATH"] = "/home/opc/AlgoMLB/fadegoblin_playwright/src"
+        local_python = "/home/opc/AlgoMLB/.venv/bin/python"
+        bot_script = "/home/opc/AlgoMLB/fadegoblin_playwright/src/fadegoblin/main.py"
+        
+        # We wrap ExecStart in xvfb-run to provide a virtual frame buffer for browser automation
+        bot_cmd = [
+            "/usr/bin/xvfb-run",
+            "--auto-servernum",
+            "--server-args=-screen 0 1280x800x24",
+            local_python,
+            bot_script,
+            "--mode",
+            "sniper"
+        ]
+        
+        if run_command(bot_cmd, "FadeGoblin Sniper Post"):
+            logger.success("🚀 Social post is LIVE on Bluesky and Twitter!")
         else:
             logger.error("❌ Social post failed.")
     else:
@@ -114,3 +135,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
