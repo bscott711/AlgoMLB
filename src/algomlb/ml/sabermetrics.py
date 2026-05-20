@@ -354,7 +354,7 @@ def backfill_team_sabermetrics_history(engine_in=None) -> None:
     # 2. Compute Features
     logger.info(f"Computing Pythagorean features for {len(games)} historical games...")
     pyth_df = compute_pythagorean_features(games)
-    
+
     # Ensure game_pk is present for DB insertion
     if "game_id" in pyth_df.columns and "game_pk" not in pyth_df.columns:
         pyth_df["game_pk"] = pyth_df["game_id"].astype(int)
@@ -366,13 +366,21 @@ def backfill_team_sabermetrics_history(engine_in=None) -> None:
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     valid_cols = [
-        "game_pk", "game_date", "team_id", "is_home", 
-        "pythag_win_pct", "roll_run_diff", "roll_rs_per_game", "roll_ra_per_game"
+        "game_pk",
+        "game_date",
+        "team_id",
+        "is_home",
+        "pythag_win_pct",
+        "roll_run_diff",
+        "roll_rs_per_game",
+        "roll_ra_per_game",
     ]
     records = pyth_df[valid_cols].to_dict(orient="records")
     batch_size = 500
-    
-    logger.info(f"Upserting {len(records)} sabermetric rows into team_sabermetrics_history...")
+
+    logger.info(
+        f"Upserting {len(records)} sabermetric rows into team_sabermetrics_history..."
+    )
     with eng.begin() as conn:
         for i in range(0, len(records), batch_size):
             batch = records[i : i + batch_size]

@@ -153,7 +153,7 @@ def _label_pa_outcomes(df: pd.DataFrame) -> pd.DataFrame:
     """Map Retrosheet flags to canonical simulation outcomes."""
     if df.empty:
         return df
-    
+
     # Priority order for mapping:
     df["pa_outcome"] = "out_in_play"
     df.loc[df["k"] == 1, "pa_outcome"] = "strikeout"
@@ -163,7 +163,7 @@ def _label_pa_outcomes(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["double_flag"] == 1, "pa_outcome"] = "double"
     df.loc[df["triple"] == 1, "pa_outcome"] = "triple"
     df.loc[df["hr"] == 1, "pa_outcome"] = "home_run"
-    
+
     return df
 
 
@@ -227,7 +227,9 @@ def tune(
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     trials: int = typer.Option(100, "--trials", help="Number of Optuna trials."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
-    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
+    fast: bool = typer.Option(
+        False, "--fast", help="Run on a tiny dataset for quick verification."
+    ),
 ) -> None:
     """Optimize Uranium model hyperparameters via Optuna."""
     session_factory = get_session_factory()
@@ -316,7 +318,9 @@ def backtest(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
-    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
+    fast: bool = typer.Option(
+        False, "--fast", help="Run on a tiny dataset for quick verification."
+    ),
 ) -> None:
     """Run walk-forward backtesting with fixed hyperparameters."""
     import datetime
@@ -360,6 +364,7 @@ def backtest(
 
     params = load_optimized_params(target, version)
     from algomlb.ml.model import MLBModel
+
     accumulator = OOFAccumulator(
         model_class=MLBModel, features=X.columns.tolist(), target=target
     )
@@ -373,6 +378,7 @@ def backtest(
 
     # Robustly handle p_model being either a scalar or a vector (binary/multiclass)
     from algomlb.ml.eval import compute_fold_metrics
+
     if isinstance(oof_df["p_model"].iloc[0], (list, np.ndarray)):
         p_pos = np.stack(oof_df["p_model"].tolist())
     else:
@@ -390,6 +396,7 @@ def backtest(
     # Re-extract encoded y_true for calibration bins if it was strings
     if not np.issubdtype(y_true.dtype, np.number):
         from sklearn.preprocessing import LabelEncoder
+
         le = LabelEncoder()
         if labels is not None:
             le.classes_ = np.array(labels)
@@ -434,7 +441,9 @@ def explain(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to explain."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
-    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
+    fast: bool = typer.Option(
+        False, "--fast", help="Run on a tiny dataset for quick verification."
+    ),
 ) -> None:
     """Generate and persist SHAP explanations for the model."""
     import datetime
@@ -506,7 +515,9 @@ def train(
     ctx: typer.Context,
     target: str = typer.Option(..., "--target", help="The target column to predict."),
     version: str = typer.Option("v1.3", "--version", help="Model version."),
-    fast: bool = typer.Option(False, "--fast", help="Run on a tiny dataset for quick verification."),
+    fast: bool = typer.Option(
+        False, "--fast", help="Run on a tiny dataset for quick verification."
+    ),
 ) -> None:
     """Train and persist a production Uranium model using best params."""
     session_factory = get_session_factory()
@@ -646,9 +657,7 @@ def simulate_game(
 
         hook_model = None
         if use_hook_model:
-            _hook_path = Path(
-                hook_model_path or ".data/models/hook_model_v1.0.joblib"
-            )
+            _hook_path = Path(hook_model_path or ".data/models/hook_model_v1.0.joblib")
             if _hook_path.exists():
                 hook_model = HookModel.load(_hook_path)
                 logger.info(f"🎯 Loaded hook model from {_hook_path}")
@@ -665,7 +674,9 @@ def simulate_game(
 
         # 5. Simulate
         engine = SimulationEngine(pa_model=model, hook_model=hook_model)
-        trial_results = engine.run_trials(context, trials=trials, bullpen_params=bp_params)
+        trial_results = engine.run_trials(
+            context, trials=trials, bullpen_params=bp_params
+        )
 
         # 4. Aggregate
         aggregator = SimulationAggregator()
@@ -869,10 +880,10 @@ def sim_day(
         pa_path = Path(".data/models/pa_outcome.joblib")
         if not pa_path.exists():
             pa_path = Path(".data/models/pa_outcome_v1.6.joblib")
-        
+
         logger.info(f"🧬 Loading PA model from {pa_path}...")
         pa_model = MLBModel.load(pa_path)
-        
+
         hook_path = Path(".data/models/hook_model_v1.0.joblib")
         hook_model = None
         if hook_path.exists():
@@ -880,17 +891,15 @@ def sim_day(
             hook_model = HookModel.load(hook_path)
 
         # 2. Find all games for this date
-        games = (
-            db.query(GameResultORM)
-            .filter(GameResultORM.game_date == d)
-            .all()
-        )
+        games = db.query(GameResultORM).filter(GameResultORM.game_date == d).all()
 
         if not games:
             logger.warning(f"No games found for {target_date}")
             return
 
-        logger.info(f"Found {len(games)} games for {target_date}. Starting batch simulation...")
+        logger.info(
+            f"Found {len(games)} games for {target_date}. Starting batch simulation..."
+        )
 
         loader = MatchupLoader(db)
         engine = SimulationEngine(pa_model=pa_model, hook_model=hook_model)
@@ -900,23 +909,27 @@ def sim_day(
             try:
                 # Type-hardened ID
                 game_id_int = int(game.game_id)
-                logger.info(f"🚀 Simulating {game.away_team} @ {game.home_team} (pk={game_id_int})...")
-                
+                logger.info(
+                    f"🚀 Simulating {game.away_team} @ {game.home_team} (pk={game_id_int})..."
+                )
+
                 # Load context
                 context = loader.load_matchup(game_id_int)
-                
+
                 # Load Bullpen Params from SQL (Alignment with 'simulate' command)
                 bp_params = loader.get_simulation_config("bullpen_v1.0")
 
                 # Run engine (Note: method is run_trials, not run_simulation)
-                results = engine.run_trials(context, trials=trials, bullpen_params=bp_params)
-                
+                results = engine.run_trials(
+                    context, trials=trials, bullpen_params=bp_params
+                )
+
                 # Aggregate
                 agg = SimulationAggregator()
                 results_df = agg.aggregate_results(
                     game_id_int, context.game_date.year, results, context
                 )
-                
+
                 # Persist
                 from sqlalchemy.dialects.postgresql import insert as pg_insert
                 import sqlalchemy as sa
@@ -942,10 +955,12 @@ def sim_day(
                         },
                     )
                     db.execute(upsert)
-                
+
                 db.commit()
-                logger.success(f"✅ Finished and Persisted {game.away_team} @ {game.home_team}")
-                
+                logger.success(
+                    f"✅ Finished and Persisted {game.away_team} @ {game.home_team}"
+                )
+
             except Exception as e:
                 logger.error(f"❌ Failed to simulate game {game.game_id}: {e}")
                 db.rollback()

@@ -125,7 +125,9 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
     original_count = len(df)
     df = df[df["ev"] * 100 <= MAX_EDGE_PCT]
     if len(df) < original_count:
-        print(f"⚠️  Filtered {original_count - len(df)} legs with edge > {MAX_EDGE_PCT}% (likely stale data).")
+        print(
+            f"⚠️  Filtered {original_count - len(df)} legs with edge > {MAX_EDGE_PCT}% (likely stale data)."
+        )
 
     # ── Cap to MAX_CARD_PLAYS best plays ────────────────────────────
     df = df.head(MAX_CARD_PLAYS)
@@ -140,17 +142,24 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
         is_home = row["outcome"] == row["home_team"]
 
         if row["home_win_prob"] is not None:
-            model_prob = float(row["home_win_prob"]) if is_home else (1.0 - float(row["home_win_prob"]))
+            model_prob = (
+                float(row["home_win_prob"])
+                if is_home
+                else (1.0 - float(row["home_win_prob"]))
+            )
         else:
             model_prob = (1.0 / float(row["dec_odds"])) + float(row["ev"])
-
 
         closing_prob = 1.0 / float(row["dec_odds"])
         implied_pct = round(closing_prob * 100, 1)  # market implied probability %
 
         open_prob = None
         if row["opening_implied"] is not None:
-            open_prob = float(row["opening_implied"]) if is_home else (1.0 - float(row["opening_implied"]))
+            open_prob = (
+                float(row["opening_implied"])
+                if is_home
+                else (1.0 - float(row["opening_implied"]))
+            )
 
         market_move = (closing_prob - open_prob) if open_prob is not None else 0
 
@@ -183,9 +192,10 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
         if row["status"] == "PENDING":
             db_ids_to_update.append(str(row["id"]))
 
-    print(f"📋 Card locked: {len(formatted_legs)} plays (max {MAX_CARD_PLAYS}, edge cap {MAX_EDGE_PCT}%).")
+    print(
+        f"📋 Card locked: {len(formatted_legs)} plays (max {MAX_CARD_PLAYS}, edge cap {MAX_EDGE_PCT}%)."
+    )
     return formatted_legs, db_ids_to_update
-
 
 
 def get_preview_potd() -> dict | None:
@@ -233,7 +243,11 @@ def get_preview_potd() -> dict | None:
     pick_name = home if is_home else away
 
     if row["home_win_prob"] is not None:
-        model_prob = float(row["home_win_prob"]) if is_home else (1.0 - float(row["home_win_prob"]))
+        model_prob = (
+            float(row["home_win_prob"])
+            if is_home
+            else (1.0 - float(row["home_win_prob"]))
+        )
     else:
         model_prob = (1.0 / float(row["dec_odds"])) + float(row["ev"])
 
@@ -295,7 +309,15 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
         df = pd.read_sql(query, conn, params={"target_date": str(target_date)})
 
     if df.empty:
-        return {"date": str(target_date), "wins": 0, "losses": 0, "pushes": 0, "total": 0, "net_pnl": None, "picks": []}
+        return {
+            "date": str(target_date),
+            "wins": 0,
+            "losses": 0,
+            "pushes": 0,
+            "total": 0,
+            "net_pnl": None,
+            "picks": [],
+        }
 
     wins = losses = pushes = 0
     net_pnl = 0.0
@@ -310,7 +332,9 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
         # Determine result from scores if available
         result = "?"
         if home_score is not None and away_score is not None:
-            winning_team = row["home_team"] if home_score > away_score else row["away_team"]
+            winning_team = (
+                row["home_team"] if home_score > away_score else row["away_team"]
+            )
             if home_score == away_score:
                 result = "PUSH"
                 pushes += 1
@@ -340,13 +364,15 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
         away = abbreviate_team(row["away_team"])
         pick_abbr = abbreviate_team(selection)
 
-        picks.append({
-            "matchup": f"{away} @ {home}",
-            "pick": pick_abbr,
-            "odds": decimal_to_american(float(row["dec_odds"])),
-            "edge": round(float(row["ev"]) * 100, 1),
-            "result": result,
-        })
+        picks.append(
+            {
+                "matchup": f"{away} @ {home}",
+                "pick": pick_abbr,
+                "odds": decimal_to_american(float(row["dec_odds"])),
+                "edge": round(float(row["ev"]) * 100, 1),
+                "result": result,
+            }
+        )
 
     return {
         "date": str(target_date),

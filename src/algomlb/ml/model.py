@@ -19,7 +19,13 @@ class MLBModel:
         # scale_pos_weight handles the slight Away-win bias if necessary
         # Only pass scale_pos_weight when explicitly set — it is invalid for
         # multiclass objectives and XGBoost already defaults to 1.0.
-        _known = {"n_estimators", "max_depth", "learning_rate", "scale_pos_weight", "n_jobs"}
+        _known = {
+            "n_estimators",
+            "max_depth",
+            "learning_rate",
+            "scale_pos_weight",
+            "n_jobs",
+        }
         xgb_kwargs = {
             "n_estimators": params.get("n_estimators", 100),
             "max_depth": params.get("max_depth", 3),

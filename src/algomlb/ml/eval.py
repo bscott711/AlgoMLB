@@ -58,7 +58,9 @@ def compute_fold_metrics(
         y_true_indices = y_true.astype(int)
         # Handle cases where y_true might have indices outside the y_prob range
         valid_mask = y_true_indices < num_classes
-        y_true_onehot[np.arange(len(y_true))[valid_mask], y_true_indices[valid_mask]] = 1
+        y_true_onehot[
+            np.arange(len(y_true))[valid_mask], y_true_indices[valid_mask]
+        ] = 1
         brier = np.mean(np.sum((y_true_onehot - y_prob) ** 2, axis=1))
 
         # Multiclass AUC (OvR)
@@ -72,7 +74,15 @@ def compute_fold_metrics(
                 auc_labels = present_labels
 
             if len(auc_labels) > 1:
-                auc = float(roc_auc_score(y_true, y_prob, multi_class="ovr", average="macro", labels=auc_labels))
+                auc = float(
+                    roc_auc_score(
+                        y_true,
+                        y_prob,
+                        multi_class="ovr",
+                        average="macro",
+                        labels=auc_labels,
+                    )
+                )
             else:
                 auc = 0.5
         except Exception as e:

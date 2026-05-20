@@ -104,9 +104,7 @@ class BullpenManager:
             score_diff = game.away_score - game.home_score
 
         # Occupied bases bitmask from current GameState
-        base_state = sum(
-            (1 << i) for i, b in enumerate(game.bases) if b is not None
-        )
+        base_state = sum((1 << i) for i, b in enumerate(game.bases) if b is not None)
 
         li = compute_leverage_index(
             inning=game.inning,

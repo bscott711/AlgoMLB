@@ -132,7 +132,9 @@ class OOFAccumulator:
         all_oof_results = []
 
         if not folds:
-            logger.warning("TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.")
+            logger.warning(
+                "TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split."
+            )
             split_idx = int(len(df) * 0.8)
             folds = [(df.iloc[:split_idx], df.iloc[split_idx:])]
 

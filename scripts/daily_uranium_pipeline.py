@@ -14,7 +14,11 @@ load_dotenv()
 
 # Configure logger
 logger.remove()
-logger.add(sys.stderr, format="<g>{time:HH:mm:ss}</g> | <level>{level: <8}</level> | <cyan>{message}</cyan>")
+logger.add(
+    sys.stderr,
+    format="<g>{time:HH:mm:ss}</g> | <level>{level: <8}</level> | <cyan>{message}</cyan>",
+)
+
 
 def run_command(command: list[str], description: str, background: bool = False) -> bool:
     """Helper to run shell commands and log status with environment passthrough."""
@@ -22,18 +26,29 @@ def run_command(command: list[str], description: str, background: bool = False) 
     try:
         # Explicitly pass current environment (including loaded .env)
         env = os.environ.copy()
-        
-        if command[0] == "python" or command[0].endswith("python") or "xvfb-run" in command[0]:
+
+        if (
+            command[0] == "python"
+            or command[0].endswith("python")
+            or "xvfb-run" in command[0]
+        ):
             full_command = command
         else:
             full_command = ["uv", "run"] + command
 
         if background:
-            subprocess.Popen(full_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+            subprocess.Popen(
+                full_command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=env,
+            )
             logger.info(f"🛰️ {description} sent to background.")
             return True
         else:
-            result = subprocess.run(full_command, check=True, capture_output=True, text=True, env=env)
+            result = subprocess.run(
+                full_command, check=True, capture_output=True, text=True, env=env
+            )
             # Log the inner output for debugging if it's the bot
             if "main.py" in command[1]:
                 logger.debug(f"Bot Output:\n{result.stdout}")
@@ -49,22 +64,29 @@ def count_pending_bets():
     """Counts how many bets are currently PENDING in the ledger."""
     session = get_session_factory()()
     try:
-        count = session.query(BankrollLedgerORM).filter(BankrollLedgerORM.status == TransactionStatus.PENDING).count()
+        count = (
+            session.query(BankrollLedgerORM)
+            .filter(BankrollLedgerORM.status == TransactionStatus.PENDING)
+            .count()
+        )
         return count
     finally:
         session.close()
+
 
 def place_today_bets():
     """Finds +EV bets using FAST TOP-DOWN predictions and populates the ledger."""
     today = datetime.date.today()
     logger.info(f"📈 Analyzing +EV edges for {today} [FAST TOP-DOWN]...")
-    
+
     session = get_session_factory()()
     try:
         service = BettingService(session)
         placed = service.place_daily_bets(today)
         if placed > 0:
-            logger.success(f"✅ Strategy: Locked in {placed} NEW +EV bets as PENDING in the ledger.")
+            logger.success(
+                f"✅ Strategy: Locked in {placed} NEW +EV bets as PENDING in the ledger."
+            )
         else:
             logger.info("Strategy: No new edges found (or already placed).")
         return placed
@@ -74,12 +96,15 @@ def place_today_bets():
     finally:
         session.close()
 
+
 def main():
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     logger.info(f"🏟️ --- AlgoMLB FAST PIPELINE START [{today_str}] --- 🏟️")
 
     # 1. Sync Daily Data & Settle (Lineups, Weather, Odds)
-    if not run_command(["algomlb", "sync", "daily"], "Syncing data & settling yesterday"):
+    if not run_command(
+        ["algomlb", "sync", "daily"], "Syncing data & settling yesterday"
+    ):
         logger.warning("Pipeline continuing despite minor sync issues...")
 
     # 2. Process Silver Layer (Statcast → Player Game Logs)
@@ -106,12 +131,14 @@ def main():
 
     # 5. Social Layer: FadeGoblin Timeline Post
     if pending_count > 0:
-        logger.info(f"👺 Found {pending_count} pending targets. Triggering the Goblin...")
+        logger.info(
+            f"👺 Found {pending_count} pending targets. Triggering the Goblin..."
+        )
         # Point to the local main.py file and set PYTHONPATH explicitly in the env
         os.environ["PYTHONPATH"] = "/home/opc/AlgoMLB/fadegoblin_playwright/src"
         local_python = "/home/opc/AlgoMLB/.venv/bin/python"
         bot_script = "/home/opc/AlgoMLB/fadegoblin_playwright/src/fadegoblin/main.py"
-        
+
         # We wrap ExecStart in xvfb-run to provide a virtual frame buffer for browser automation
         bot_cmd = [
             "/usr/bin/xvfb-run",
@@ -120,9 +147,9 @@ def main():
             local_python,
             bot_script,
             "--mode",
-            "sniper"
+            "sniper",
         ]
-        
+
         if run_command(bot_cmd, "FadeGoblin Sniper Post"):
             logger.success("🚀 Social post is LIVE on Bluesky and Twitter!")
         else:
@@ -132,6 +159,6 @@ def main():
 
     logger.info("🏁 --- AlgoMLB FAST PIPELINE COMPLETE --- 🏁")
 
+
 if __name__ == "__main__":
     main()
-

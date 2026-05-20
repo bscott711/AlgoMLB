@@ -5,7 +5,7 @@ from algomlb.ml.monte_carlo.loader import MatchupLoader
 from pathlib import Path
 import numpy as np
 
-model = MLBModel.load(Path('.data/models/pa_outcome_v1.1.joblib'))
+model = MLBModel.load(Path(".data/models/pa_outcome_v1.1.joblib"))
 session = get_session_factory()()
 loader = MatchupLoader(session)
 ctx = loader.load_matchup(746849)

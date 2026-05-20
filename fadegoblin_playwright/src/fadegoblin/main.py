@@ -10,7 +10,12 @@ from atproto import Client, models
 from fadegoblin import config, browser_twitter
 from fadegoblin.betting import build_parlay
 from fadegoblin.card import render_bet_card, render_recap_card
-from fadegoblin.ev_logic import get_sniper_bets, get_recap_stats, get_preview_potd, mark_bets_placed
+from fadegoblin.ev_logic import (
+    get_sniper_bets,
+    get_recap_stats,
+    get_preview_potd,
+    mark_bets_placed,
+)
 from fadegoblin.generator import (
     generate_post_content,
     generate_sniper_post_content,
@@ -30,6 +35,7 @@ def main() -> None:
         return
 
     from fadegoblin.db_slips import init_db
+
     init_db()
 
     parser = argparse.ArgumentParser()
@@ -66,6 +72,7 @@ def main() -> None:
         _run_preview(args.dry_run)
     elif args.mode == "followup":
         from fadegoblin.followup import run_followup_cycle
+
         run_followup_cycle(args.dry_run)
     else:
         _run_degen(args.dry_run)
@@ -75,17 +82,17 @@ def _run_degen(dry_run: bool) -> None:
     """Degen Mode: random parlay from live odds."""
     print("🎲 Mode: Degen. Fetching random live games...")
     games = get_live_games(max_games=15)
-    
+
     # 1. Generate TWO unique parlays/texts
     chosen_legs_1, final_odds_1 = build_parlay(games)
     chosen_legs_2, final_odds_2 = build_parlay(games) if games else ([], "N/A")
-    
+
     post_texts = []
     if chosen_legs_1:
         post_texts.append(generate_post_content(chosen_legs_1, final_odds_1))
     else:
         post_texts.append(random.choice(FALLBACK_QUOTES))
-        
+
     if chosen_legs_2:
         post_texts.append(generate_post_content(chosen_legs_2, final_odds_2))
     else:
@@ -95,11 +102,11 @@ def _run_degen(dry_run: bool) -> None:
     image_paths = []
     for i in range(2):
         if random.random() < config.TEXT_ONLY_ODDS:
-            print(f"   🎲 Dice Roll: decided on TEXT ONLY for image {i+1}.")
+            print(f"   🎲 Dice Roll: decided on TEXT ONLY for image {i + 1}.")
             image_paths.append(None)
         else:
             prompt = generate_goblin_prompt()
-            target_path = config.BASE_DIR / f"temp_meme_{i+1}.jpg"
+            target_path = config.BASE_DIR / f"temp_meme_{i + 1}.jpg"
             img_path = download_goblin_image(prompt, target_path)
             image_paths.append(img_path)
 
@@ -107,6 +114,7 @@ def _run_degen(dry_run: bool) -> None:
 
     if not dry_run:
         from fadegoblin.db_slips import save_slip
+
         if chosen_legs_1:
             save_slip(
                 slip_type="degen",
@@ -116,7 +124,7 @@ def _run_degen(dry_run: bool) -> None:
                 bsky_uri=post_res.get("bsky_uri"),
                 bsky_cid=post_res.get("bsky_cid"),
                 twitter_tweet_id=None,
-                original_post_text=post_texts[0]
+                original_post_text=post_texts[0],
             )
         if chosen_legs_2:
             save_slip(
@@ -127,7 +135,7 @@ def _run_degen(dry_run: bool) -> None:
                 bsky_uri=None,
                 bsky_cid=None,
                 twitter_tweet_id=post_res.get("tweet_id"),
-                original_post_text=post_texts[1]
+                original_post_text=post_texts[1],
             )
 
 
@@ -167,8 +175,12 @@ def _run_sniper(dry_run: bool) -> None:
     goblin_bg_path_2 = download_goblin_image(prompt_2, bg_target_path_2)
 
     # 2. Render cards for both images
-    final_path_1 = render_bet_card(all_legs, potd_index, background_path=goblin_bg_path_1)
-    final_path_2 = render_bet_card(all_legs, potd_index, background_path=goblin_bg_path_2)
+    final_path_1 = render_bet_card(
+        all_legs, potd_index, background_path=goblin_bg_path_1
+    )
+    final_path_2 = render_bet_card(
+        all_legs, potd_index, background_path=goblin_bg_path_2
+    )
     image_paths = [final_path_1, final_path_2]
 
     # Cleanup background fragments
@@ -181,10 +193,13 @@ def _run_sniper(dry_run: bool) -> None:
     post_text_2 = generate_sniper_post_content(potd_leg)
     post_texts = [post_text_1, post_text_2]
 
-    post_res = _post_to_socials(post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update)
+    post_res = _post_to_socials(
+        post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update
+    )
 
     if not dry_run:
         from fadegoblin.db_slips import has_potd_been_saved, save_slip
+
         if not has_potd_been_saved(potd_leg["id"]):
             save_slip(
                 slip_type="potd",
@@ -194,10 +209,9 @@ def _run_sniper(dry_run: bool) -> None:
                 bsky_uri=post_res.get("bsky_uri"),
                 bsky_cid=post_res.get("bsky_cid"),
                 twitter_tweet_id=post_res.get("tweet_id"),
-                original_post_text=json.dumps({
-                    "bsky": post_texts[0],
-                    "twitter": post_texts[1]
-                })
+                original_post_text=json.dumps(
+                    {"bsky": post_texts[0], "twitter": post_texts[1]}
+                ),
             )
 
 
@@ -214,7 +228,9 @@ def _run_preview(dry_run: bool) -> None:
         print("💤 No upcoming PENDING picks found. Skipping preview.")
         return
 
-    print(f"⭐ Tomorrow's feature: {potd_leg['pick']} {potd_leg['odds']} ({potd_leg['game']})")
+    print(
+        f"⭐ Tomorrow's feature: {potd_leg['pick']} {potd_leg['odds']} ({potd_leg['game']})"
+    )
 
     # Generate a single goblin background image
     prompt = generate_goblin_prompt()
@@ -222,7 +238,9 @@ def _run_preview(dry_run: bool) -> None:
     goblin_bg = download_goblin_image(prompt, bg_target)
 
     # Render a minimal single-pick card (reuse the bet card with 1 leg, potd_index=0)
-    preview_card_path = render_bet_card([potd_leg], potd_index=0, background_path=goblin_bg)
+    preview_card_path = render_bet_card(
+        [potd_leg], potd_index=0, background_path=goblin_bg
+    )
 
     if goblin_bg and os.path.exists(goblin_bg) and goblin_bg != preview_card_path:
         os.remove(goblin_bg)
@@ -241,6 +259,7 @@ def _run_preview(dry_run: bool) -> None:
 
     if not dry_run:
         from fadegoblin.db_slips import save_slip
+
         save_slip(
             slip_type="potd",
             legs=[potd_leg],
@@ -249,12 +268,10 @@ def _run_preview(dry_run: bool) -> None:
             bsky_uri=post_res.get("bsky_uri"),
             bsky_cid=post_res.get("bsky_cid"),
             twitter_tweet_id=post_res.get("tweet_id"),
-            original_post_text=json.dumps({
-                "bsky": post_text_1,
-                "twitter": post_text_2
-            })
+            original_post_text=json.dumps(
+                {"bsky": post_text_1, "twitter": post_text_2}
+            ),
         )
-
 
 
 def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
@@ -263,10 +280,14 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
     stats = get_recap_stats(date_str)
 
     if not stats or stats.get("total", 0) == 0:
-        print(f"💤 No placed bets found for {stats.get('date', 'the target date')}. Skipping recap.")
+        print(
+            f"💤 No placed bets found for {stats.get('date', 'the target date')}. Skipping recap."
+        )
         return
 
-    print(f"   Found {stats['total']} bets: {stats['wins']}W / {stats['losses']}L / {stats['pushes']}P")
+    print(
+        f"   Found {stats['total']} bets: {stats['wins']}W / {stats['losses']}L / {stats['pushes']}P"
+    )
 
     # Generate ONE goblin background for the recap card
     prompt = generate_goblin_prompt()
@@ -297,16 +318,16 @@ def _post_to_socials(
     db_ids_to_update: list[str] | None = None,
 ) -> dict:
     """Handles the upload to Bluesky and Twitter/X with unique content per platform.
-    
+
     Returns a dict containing social media post identifiers:
     {"bsky_uri": ..., "bsky_cid": ..., "tweet_id": ...}
     """
     res = {"bsky_uri": None, "bsky_cid": None, "tweet_id": None}
-    
+
     # Ensure post_texts is a list
     if isinstance(post_texts, str):
         post_texts = [post_texts, post_texts]
-    
+
     # Ensure we have enough texts
     if len(post_texts) < 2:
         post_texts = [post_texts[0], post_texts[0]]
@@ -329,7 +350,7 @@ def _post_to_socials(
 
             text = post_texts[0]
             img_path = image_paths[0] if image_paths else None
-            
+
             blobs = []
             if img_path and os.path.exists(img_path):
                 with open(img_path, "rb") as f:
@@ -364,11 +385,15 @@ def _post_to_socials(
             print("Starting Twitter browser automation...")
             text = post_texts[1]
             # Twitter gets the SECOND image (if available, otherwise first)
-            img_path = image_paths[1] if len(image_paths) > 1 else (image_paths[0] if image_paths else None)
-            
+            img_path = (
+                image_paths[1]
+                if len(image_paths) > 1
+                else (image_paths[0] if image_paths else None)
+            )
+
             tweet_id = browser_twitter.post_to_twitter_browser(text, img_path)
             res["tweet_id"] = tweet_id
-            success_twitter = True 
+            success_twitter = True
         except Exception as e:
             print(f"❌ Error during Twitter browser automation: {e}")
 
@@ -385,7 +410,5 @@ def _post_to_socials(
     return res
 
 
-
 if __name__ == "__main__":
     main()
-

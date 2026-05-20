@@ -61,16 +61,12 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
                             "Model Prob": model_prob,
                             "Market Prob": h_implied,
                             "Edge %": edge,
-                            "Selection": game.home_team
-                            if edge > 0
-                            else game.away_team,
+                            "Selection": game.home_team if edge > 0 else game.away_team,
                             "EV %": abs(edge),
                             "Price": market_odds.price
                             if market_odds.outcome
                             == (game.home_team if edge > 0 else game.away_team)
-                            else (
-                                1 / (1 - implied_prob) if implied_prob < 1 else 0
-                            ),
+                            else (1 / (1 - implied_prob) if implied_prob < 1 else 0),
                             "Updated": market_odds.timestamp.strftime("%H:%M"),
                             "Fallback": is_fallback,
                         }
@@ -120,9 +116,7 @@ def render_picks_view():
 
     # Premium Styling
     def color_edge(val):
-        color = (
-            "#2ecc71" if val > 0.05 else "#e74c3c" if val < -0.05 else "#95a5a6"
-        )
+        color = "#2ecc71" if val > 0.05 else "#e74c3c" if val < -0.05 else "#95a5a6"
         return f"color: {color}; font-weight: bold"
 
     display_cols = [c for c in picks_df.columns if c != "Fallback"]
@@ -149,7 +143,9 @@ def render_picks_view():
         )
 
     # Cache freshness indicator
-    st.caption(f"📊 Predictions cached at {datetime.now().strftime('%H:%M:%S')} · refreshes every 30 min")
+    st.caption(
+        f"📊 Predictions cached at {datetime.now().strftime('%H:%M:%S')} · refreshes every 30 min"
+    )
 
 
 if __name__ == "__main__":

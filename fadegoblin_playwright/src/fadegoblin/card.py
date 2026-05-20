@@ -11,7 +11,7 @@ from fadegoblin import config
 # ── Layout constants ──────────────────────────────────────────────────
 CARD_WIDTH = 560
 PADDING = 15
-ROW_HEIGHT = 52          # taller to fit two-line rows (matchup + diagnostics)
+ROW_HEIGHT = 52  # taller to fit two-line rows (matchup + diagnostics)
 HEADER_HEIGHT = 44
 FOOTER_HEIGHT = 28
 COL_WIDTH = (CARD_WIDTH - (PADDING * 3)) // 2
@@ -49,13 +49,19 @@ SLIP_TITLES = [
     "💚 RECKLESS SPECULATION SLIP",
     "💚 FINANCIAL RUIN SPEEDRUN",
     "💚 THE GOB'S SHAMANIC SLIP",
-    "💚 DUGOUT WATER CONDENSATION"
+    "💚 DUGOUT WATER CONDENSATION",
 ]
 
 
-def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | None = None, title: str | None = None) -> Path:
+def render_bet_card(
+    legs: list[dict],
+    potd_index: int,
+    background_path: Path | None = None,
+    title: str | None = None,
+) -> Path:
     if not title:
         import random
+
         day_seed = datetime.now().strftime("%Y-%m-%d")
         rng = random.Random(day_seed)
         title = rng.choice(SLIP_TITLES)
@@ -77,7 +83,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     # Grid height calculation
     table_content_h = num_rows * (ROW_HEIGHT + 4)
     base_table_height = header_h + table_content_h + FOOTER_HEIGHT + 10
-    
+
     if background_path and background_path.exists():
         bg_img = Image.open(background_path).convert("RGB")
         target_h = max(1024, base_table_height + 400)
@@ -90,7 +96,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         canvas_width = CARD_WIDTH
 
     draw = ImageDraw.Draw(img, "RGBA")
-    
+
     # Position table at bottom
     table_x1 = (canvas_width - CARD_WIDTH) // 2
     table_x2 = table_x1 + CARD_WIDTH
@@ -100,10 +106,12 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     else:
         table_y2 = card_height
         table_y1 = 0
-    
+
     # Main rounded background
-    draw.rounded_rectangle([table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR)
-    
+    draw.rounded_rectangle(
+        [table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR
+    )
+
     font_title = _load_font(16)
     font_date = _load_font(10)
     font_row = _load_font(13)
@@ -111,9 +119,16 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
 
     # ── Header (Only if num_legs > 1) ─────────────────────────────────
     if num_legs > 1:
-        draw.text((table_x1 + PADDING, table_y1 + 10), title, fill=ACCENT_GREEN, font=font_title)
+        draw.text(
+            (table_x1 + PADDING, table_y1 + 10),
+            title,
+            fill=ACCENT_GREEN,
+            font=font_title,
+        )
         date_str = datetime.now().strftime("%b %d, %Y")
-        draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
+        draw.text(
+            (table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date
+        )
 
         # ── Squad Signals (Top Right) ─────────────────────────────────
         all_unique_badges = []
@@ -121,19 +136,28 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
             for b in leg.get("badges", []):
                 if b not in all_unique_badges:
                     all_unique_badges.append(b)
-        
+
         if all_unique_badges:
             signal_text = " • ".join(all_unique_badges)
             bbox_sig = draw.textbbox((0, 0), signal_text, font=font_date)
-            draw.text((table_x2 - PADDING - (bbox_sig[2]-bbox_sig[0]), table_y1 + 15), signal_text, fill=ACCENT_GREEN, font=font_date)
+            draw.text(
+                (table_x2 - PADDING - (bbox_sig[2] - bbox_sig[0]), table_y1 + 15),
+                signal_text,
+                fill=ACCENT_GREEN,
+                font=font_date,
+            )
 
     # ── Rendering helper for a single leg box ─────────────────────────
     def draw_leg_box(leg: dict, lx: int, ly: int, lwidth: int, is_potd: bool):
         fill = POTD_BG if is_potd else (30, 30, 45, 180)
-        draw.rounded_rectangle([lx, ly, lx + lwidth, ly + ROW_HEIGHT], radius=6, fill=fill)
-        
+        draw.rounded_rectangle(
+            [lx, ly, lx + lwidth, ly + ROW_HEIGHT], radius=6, fill=fill
+        )
+
         if is_potd:
-            draw.rounded_rectangle([lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=ACCENT_GREEN)
+            draw.rounded_rectangle(
+                [lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=ACCENT_GREEN
+            )
 
         # ── Matchup row (line 1) ───────────────────────────────────
         game_text = leg["game"]
@@ -141,12 +165,20 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         parts = game_text.split(" @ ")
 
         matchup_y = ly + 6  # top line: matchup
-        diag_y = ly + 28    # bottom line: diagnostics
+        diag_y = ly + 28  # bottom line: diagnostics
 
         if len(parts) == 2:
             away, home = parts
-            away_color = ACCENT_GREEN if pick_text == away else (TEXT_WHITE if is_potd else TEXT_DIM)
-            home_color = ACCENT_GREEN if pick_text == home else (TEXT_WHITE if is_potd else TEXT_DIM)
+            away_color = (
+                ACCENT_GREEN
+                if pick_text == away
+                else (TEXT_WHITE if is_potd else TEXT_DIM)
+            )
+            home_color = (
+                ACCENT_GREEN
+                if pick_text == home
+                else (TEXT_WHITE if is_potd else TEXT_DIM)
+            )
 
             draw.text((lx + 10, matchup_y), away, fill=away_color, font=font_row)
             bbox = draw.textbbox((0, 0), away, font=font_row)
@@ -168,7 +200,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         implied_pct = leg.get("implied")
         edge_pct = leg.get("edge")
         goblins = leg.get("goblins", "")
-        
+
         diag_parts = []
         if implied_pct is not None:
             diag_parts.append(f"impl {implied_pct}%")
@@ -176,7 +208,7 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
             diag_parts.append(f"+{edge_pct}% EV")
         if goblins:
             diag_parts.append(goblins)
-            
+
         diag_text = "  •  ".join(diag_parts)
         draw.text((lx + 10, diag_y), diag_text, fill=TEXT_DIM, font=font_date)
 
@@ -201,7 +233,12 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
 
     # ── Footer ────────────────────────────────────────────────────────
     footer_y = table_y2 - 20
-    draw.text((table_x1 + PADDING, footer_y), "@TheFadeGoblin  •  AlgoMLB", fill=TEXT_DIM, font=font_footer)
+    draw.text(
+        (table_x1 + PADDING, footer_y),
+        "@TheFadeGoblin  •  AlgoMLB",
+        fill=TEXT_DIM,
+        font=font_footer,
+    )
 
     output_path = config.BASE_DIR / "temp_card.png"
     img.save(str(output_path), "PNG")
@@ -239,7 +276,9 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
         table_y2 = card_height
         table_y1 = 0
 
-    draw.rounded_rectangle([table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR)
+    draw.rounded_rectangle(
+        [table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR
+    )
 
     font_title = _load_font(16)
     font_date = _load_font(10)
@@ -249,19 +288,30 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
 
     # ── Header ────────────────────────────────────────────────────────
     date_str = stats.get("date", datetime.now().strftime("%Y-%m-%d"))
-    draw.text((table_x1 + PADDING, table_y1 + 10), "👺 GOBLIN RECAP", fill=ACCENT_GREEN, font=font_title)
-    draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
+    draw.text(
+        (table_x1 + PADDING, table_y1 + 10),
+        "👺 GOBLIN RECAP",
+        fill=ACCENT_GREEN,
+        font=font_title,
+    )
+    draw.text(
+        (table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date
+    )
 
     # ── Record (top right) ────────────────────────────────────────────
     wins = stats.get("wins", 0)
     losses = stats.get("losses", 0)
     pushes = stats.get("pushes", 0)
     record_str = f"{wins}W-{losses}L" + (f"-{pushes}P" if pushes else "")
-    record_color = ACCENT_GREEN if wins > losses else (255, 80, 80) if losses > wins else TEXT_DIM
+    record_color = (
+        ACCENT_GREEN if wins > losses else (255, 80, 80) if losses > wins else TEXT_DIM
+    )
     bbox_rec = draw.textbbox((0, 0), record_str, font=font_record)
     draw.text(
         (table_x2 - PADDING - (bbox_rec[2] - bbox_rec[0]), table_y1 + 10),
-        record_str, fill=record_color, font=font_record,
+        record_str,
+        fill=record_color,
+        font=font_record,
     )
 
     # ── Pick rows ─────────────────────────────────────────────────────
@@ -285,7 +335,9 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
             "LOSS": (65, 15, 15, 200),
             "PUSH": (50, 50, 15, 200),
         }.get(result, (30, 30, 45, 180))
-        draw.rounded_rectangle([x, y, x + COL_WIDTH, y + ROW_HEIGHT], radius=6, fill=row_fill)
+        draw.rounded_rectangle(
+            [x, y, x + COL_WIDTH, y + ROW_HEIGHT], radius=6, fill=row_fill
+        )
 
         result_color = RESULT_COLORS.get(result, TEXT_DIM)
         result_icon = {"WIN": "✓", "LOSS": "✗", "PUSH": "–", "?": "?"}.get(result, "?")
@@ -293,7 +345,12 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
         matchup_y = y + 6
         diag_y = y + 28
 
-        draw.text((x + 10, matchup_y), f"{pick['pick']} {pick['odds']}", fill=TEXT_WHITE, font=font_row)
+        draw.text(
+            (x + 10, matchup_y),
+            f"{pick['pick']} {pick['odds']}",
+            fill=TEXT_WHITE,
+            font=font_row,
+        )
         draw.text((x + 10, diag_y), f"{pick['matchup']}", fill=TEXT_DIM, font=font_date)
 
         # Result icon aligned right
@@ -312,7 +369,8 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
     draw.text(
         (table_x1 + PADDING, footer_y),
         f"@TheFadeGoblin  •  AlgoMLB{pnl_str}",
-        fill=TEXT_DIM, font=font_footer,
+        fill=TEXT_DIM,
+        font=font_footer,
     )
 
     output_path = config.BASE_DIR / "temp_recap_card.png"

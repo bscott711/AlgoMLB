@@ -7,7 +7,11 @@ from algomlb.domain import TransactionStatus
 session = get_session_factory()()
 try:
     # Check if we already have an adjustment
-    exists = session.query(BankrollLedgerORM).filter(BankrollLedgerORM.status == TransactionStatus.ADJUSTMENT).first()
+    exists = (
+        session.query(BankrollLedgerORM)
+        .filter(BankrollLedgerORM.status == TransactionStatus.ADJUSTMENT)
+        .first()
+    )
     if not exists:
         initial = BankrollLedgerORM(
             transaction_id=str(uuid.uuid4()),
@@ -18,7 +22,7 @@ try:
             edge=0.0,
             status=TransactionStatus.ADJUSTMENT,
             pnl=100.0,
-            game_id=None
+            game_id=None,
         )
         session.add(initial)
         session.commit()

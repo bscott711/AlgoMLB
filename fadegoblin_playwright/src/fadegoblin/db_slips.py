@@ -2,8 +2,10 @@ import json
 from sqlalchemy import create_engine, text
 from fadegoblin import config
 
+
 def get_engine():
     return create_engine(config.DATABASE_URL)
+
 
 def init_db():
     """Initializes the fadegoblin_slips database table if it does not exist."""
@@ -28,10 +30,15 @@ def init_db():
     with engine.begin() as conn:
         conn.execute(text(query))
         try:
-            conn.execute(text("ALTER TABLE fadegoblin_slips ADD COLUMN IF NOT EXISTS original_post_text TEXT;"))
+            conn.execute(
+                text(
+                    "ALTER TABLE fadegoblin_slips ADD COLUMN IF NOT EXISTS original_post_text TEXT;"
+                )
+            )
         except Exception as e:
             print(f"⚠️ Warning adding original_post_text column: {e}")
     print("✅ initialized fadegoblin_slips table.")
+
 
 def save_slip(
     slip_type: str,
@@ -41,7 +48,7 @@ def save_slip(
     bsky_uri: str | None = None,
     bsky_cid: str | None = None,
     twitter_tweet_id: str | None = None,
-    original_post_text: str | None = None
+    original_post_text: str | None = None,
 ) -> int:
     """Inserts a new slip into the database."""
     engine = get_engine()
@@ -62,11 +69,12 @@ def save_slip(
                 "bsky_cid": bsky_cid,
                 "twitter_tweet_id": twitter_tweet_id,
                 "original_post_text": original_post_text,
-            }
+            },
         )
         slip_id = result.scalar()
     print(f"💾 Saved {slip_type.upper()} slip #{slip_id} to DB.")
     return slip_id
+
 
 def get_pending_slips() -> list[dict]:
     """Retrieves all pending slips from the database."""
@@ -80,23 +88,26 @@ def get_pending_slips() -> list[dict]:
     with engine.connect() as conn:
         result = conn.execute(text(query))
         rows = result.fetchall()
-        
+
     pending = []
     for r in rows:
-        pending.append({
-            "slip_id": r[0],
-            "slip_type": r[1],
-            "legs": r[2] if isinstance(r[2], list) else json.loads(r[2]),
-            "final_odds": r[3],
-            "stake": float(r[4]),
-            "status": r[5],
-            "bsky_uri": r[6],
-            "bsky_cid": r[7],
-            "twitter_tweet_id": r[8],
-            "created_at": r[9],
-            "original_post_text": r[10] if len(r) > 10 else None
-        })
+        pending.append(
+            {
+                "slip_id": r[0],
+                "slip_type": r[1],
+                "legs": r[2] if isinstance(r[2], list) else json.loads(r[2]),
+                "final_odds": r[3],
+                "stake": float(r[4]),
+                "status": r[5],
+                "bsky_uri": r[6],
+                "bsky_cid": r[7],
+                "twitter_tweet_id": r[8],
+                "created_at": r[9],
+                "original_post_text": r[10] if len(r) > 10 else None,
+            }
+        )
     return pending
+
 
 def settle_slip(slip_id: int, pnl: float) -> None:
     """Updates slip status to SETTLED and records the final P&L."""

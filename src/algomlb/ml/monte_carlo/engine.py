@@ -65,8 +65,18 @@ PITCHER_FEATURES = {
 
 # All 12 valid ball-strike count states in baseball
 COUNT_STATES = [
-    "0-0", "0-1", "0-2", "1-0", "1-1", "1-2",
-    "2-0", "2-1", "2-2", "3-0", "3-1", "3-2",
+    "0-0",
+    "0-1",
+    "0-2",
+    "1-0",
+    "1-1",
+    "1-2",
+    "2-0",
+    "2-1",
+    "2-2",
+    "3-0",
+    "3-1",
+    "3-2",
 ]
 
 # Empirical MLB terminal count frequencies (2023-2024 seasons).
@@ -91,7 +101,9 @@ TERMINAL_COUNT_WEIGHTS = {
 class SimulationEngine:
     """Core engine executing thousands of Markov-chain game trials using ML outcomes."""
 
-    def __init__(self, pa_model: Any, hook_model: Optional[HookModel] = None, seed: int = 42):
+    def __init__(
+        self, pa_model: Any, hook_model: Optional[HookModel] = None, seed: int = 42
+    ):
         self.pa_model = pa_model
         self.hook_model = hook_model
         # Explicit Random Generator for strict reproducibility
@@ -128,18 +140,18 @@ class SimulationEngine:
             "home": context.home_starter.pitcher_id,
             "away": context.away_starter.pitcher_id,
         }
-        
+
         # Initialize the Orchestrator for both sides
         all_profiles = context.home_reliever_profiles + context.away_reliever_profiles
-        
+
         # Bullpen Params (platoon_advantage, fatigue_decay, min_fatigue_floor)
         bp_config = bullpen_params or {}
         orchestrator = BullpenOrchestrator(
-            all_profiles, 
+            all_profiles,
             self.rng,
             platoon_advantage=bp_config.get("platoon_advantage", 1.12),
             fatigue_decay=bp_config.get("fatigue_decay", 0.003),
-            min_fatigue_floor=bp_config.get("min_fatigue_floor", 0.82)
+            min_fatigue_floor=bp_config.get("min_fatigue_floor", 0.82),
         )
 
         queues = {
@@ -171,7 +183,7 @@ class SimulationEngine:
                             away_score=state.away_score,
                             late_inning_runs=state.late_inning_runs,
                             player_states={**bat_registry, **pit_registry},
-                            inning_count=state.inning
+                            inning_count=state.inning,
                         )
 
             state.inning += 1
@@ -183,11 +195,20 @@ class SimulationEngine:
             away_score=state.away_score,
             late_inning_runs=state.late_inning_runs,
             player_states={**bat_registry, **pit_registry},
-            inning_count=state.inning
+            inning_count=state.inning,
         )
 
     def _execute_pa(
-        self, state, context, bp_manager, orchestrator, b_reg, p_reg, active_p, queues, ptrs
+        self,
+        state,
+        context,
+        bp_manager,
+        orchestrator,
+        b_reg,
+        p_reg,
+        active_p,
+        queues,
+        ptrs,
     ) -> bool:
         """Executes a single plate appearance and returns True if a walk-off occurred."""
         p_side = "home" if state.top_half else "away"
@@ -203,14 +224,18 @@ class SimulationEngine:
                 # 1.1 Use Orchestrator for intelligent selection
                 # We need upcoming batters for platoon matching (next 3)
                 upcoming_hands = []
-                bat_side_lineup = context.away_lineup if state.top_half else context.home_lineup
+                bat_side_lineup = (
+                    context.away_lineup if state.top_half else context.home_lineup
+                )
                 for i in range(3):
                     idx = (ptrs[b_side] + i) % 9
                     upcoming_hands.append(bat_side_lineup[idx].hand)
 
                 li = state.leverage_index if hasattr(state, "leverage_index") else 1.0
-                next_p = orchestrator.select_next(queues[p_side], upcoming_hands, li, state.inning)
-                
+                next_p = orchestrator.select_next(
+                    queues[p_side], upcoming_hands, li, state.inning
+                )
+
                 if next_p:
                     p_id = next_p
                     active_p[p_side] = p_id
@@ -231,14 +256,14 @@ class SimulationEngine:
         # 3. Simulate count and sample count-conditional outcome
         self._simulate_count(state)
         outcome = self._sample_pa(
-            batter.player_id, 
-            p_id, 
-            context, 
-            b_side, 
+            batter.player_id,
+            p_id,
+            context,
+            b_side,
             state.count_state,
             orchestrator,
             batter.hand,
-            p_reg[p_id].pitches_thrown
+            p_reg[p_id].pitches_thrown,
         )
         scored_ids = state.process_event(outcome, batter.player_id)
         self._attribute_stats(outcome, batter.player_id, p_id, scored_ids, b_reg, p_reg)
@@ -305,6 +330,7 @@ class SimulationEngine:
         for p in context.home_relievers + context.away_relievers:
             pit_reg[p.pitcher_id] = p.model_copy(deep=True)
         return bat_reg, pit_reg
+
     def _sample_pa(
         self,
         batter_id: int,
@@ -314,7 +340,7 @@ class SimulationEngine:
         count_state: str = "0-0",
         orchestrator: Optional[BullpenOrchestrator] = None,
         batter_hand: str = "R",
-        pitches_thrown: int = 0
+        pitches_thrown: int = 0,
     ) -> str:
         """
         Samples one outcome from the ML model using flat (count-marginalized)
@@ -347,7 +373,9 @@ class SimulationEngine:
             if p_sum > 0:
                 probs = adj_probs / p_sum
             else:
-                logger.warning(f"Probability collapse for {pitcher_id} vs {batter_id}. Using base probs.")
+                logger.warning(
+                    f"Probability collapse for {pitcher_id} vs {batter_id}. Using base probs."
+                )
 
         return self.rng.choice(self.outcome_map, p=probs)
 
@@ -374,7 +402,7 @@ class SimulationEngine:
         p = pitcher_registry[pitcher_id]
 
         b.pa_count += 1
-        
+
         # Replaced static +4 with probabilistic sampling based on outcome
         p.pitches_thrown += self._sample_pitch_count(outcome)
 
@@ -421,7 +449,10 @@ class SimulationEngine:
             p.runs_allowed += 1
 
     def run_trials(
-        self, context: MatchupContext, trials: int = 10000, bullpen_params: Optional[Dict[str, float]] = None
+        self,
+        context: MatchupContext,
+        trials: int = 10000,
+        bullpen_params: Optional[Dict[str, float]] = None,
     ) -> List[SimulationResult]:
         """Executes N Monte Carlo trials and returns a list of resulting player states per trial."""
         if context is None:
@@ -433,15 +464,17 @@ class SimulationEngine:
         logger.info(
             f"Starting {trials} Monte Carlo trials for game {context.game_pk}..."
         )
-        
+
         # 🚀 OPTIMIZATION: Batch infer all probabilities BEFORE the loop begins
         self._precompute_matchups(context)
-        
+
         all_trial_results = []
         for i in range(trials):
             if i > 0 and i % 1000 == 0:
                 logger.debug(f"Completed {i} trials...")
-            all_trial_results.append(self.simulate_game(context, bullpen_params=bullpen_params))
+            all_trial_results.append(
+                self.simulate_game(context, bullpen_params=bullpen_params)
+            )
         logger.success(f"Simulation of {trials} trials complete.")
         return all_trial_results
 
@@ -520,22 +553,28 @@ class SimulationEngine:
 
                     # --- COMPATIBILITY SHIM (legacy features) ---
                     for k, v in home_avg.items():
-                         base_combined[f"h_bat_{k}"] = v
+                        base_combined[f"h_bat_{k}"] = v
                     for k, v in away_avg.items():
-                         base_combined[f"a_bat_{k}"] = v
+                        base_combined[f"a_bat_{k}"] = v
 
                     if "roll_re24" in p_feats:
-                         base_combined["pitcher_roll_re24_x"] = p_feats["roll_re24"]
-                         base_combined["pitcher_roll_re24_y"] = p_feats["roll_re24"]
+                        base_combined["pitcher_roll_re24_x"] = p_feats["roll_re24"]
+                        base_combined["pitcher_roll_re24_y"] = p_feats["roll_re24"]
                     if "roll_re24" in b_feats:
-                         base_combined["batter_roll_re24_x"] = b_feats["roll_re24"]
-                         base_combined["batter_roll_re24_y"] = b_feats["roll_re24"]
+                        base_combined["batter_roll_re24_x"] = b_feats["roll_re24"]
+                        base_combined["batter_roll_re24_y"] = b_feats["roll_re24"]
 
-                    for f in ["n_games_used", "window_games", "days_since_last_game", "fatigue_index_7d", "fatigue_index_14d"]:
-                         if f in p_feats:
-                             base_combined[f"pitcher_{f}"] = p_feats[f]
-                         if f in b_feats:
-                             base_combined[f"batter_{f}"] = b_feats[f]
+                    for f in [
+                        "n_games_used",
+                        "window_games",
+                        "days_since_last_game",
+                        "fatigue_index_7d",
+                        "fatigue_index_14d",
+                    ]:
+                        if f in p_feats:
+                            base_combined[f"pitcher_{f}"] = p_feats[f]
+                        if f in b_feats:
+                            base_combined[f"batter_{f}"] = b_feats[f]
 
                     # Build rows for each count state
                     for count_str in count_loop:
@@ -590,9 +629,13 @@ class SimulationEngine:
                         b_id = keys[i][0]
                         p_id = keys[i][1]
                         # Slice the 12 rows for this matchup
-                        count_probs = prob_matrix[i : i + n_counts]  # shape (12, n_outcomes)
+                        count_probs = prob_matrix[
+                            i : i + n_counts
+                        ]  # shape (12, n_outcomes)
                         # Weighted average across counts
-                        marginalized = np.dot(weight_vec, count_probs)  # shape (n_outcomes,)
+                        marginalized = np.dot(
+                            weight_vec, count_probs
+                        )  # shape (n_outcomes,)
                         self.matchup_cache[(b_id, p_id)] = marginalized
 
                     logger.debug(
@@ -614,7 +657,9 @@ class SimulationEngine:
                     f"PA Model inference failed due to feature mismatch or XGBoost error: {e}"
                 )
         else:
-            raise ValueError("The provided pa_model does not have a predict_proba method.")
+            raise ValueError(
+                "The provided pa_model does not have a predict_proba method."
+            )
 
     def _get_expected_features(self) -> Optional[list]:
         """Extract the ordered feature name list from the underlying XGBoost model."""
@@ -629,9 +674,15 @@ class SimulationEngine:
         else:
             base_estimator = actual_model
 
-        if hasattr(base_estimator, "feature_names_in_") and base_estimator.feature_names_in_ is not None:
+        if (
+            hasattr(base_estimator, "feature_names_in_")
+            and base_estimator.feature_names_in_ is not None
+        ):
             return list(base_estimator.feature_names_in_)
-        elif hasattr(base_estimator, "feature_names") and base_estimator.feature_names is not None:
+        elif (
+            hasattr(base_estimator, "feature_names")
+            and base_estimator.feature_names is not None
+        ):
             return list(base_estimator.feature_names)
         elif hasattr(base_estimator, "get_booster"):
             return base_estimator.get_booster().feature_names
@@ -657,13 +708,13 @@ class SimulationEngine:
             "triple": (4.0, 1.8, 1),
             "home_run": (4.1, 1.9, 1),
             "out_in_play": (3.3, 1.7, 1),
-            "hbp": (3.5, 1.5, 1)
+            "hbp": (3.5, 1.5, 1),
         }
-        
+
         mean, std, min_p = dist_params.get(outcome, (3.9, 1.7, 1))
 
         # Sample from the normal distribution managed by our reproducible RNG
         sampled = int(np.round(self.rng.normal(mean, std)))
-        
+
         # Cap tails (avoid 20-pitch at-bats while ensuring physical limits)
         return max(min_p, min(sampled, 14))

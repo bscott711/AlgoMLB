@@ -102,8 +102,8 @@ def derive_hook_labels(df: pd.DataFrame) -> pd.DataFrame:
     n_hooked = df["was_hooked"].sum()
     n_total = len(df)
     logger.info(
-        f"Label derivation: {n_hooked:,} hooked ({n_hooked/n_total:.1%}), "
-        f"{n_total - n_hooked:,} completed ({(n_total - n_hooked)/n_total:.1%})."
+        f"Label derivation: {n_hooked:,} hooked ({n_hooked / n_total:.1%}), "
+        f"{n_total - n_hooked:,} completed ({(n_total - n_hooked) / n_total:.1%})."
     )
     return df
 
@@ -227,8 +227,7 @@ def main() -> dict:
     model = HookModel()
     calibrate = not args.no_calibrate
     logger.info(
-        f"Fitting HookModel (calibrate={calibrate}, "
-        f"n_estimators=200, max_depth=5)..."
+        f"Fitting HookModel (calibrate={calibrate}, n_estimators=200, max_depth=5)..."
     )
     model.fit(X_train, y_train, calibrate=calibrate)
     logger.success("Model fit complete.")

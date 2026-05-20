@@ -25,44 +25,52 @@ from algomlb.ml.monte_carlo.engine import SimulationEngine, COUNT_STATES
 @pytest.fixture
 def minimal_pas_df():
     """Retrosheet-like PA dataframe WITH balls/strikes columns."""
-    return pd.DataFrame({
-        "game_id": ["G1"] * 4,
-        "game_date": pd.Timestamp("2024-06-01"),
-        "batter_id": [100, 101, 100, 101],
-        "pitcher_id": [200, 200, 201, 201],
-        "balls": [0, 3, 1, 0],
-        "strikes": [2, 1, 0, 0],
-        "pa_outcome": ["strikeout", "walk", "single", "out_in_play"],
-    })
+    return pd.DataFrame(
+        {
+            "game_id": ["G1"] * 4,
+            "game_date": pd.Timestamp("2024-06-01"),
+            "batter_id": [100, 101, 100, 101],
+            "pitcher_id": [200, 200, 201, 201],
+            "balls": [0, 3, 1, 0],
+            "strikes": [2, 1, 0, 0],
+            "pa_outcome": ["strikeout", "walk", "single", "out_in_play"],
+        }
+    )
 
 
 @pytest.fixture
 def minimal_pas_df_no_count():
     """Retrosheet-like PA dataframe WITHOUT balls/strikes (legacy)."""
-    return pd.DataFrame({
-        "game_id": ["G1"] * 4,
-        "game_date": pd.Timestamp("2024-06-01"),
-        "batter_id": [100, 101, 100, 101],
-        "pitcher_id": [200, 200, 201, 201],
-        "pa_outcome": ["strikeout", "walk", "single", "out_in_play"],
-    })
+    return pd.DataFrame(
+        {
+            "game_id": ["G1"] * 4,
+            "game_date": pd.Timestamp("2024-06-01"),
+            "batter_id": [100, 101, 100, 101],
+            "pitcher_id": [200, 200, 201, 201],
+            "pa_outcome": ["strikeout", "walk", "single", "out_in_play"],
+        }
+    )
 
 
 @pytest.fixture
 def minimal_gold():
     """Minimal pitcher/batter Gold DataFrames for joins."""
-    pitcher = pd.DataFrame({
-        "player_id": [200, 201],
-        "game_date": pd.Timestamp("2024-06-01"),
-        "roll_k_pct": [0.25, 0.30],
-        "roll_bb_pct": [0.08, 0.10],
-    })
-    batter = pd.DataFrame({
-        "player_id": [100, 101],
-        "game_date": pd.Timestamp("2024-06-01"),
-        "roll_k_pct_batter": [0.22, 0.18],
-        "roll_bb_pct_batter": [0.09, 0.12],
-    })
+    pitcher = pd.DataFrame(
+        {
+            "player_id": [200, 201],
+            "game_date": pd.Timestamp("2024-06-01"),
+            "roll_k_pct": [0.25, 0.30],
+            "roll_bb_pct": [0.08, 0.10],
+        }
+    )
+    batter = pd.DataFrame(
+        {
+            "player_id": [100, 101],
+            "game_date": pd.Timestamp("2024-06-01"),
+            "roll_k_pct_batter": [0.22, 0.18],
+            "roll_bb_pct_batter": [0.09, 0.12],
+        }
+    )
     return pitcher, batter
 
 
@@ -90,7 +98,9 @@ class FakeModelWithCount(FakeModel):
     def __init__(self, n_classes=8):
         base_features = ["pitcher_roll_k_pct", "batter_roll_k_pct_batter", "elo_diff"]
         count_features = [f"cnt_{cs}" for cs in COUNT_STATES]
-        super().__init__(feature_names=base_features + count_features, n_classes=n_classes)
+        super().__init__(
+            feature_names=base_features + count_features, n_classes=n_classes
+        )
 
 
 # ── Test: FeaturePipeline Count Engineering ──────────────────────────────────
@@ -108,7 +118,9 @@ class TestFeaturePipelineCount:
 
         # All 12 cnt_* columns should be present
         cnt_cols = [c for c in X.columns if c.startswith("cnt_")]
-        assert len(cnt_cols) == 12, f"Expected 12 cnt_ columns, got {len(cnt_cols)}: {cnt_cols}"
+        assert len(cnt_cols) == 12, (
+            f"Expected 12 cnt_ columns, got {len(cnt_cols)}: {cnt_cols}"
+        )
 
         # Verify one-hot encoding: each row should have exactly one cnt_* = 1.0
         cnt_matrix = X[cnt_cols].values
@@ -143,7 +155,6 @@ class TestFeaturePipelineCount:
 
 
 class TestGameStateCount:
-
     def test_initial_count_is_zero(self):
         gs = GameState()
         assert gs.balls == 0
@@ -178,7 +189,6 @@ class TestGameStateCount:
 
 
 class TestSimulateCount:
-
     def test_simulate_count_terminates(self):
         """Count simulation must always terminate."""
         model = FakeModelWithCount()
@@ -190,7 +200,15 @@ class TestSimulateCount:
             engine._simulate_count(gs)
             assert gs.balls <= 4
             assert gs.strikes <= 2
-            assert gs.count_state in COUNT_STATES or gs.count_state in ["4-0", "4-1", "4-2", "0-3", "1-3", "2-3", "3-3"]
+            assert gs.count_state in COUNT_STATES or gs.count_state in [
+                "4-0",
+                "4-1",
+                "4-2",
+                "0-3",
+                "1-3",
+                "2-3",
+                "3-3",
+            ]
 
     def test_simulate_count_produces_valid_states(self):
         """Distribution check: should see most common count states appear."""
@@ -207,7 +225,9 @@ class TestSimulateCount:
 
         # 0-0 should appear rarely (only if terminal on first pitch)
         # Many states should be represented
-        assert len(counts) >= 5, f"Expected diverse counts, only got: {list(counts.keys())}"
+        assert len(counts) >= 5, (
+            f"Expected diverse counts, only got: {list(counts.keys())}"
+        )
 
     def test_simulate_count_skipped_when_not_count_aware(self):
         """When _count_aware is False, count should always stay 0-0."""
@@ -224,7 +244,6 @@ class TestSimulateCount:
 
 
 class TestSamplePAFallback:
-
     def test_flat_cache_lookup(self):
         """Old-style flat cache should work when _count_aware is False."""
         model = FakeModel()
@@ -288,14 +307,15 @@ class TestSamplePAFallback:
 
 
 class TestModelHasCountFeatures:
-
     def test_detects_count_features(self):
         model = FakeModelWithCount()
         engine = SimulationEngine(pa_model=model, seed=42)
         assert engine._model_has_count_features() is True
 
     def test_detects_no_count_features(self):
-        model = FakeModel(feature_names=["pitcher_roll_k_pct", "batter_roll_k_pct_batter"])
+        model = FakeModel(
+            feature_names=["pitcher_roll_k_pct", "batter_roll_k_pct_batter"]
+        )
         engine = SimulationEngine(pa_model=model, seed=42)
         assert engine._model_has_count_features() is False
 

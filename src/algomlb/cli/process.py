@@ -158,6 +158,7 @@ def silver(
 
         # Only query dates that actually have Statcast data
         from sqlalchemy import text
+
         with engine.connect() as conn:
             query = text("""
                 SELECT DISTINCT game_date

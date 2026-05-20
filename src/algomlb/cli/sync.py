@@ -128,11 +128,14 @@ def daily(
     # 3. Paper Trading (Betting + Settlement)
     logger.info("💰 Running Paper Trading Engine")
     from algomlb.strategy.betting_service import BettingService
+
     with session_factory() as session:
         bet_service = BettingService(session)
         settled = bet_service.settle_bets()
         placed = bet_service.place_daily_bets(today)
-        logger.success(f"✅ Paper Trading: Settled {settled} bets, Placed {placed} new bets.")
+        logger.success(
+            f"✅ Paper Trading: Settled {settled} bets, Placed {placed} new bets."
+        )
 
     logger.success(f"✅ Daily Sync Complete for {yesterday}")
 

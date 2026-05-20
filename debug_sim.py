@@ -5,7 +5,7 @@ from algomlb.ml.monte_carlo.engine import SimulationEngine
 
 session = get_session_factory()()
 loader = MatchupLoader(session)
-ctx = loader.load_matchup(746849) # A random game, use anything
+ctx = loader.load_matchup(746849)  # A random game, use anything
 model = PAOutcomeModel.load("v1.1")
 engine = SimulationEngine(model)
 engine._precompute_matchups(ctx)
@@ -16,4 +16,9 @@ if probs:
     print("SAME?", (probs[0] == probs[1]).all())
     # Let's see what expected_features was
     actual_model = getattr(engine.pa_model, "model", engine.pa_model)
-    print("EXPECTED FEATS:", list(actual_model.feature_names_in_)[:10] if hasattr(actual_model, "feature_names_in_") else "Unknown")
+    print(
+        "EXPECTED FEATS:",
+        list(actual_model.feature_names_in_)[:10]
+        if hasattr(actual_model, "feature_names_in_")
+        else "Unknown",
+    )

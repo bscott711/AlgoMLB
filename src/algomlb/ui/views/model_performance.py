@@ -111,7 +111,7 @@ with st.sidebar:
     selected_model = st.selectbox(
         "Model Version",
         model_versions,
-        index=len(model_versions) - 1 if model_versions else 0
+        index=len(model_versions) - 1 if model_versions else 0,
     )
 
     df_mv = eval_df[eval_df["model_version"] == selected_model]
@@ -207,7 +207,9 @@ st.markdown("---")
 
 st.markdown(f"### 🎯 Calibration Curve — Fold {selected_date}")
 
-cal_df = load_calibration(model_version_str, selected_date, model_target=selected_target)
+cal_df = load_calibration(
+    model_version_str, selected_date, model_target=selected_target
+)
 
 if cal_df.empty:
     st.info("No calibration bins found for this model/date. Run training to populate.")

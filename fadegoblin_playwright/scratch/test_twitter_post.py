@@ -1,5 +1,4 @@
 import sys
-import os
 from pathlib import Path
 
 # Add project src to path
@@ -8,6 +7,7 @@ sys.path.insert(0, str(project_root / "fadegoblin_playwright" / "src"))
 
 # Load dotenv
 from dotenv import load_dotenv
+
 load_dotenv(project_root / ".env")
 
 from fadegoblin.browser_twitter import post_to_twitter_browser
@@ -16,7 +16,7 @@ from fadegoblin.browser_twitter import post_to_twitter_browser
 tweet_text = "🤖 FadeGoblin visual & element selector posting validation test. Hello world, the sportsbooks are ours! 📈💸 #POTD"
 
 print("--- TESTING TWITTER POST AUTOMATION WITH ROBUST SELECTORS ---")
-print(f"Drafting tweet:\n\"{tweet_text}\"\n")
+print(f'Drafting tweet:\n"{tweet_text}"\n')
 
 try:
     tweet_id = post_to_twitter_browser(tweet_text)

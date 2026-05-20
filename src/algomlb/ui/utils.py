@@ -117,10 +117,10 @@ def run_and_persist_simulation(
     if not model_path.exists():
         # Fallback to the unversioned link if v1.6 explicitly isn't found
         model_path = Path(".data/models/pa_outcome.joblib")
-    
+
     if not model_path.exists():
         raise FileNotFoundError(f"Production model not found at {model_path}")
-    
+
     model = MLBModel.load(model_path)
 
     # 4. Simulate
@@ -175,20 +175,32 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
         h_elo = context.matchup_features.get("home_team_elo_pre", 1500)
         a_elo = context.matchup_features.get("away_team_elo_pre", 1500)
         from loguru import logger
-        logger.warning(f"⚛️ No Uranium model found. Falling back to Elo: Home={h_elo}, Away={a_elo}")
+
+        logger.warning(
+            f"⚛️ No Uranium model found. Falling back to Elo: Home={h_elo}, Away={a_elo}"
+        )
         return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400)), True
 
     from loguru import logger
+
     logger.info(f"⚛️ Loading Uranium model from {model_path}")
     model = MLBModel.load(model_path)
 
     # Get the model's expected feature names for whitelist-based mapping
     base_est = model.get_base_xgb_estimator()
-    expected_features = list(base_est.feature_names_in_) if hasattr(base_est, "feature_names_in_") else []
+    expected_features = (
+        list(base_est.feature_names_in_)
+        if hasattr(base_est, "feature_names_in_")
+        else []
+    )
 
     # Derive whitelists from model expectations
-    sp_keys = {f.replace("h_sp_", "") for f in expected_features if f.startswith("h_sp_")}
-    bat_keys = {f.replace("h_bat_", "") for f in expected_features if f.startswith("h_bat_")}
+    sp_keys = {
+        f.replace("h_sp_", "") for f in expected_features if f.startswith("h_sp_")
+    }
+    bat_keys = {
+        f.replace("h_bat_", "") for f in expected_features if f.startswith("h_bat_")
+    }
 
     # 1. Build Feature Row
     row = {}
@@ -241,7 +253,9 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
     if expected_features:
         missing = [f for f in expected_features if f not in X.columns]
         if missing:
-            logger.warning(f"⚛️ {len(missing)}/{len(expected_features)} features missing: {missing[:5]}...")
+            logger.warning(
+                f"⚛️ {len(missing)}/{len(expected_features)} features missing: {missing[:5]}..."
+            )
         X = X.reindex(columns=expected_features, fill_value=0.0)
 
     probs = model.predict_proba(X)[0]

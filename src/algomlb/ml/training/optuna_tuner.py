@@ -49,7 +49,9 @@ class XGBoostOptunaObjective:
             self.folds.append((train_idx, test_idx))
 
         if not self.folds:
-            logger.warning("TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split.")
+            logger.warning(
+                "TimeSeriesSplitter yielded 0 folds. Falling back to simple 80/20 split."
+            )
             split_idx = int(len(df) * 0.8)
             self.folds.append((df_indices[:split_idx], df_indices[split_idx:]))
 
@@ -118,13 +120,17 @@ class XGBoostOptunaObjective:
                         y_t_sub, y_p_sub = y_test[sub_idx], y_prob[sub_idx]
                     else:
                         y_t_sub, y_p_sub = y_test, y_prob
-                    
+
                     # Ensure all classes are represented in the subsample for AUC
                     if len(np.unique(y_t_sub)) == self.num_class:
-                        curr_auc = roc_auc_score(y_t_sub, y_p_sub, multi_class="ovr", average="macro")
+                        curr_auc = roc_auc_score(
+                            y_t_sub, y_p_sub, multi_class="ovr", average="macro"
+                        )
                     else:
                         # Fallback to full set if subsample is missing classes
-                        curr_auc = roc_auc_score(y_test, y_prob, multi_class="ovr", average="macro")
+                        curr_auc = roc_auc_score(
+                            y_test, y_prob, multi_class="ovr", average="macro"
+                        )
                 except Exception:
                     curr_auc = 0.5
             else:

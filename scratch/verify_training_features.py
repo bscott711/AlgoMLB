@@ -1,5 +1,7 @@
 """Verify training matrix has the right features for v1.3."""
+
 import sys
+
 sys.path.insert(0, "/home/opc/AlgoMLB/src")
 from algomlb.db.session import get_session_factory
 from algomlb.ml.features import FeaturePipeline
@@ -10,7 +12,9 @@ engine = session_factory.kw["bind"]
 
 # Load a small sample (2025 only)
 data = _load_ml_data(engine, "2025")
-print(f"PAs: {len(data['pas'])}, pitcher_gold: {len(data['pitcher_gold'])}, batter_gold: {len(data['batter_gold'])}")
+print(
+    f"PAs: {len(data['pas'])}, pitcher_gold: {len(data['pitcher_gold'])}, batter_gold: {len(data['batter_gold'])}"
+)
 
 pipeline = FeaturePipeline()
 X, y = pipeline.build_pa_matrix(
@@ -29,10 +33,14 @@ for c in sorted(X.columns):
 
 # Check key features are present
 key_feats = [
-    "pitcher_n_games_used", "pitcher_days_since_last_game",
-    "batter_n_games_used", "batter_days_since_last_game",
-    "pitcher_fatigue_index_7d", "pitcher_fatigue_index_14d",
-    "batter_fatigue_index_7d", "batter_fatigue_index_14d",
+    "pitcher_n_games_used",
+    "pitcher_days_since_last_game",
+    "batter_n_games_used",
+    "batter_days_since_last_game",
+    "pitcher_fatigue_index_7d",
+    "pitcher_fatigue_index_14d",
+    "batter_fatigue_index_7d",
+    "batter_fatigue_index_14d",
     "pitcher_window_games",
     "batter_window_games",
 ]
@@ -40,7 +48,9 @@ print("\nKey feature check:")
 for f in key_feats:
     present = f in X.columns
     nz = (X[f] != 0).sum() if present else 0
-    print(f"  {'✅' if present else '❌'} {f:40s} {'present' if present else 'MISSING'} non-zero={nz}")
+    print(
+        f"  {'✅' if present else '❌'} {f:40s} {'present' if present else 'MISSING'} non-zero={nz}"
+    )
 
 # Check NO cnt_ features
 cnt_feats = [c for c in X.columns if c.startswith("cnt_")]

@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import importlib
 import algomlb.db.models as models
+
 importlib.reload(models)
 from algomlb.db.session import get_engine
 
@@ -61,24 +62,26 @@ df_alpha = pd.read_sql(query, engine)
 if not df_alpha.empty:
     # 2. Display CLV Table
     def color_clv(val):
-        color = '#2ecc71' if val > 0.02 else '#e74c3c' if val < -0.02 else '#95a5a6'
-        return f'color: {color}; font-weight: bold'
+        color = "#2ecc71" if val > 0.02 else "#e74c3c" if val < -0.02 else "#95a5a6"
+        return f"color: {color}; font-weight: bold"
 
     st.dataframe(
-        df_alpha.style.format({
-            "model_prob": "{:.1%}",
-            "entry_implied": "{:.1%}",
-            "closing_implied": "{:.1%}",
-            "market_move": "{:+.1%}",
-            "closing_edge": "{:+.1%}"
-        }).map(color_clv, subset=["market_move"]),
-        use_container_width=True
+        df_alpha.style.format(
+            {
+                "model_prob": "{:.1%}",
+                "entry_implied": "{:.1%}",
+                "closing_implied": "{:.1%}",
+                "market_move": "{:+.1%}",
+                "closing_edge": "{:+.1%}",
+            }
+        ).map(color_clv, subset=["market_move"]),
+        use_container_width=True,
     )
 
     # 3. Calibration Plot
     st.markdown("---")
     st.markdown("### 🎯 Model Calibration: Projections vs Market Close")
-    
+
     fig_cal = px.scatter(
         df_alpha,
         x="closing_implied",
@@ -89,17 +92,18 @@ if not df_alpha.empty:
         title="Uranium Projections vs. Market Closing Probabilities",
         labels={"closing_implied": "Market Closing Prob", "model_prob": "Uranium Prob"},
         template="plotly_dark",
-        color_continuous_scale="RdYlGn"
+        color_continuous_scale="RdYlGn",
     )
     # Add 45-degree line
     fig_cal.add_shape(
-        type='line', line=dict(dash='dash', color='gray'),
-        x0=0, x1=1, y0=0, y1=1
+        type="line", line=dict(dash="dash", color="gray"), x0=0, x1=1, y0=0, y1=1
     )
     st.plotly_chart(fig_cal, use_container_width=True)
 
 else:
-    st.info("No model prediction history found yet. Run a sync or view the Simulation Lab to archive predictions.")
+    st.info(
+        "No model prediction history found yet. Run a sync or view the Simulation Lab to archive predictions."
+    )
 
 # --- 4. Raw Market Movement (Legacy) ---
 st.markdown("---")

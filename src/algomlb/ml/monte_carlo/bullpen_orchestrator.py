@@ -30,15 +30,17 @@ class BullpenOrchestrator:
         rng: np.random.Generator,
         platoon_advantage: float = 1.12,
         fatigue_decay: float = 0.003,
-        min_fatigue_floor: float = 0.82
+        min_fatigue_floor: float = 0.82,
     ):
         self.profiles = {p.player_id: p for p in profiles}
         self.rng = rng
         self.usage_today: dict[int, int] = {pid: 0 for pid in self.profiles}
-        
+
         # Configuration for tuning
         self.platoon_advantage = platoon_advantage
-        self.platoon_disadvantage = 1.0 / platoon_advantage if platoon_advantage != 0 else 0.88
+        self.platoon_disadvantage = (
+            1.0 / platoon_advantage if platoon_advantage != 0 else 0.88
+        )
         self.fatigue_decay = fatigue_decay
         self.min_fatigue_floor = min_fatigue_floor
 
@@ -48,7 +50,8 @@ class BullpenOrchestrator:
         return [
             pid
             for pid, p in self.profiles.items()
-            if p.rest_days >= min_rest_days and p.pitches_yesterday <= max_pitches_yesterday
+            if p.rest_days >= min_rest_days
+            and p.pitches_yesterday <= max_pitches_yesterday
         ]
 
     def select_next(
@@ -66,7 +69,11 @@ class BullpenOrchestrator:
 
         # 1. Leverage/Role Filtering
         if leverage_index >= 1.8:
-            high_lev = [pid for pid in candidates if self.profiles[pid].role in ("closer", "setup")]
+            high_lev = [
+                pid
+                for pid in candidates
+                if self.profiles[pid].role in ("closer", "setup")
+            ]
             if high_lev:
                 candidates = high_lev
         elif leverage_index < 0.8 and game_inning < 7:
@@ -83,17 +90,23 @@ class BullpenOrchestrator:
             if platoon_matches:
                 # If we have a loogy against a lefty, use them
                 if next_batter_hand == "L":
-                    loogies = [pid for pid in platoon_matches if self.profiles[pid].role == "loogy"]
+                    loogies = [
+                        pid
+                        for pid in platoon_matches
+                        if self.profiles[pid].role == "loogy"
+                    ]
                     if loogies:
                         return int(self.rng.choice(loogies))
-                
+
                 # Otherwise prefer platoon matches if we have multiple candidates
                 if len(platoon_matches) >= 1:
                     candidates = platoon_matches
 
         # 3. Weighted selection based on role priority
         if len(candidates) > 1:
-            weights = [self.ROLE_PRIORITY.get(self.profiles[pid].role, 2) for pid in candidates]
+            weights = [
+                self.ROLE_PRIORITY.get(self.profiles[pid].role, 2) for pid in candidates
+            ]
             total = sum(weights)
             probs = [w / total for w in weights]
             return int(self.rng.choice(candidates, p=probs))
@@ -114,7 +127,9 @@ class BullpenOrchestrator:
         # Same-hand is advantage for pitcher
         is_advantage = prof.hand == batter_hand
         platoon = self.platoon_advantage if is_advantage else self.platoon_disadvantage
-        fatigue = max(self.min_fatigue_floor, 1.0 - (pitches_thrown * self.fatigue_decay))
+        fatigue = max(
+            self.min_fatigue_floor, 1.0 - (pitches_thrown * self.fatigue_decay)
+        )
 
         k_adj = fatigue * platoon
         # Walks and HRs go up when fatigue is high (fatigue < 1.0) and down with platoon advantage

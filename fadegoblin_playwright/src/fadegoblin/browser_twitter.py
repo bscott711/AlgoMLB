@@ -33,19 +33,31 @@ def _show_cookie_instructions() -> None:
     print("\n" + "=" * 80)
     print("❌ ERROR: Twitter/X Session Cookies Expired or Missing!")
     print("=" * 80)
-    print("Programmatic credentials-based background login is highly brittle and often blocked by Twitter.")
-    print("To easily and securely refresh your session cookies, please run the following command in your terminal:")
+    print(
+        "Programmatic credentials-based background login is highly brittle and often blocked by Twitter."
+    )
+    print(
+        "To easily and securely refresh your session cookies, please run the following command in your terminal:"
+    )
     print("\n   python -m fadegoblin.browser_twitter --login\n")
-    print("This will open a visible browser window where you can log in manually, solve CAPTCHAs,")
-    print("and complete 2FA. Once logged in, the active session will be captured automatically.")
+    print(
+        "This will open a visible browser window where you can log in manually, solve CAPTCHAs,"
+    )
+    print(
+        "and complete 2FA. Once logged in, the active session will be captured automatically."
+    )
     print("=" * 80 + "\n")
 
 
 def interactive_login_session() -> None:
     """Launches a visible Chromium window for manual login, and saves session cookies once successful."""
     print("🔑 Launching visible Chromium browser for manual Twitter login...")
-    print("👉 Please log in, solve any CAPTCHAs, and complete 2FA in the browser window.")
-    print("⏳ Waiting for navigation to the Home page (https://x.com/home or https://twitter.com/home)...")
+    print(
+        "👉 Please log in, solve any CAPTCHAs, and complete 2FA in the browser window."
+    )
+    print(
+        "⏳ Waiting for navigation to the Home page (https://x.com/home or https://twitter.com/home)..."
+    )
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -80,7 +92,10 @@ def interactive_login_session() -> None:
 
         # Wait up to 5 minutes (300,000 ms) for the user to reach the home page
         try:
-            page.wait_for_url(lambda url: "x.com/home" in url or "twitter.com/home" in url, timeout=300000)
+            page.wait_for_url(
+                lambda url: "x.com/home" in url or "twitter.com/home" in url,
+                timeout=300000,
+            )
             print("🎉 Detected successful login and landing on home page!")
             _rand_sleep(2, 4)  # let sessions stabilize
 
@@ -91,7 +106,9 @@ def interactive_login_session() -> None:
             print(f"🍪 Fresh session cookies successfully written to {COOKIES_PATH}!")
             print("✅ Manual session capture complete. You can now close the browser.")
         except PlaywrightTimeoutError:
-            print("❌ Timeout (5 minutes elapsed) waiting for home page navigation. Login session not saved.")
+            print(
+                "❌ Timeout (5 minutes elapsed) waiting for home page navigation. Login session not saved."
+            )
         except Exception as e:
             print(f"❌ Error during manual login capture: {e}")
         finally:
@@ -174,9 +191,7 @@ def post_to_twitter_browser(
                 file_input = page.locator('input[data-testid="fileInput"]').first
                 file_input.set_input_files(str(image_path))
 
-                page.wait_for_selector(
-                    '[data-testid="attachments"]', timeout=20000
-                )
+                page.wait_for_selector('[data-testid="attachments"]', timeout=20000)
                 _rand_sleep(1, 2)
 
             # ── 4. Post ──────────────────────────────────────────────
@@ -189,7 +204,9 @@ def post_to_twitter_browser(
             # Check if modal is still open, if so, fallback to clicking
             textarea_loc = page.locator('[data-testid="tweetTextarea_0"]').first
             if textarea_loc.is_visible():
-                print("🐦 Hotkey post didn't close textarea, trying button click fallbacks...")
+                print(
+                    "🐦 Hotkey post didn't close textarea, trying button click fallbacks..."
+                )
                 post_btn = None
                 for selector in [
                     '[data-testid="tweetButton"]',
@@ -209,27 +226,41 @@ def post_to_twitter_browser(
                         print("🐦 Clicking post button using selector...")
                         post_btn.click(force=True, timeout=5000)
                     except Exception as click_err:
-                        print(f"⚠️ Regular force click failed: {click_err}. Trying DOM click dispatch...")
+                        print(
+                            f"⚠️ Regular force click failed: {click_err}. Trying DOM click dispatch..."
+                        )
                         post_btn.dispatch_event("click")
                 else:
                     try:
                         print("🐦 Clicking post button via role backup...")
-                        page.get_by_role("button", name="Post", exact=True).click(force=True, timeout=5000)
+                        page.get_by_role("button", name="Post", exact=True).click(
+                            force=True, timeout=5000
+                        )
                     except Exception as role_err:
-                        print(f"⚠️ Role force click failed: {role_err}. Trying DOM click dispatch...")
-                        page.get_by_role("button", name="Post", exact=True).dispatch_event("click")
+                        print(
+                            f"⚠️ Role force click failed: {role_err}. Trying DOM click dispatch..."
+                        )
+                        page.get_by_role(
+                            "button", name="Post", exact=True
+                        ).dispatch_event("click")
 
             # Wait for completion (url contains x.com/home or is just x.com root)
             page.wait_for_url(
-                lambda url: "x.com/home" in url or "twitter.com/home" in url or url.strip("/") in ["https://x.com", "https://twitter.com"],
-                timeout=30000
+                lambda url: (
+                    "x.com/home" in url
+                    or "twitter.com/home" in url
+                    or url.strip("/") in ["https://x.com", "https://twitter.com"]
+                ),
+                timeout=30000,
             )
             print("✅ Tweet posted successfully!")
 
             # Navigate to profile to retrieve tweet ID
             tweet_id = None
             try:
-                print(f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} ...")
+                print(
+                    f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} ..."
+                )
                 page.goto(f"https://x.com/{config.TWITTER_USERNAME}")
                 _rand_sleep(3, 5)
                 # Find the first link containing '/status/'
@@ -249,7 +280,9 @@ def post_to_twitter_browser(
             raise e
         except Exception as e:
             if not cookies_expired:
-                print(f"❌ Error during Twitter browser automation: {e}", file=sys.stderr)
+                print(
+                    f"❌ Error during Twitter browser automation: {e}", file=sys.stderr
+                )
                 if "page" in locals():
                     page.screenshot(path="twitter_error.png")
                 raise e
@@ -363,21 +396,31 @@ def reply_to_twitter_browser(
             # Check if reply area is still visible
             textarea_loc = page.locator('[data-testid="tweetTextarea_0"]').first
             if textarea_loc.is_visible():
-                print("🐦 Hotkey reply didn't close textarea, trying button click fallbacks...")
+                print(
+                    "🐦 Hotkey reply didn't close textarea, trying button click fallbacks..."
+                )
                 if reply_btn:
                     try:
                         print("🐦 Clicking reply button using selector...")
                         reply_btn.click(force=True, timeout=5000)
                     except Exception as click_err:
-                        print(f"⚠️ Regular force click failed: {click_err}. Trying DOM click dispatch...")
+                        print(
+                            f"⚠️ Regular force click failed: {click_err}. Trying DOM click dispatch..."
+                        )
                         reply_btn.dispatch_event("click")
                 else:
                     try:
                         print("🐦 Clicking reply button via role backup...")
-                        page.get_by_role("button", name="Reply", exact=True).click(force=True, timeout=5000)
+                        page.get_by_role("button", name="Reply", exact=True).click(
+                            force=True, timeout=5000
+                        )
                     except Exception as role_err:
-                        print(f"⚠️ Role force click failed: {role_err}. Trying DOM click dispatch...")
-                        page.get_by_role("button", name="Reply", exact=True).dispatch_event("click")
+                        print(
+                            f"⚠️ Role force click failed: {role_err}. Trying DOM click dispatch..."
+                        )
+                        page.get_by_role(
+                            "button", name="Reply", exact=True
+                        ).dispatch_event("click")
 
             print("🐦 CLICKED REPLY …")
             _rand_sleep(4, 6)
@@ -386,7 +429,9 @@ def reply_to_twitter_browser(
             # Grab the new reply ID by navigating to profile
             reply_tweet_id = None
             try:
-                print(f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} to find reply ID...")
+                print(
+                    f"🐦 Navigating to profile: https://x.com/{config.TWITTER_USERNAME} to find reply ID..."
+                )
                 page.goto(f"https://x.com/{config.TWITTER_USERNAME}")
                 _rand_sleep(3, 5)
                 first_link = page.locator("a[href*='/status/']").first

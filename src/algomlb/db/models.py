@@ -1,34 +1,72 @@
 import datetime
 from typing import Optional
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Enum, Float, ForeignKey, ForeignKeyConstraint, Index, Integer, Numeric, SmallInteger, String, Text, UniqueConstraint, JSON, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+    JSON,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from algomlb.db.session import Base
-from algomlb.domain import GameStatus, TransactionStatus, GameType, PlayerRole, BaselineQuality, SurfaceType, RoofType
+from algomlb.domain import (
+    GameStatus,
+    TransactionStatus,
+    GameType,
+    PlayerRole,
+    BaselineQuality,
+    SurfaceType,
+    RoofType,
+)
+
 
 class LiveOddsORM(Base):
     """Volatile time-series table for active games/odds."""
-    __tablename__ = 'live_odds'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "live_odds"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     odds_game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     home_team: Mapped[str] = mapped_column(String(50), nullable=False)
     away_team: Mapped[str] = mapped_column(String(50), nullable=False)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    game_result_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+    game_result_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
     sportsbook: Mapped[str] = mapped_column(String(50), nullable=False)
     market_type: Mapped[str] = mapped_column(String(50), nullable=False)
     outcome: Mapped[str] = mapped_column(String(100), nullable=False)
     price: Mapped[float] = mapped_column(Float, nullable=False)
-    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
 
 class GameResultORM(Base):
     """Storage for completed/settled games and historical results."""
-    __tablename__ = 'game_results'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "game_results"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    game_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    game_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, unique=True, index=True
+    )
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
-    game_datetime: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    game_datetime: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     home_team: Mapped[str] = mapped_column(String(50), nullable=False)
     away_team: Mapped[str] = mapped_column(String(50), nullable=False)
     home_pitcher: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -39,21 +77,35 @@ class GameResultORM(Base):
     away_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     home_team_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_team_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    status: Mapped[GameStatus] = mapped_column(Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED)
-    game_type: Mapped[Optional[GameType]] = mapped_column(String(20), nullable=True, default=GameType.REGULAR_SEASON)
-    doubleheader_num: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0', default=0)
-    ballpark_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ballparks.id'), nullable=True)
+    status: Mapped[GameStatus] = mapped_column(
+        Enum(GameStatus), nullable=False, default=GameStatus.SCHEDULED
+    )
+    game_type: Mapped[Optional[GameType]] = mapped_column(
+        String(20), nullable=True, default=GameType.REGULAR_SEASON
+    )
+    doubleheader_num: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0", default=0
+    )
+    ballpark_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("ballparks.id"), nullable=True
+    )
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     wind_speed: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     humidity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     home_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_rest_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    home_travel_distance_km: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    away_travel_distance_km: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    home_travel_distance_km: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+    away_travel_distance_km: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+
 
 class GameLineupORM(Base):
     """Starting lineup for each game. One row per starter (9 per team side)."""
-    __tablename__ = 'game_lineups'
+
+    __tablename__ = "game_lineups"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -62,38 +114,70 @@ class GameLineupORM(Base):
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     player_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     position: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
-    __table_args__ = (UniqueConstraint('game_pk', 'team_side', 'batting_order', name='uq_game_lineup_slot'), Index('ix_lineup_game_date', 'game_date'), {'extend_existing': True})
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk", "team_side", "batting_order", name="uq_game_lineup_slot"
+        ),
+        Index("ix_lineup_game_date", "game_date"),
+        {"extend_existing": True},
+    )
+
 
 class BankrollLedgerORM(Base):
     """Persistent state for the paper bankroll."""
-    __tablename__ = 'bankroll_ledger'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "bankroll_ledger"
+    __table_args__ = {"extend_existing": True}
     transaction_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    timestamp: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     stake: Mapped[float] = mapped_column(Float, nullable=False)
     odds: Mapped[float] = mapped_column(Float, nullable=False)
-    selection: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Team name
-    edge: Mapped[Optional[float]] = mapped_column(Float, nullable=True)          # Model Edge %
-    status: Mapped[TransactionStatus] = mapped_column(Enum(TransactionStatus), nullable=False, default=TransactionStatus.PENDING)
+    selection: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )  # Team name
+    edge: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # Model Edge %
+    status: Mapped[TransactionStatus] = mapped_column(
+        Enum(TransactionStatus), nullable=False, default=TransactionStatus.PENDING
+    )
     pnl: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    game_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+    game_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
+
 
 class ModelPredictionORM(Base):
     """Archive of all model projections for historical calibration and CLV analysis."""
-    __tablename__ = 'model_predictions'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "model_predictions"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False)
     home_win_prob: Mapped[float] = mapped_column(Float, nullable=False)
-    market_home_implied_at_prediction: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    timestamp: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
+    market_home_implied_at_prediction: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+    timestamp: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
 
 class PitchEventORM(Base):
     """Statcast pitch-level data; one row per pitch."""
-    __tablename__ = 'pitch_events'
-    __table_args__ = (UniqueConstraint('game_id', 'at_bat_number', 'pitch_number', name='uq_pitch_events_game_ab_pitch'), {'extend_existing': True})
+
+    __tablename__ = "pitch_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "game_id",
+            "at_bat_number",
+            "pitch_number",
+            name="uq_pitch_events_game_ab_pitch",
+        ),
+        {"extend_existing": True},
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -122,10 +206,12 @@ class PitchEventORM(Base):
     p_throws: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     bb_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
+
 class HistoricalOddsORM(Base):
     """Storage for historical opening and closing odds."""
-    __tablename__ = 'historical_odds'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "historical_odds"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     bookmaker: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -135,13 +221,19 @@ class HistoricalOddsORM(Base):
     away_price: Mapped[int] = mapped_column(Integer, nullable=False)
     spread: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     total: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    snapshot_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    fetched_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=datetime.datetime.now)
+    snapshot_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.datetime.now
+    )
+
 
 class BallparkORM(Base):
     """Structural data for MLB ballparks from Kaggle mlb-ballparks dataset."""
-    __tablename__ = 'ballparks'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "ballparks"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     team_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     ballpark: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
@@ -165,7 +257,9 @@ class BallparkORM(Base):
     extra_distance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     avg_temp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     elevation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    surface_type: Mapped[Optional[SurfaceType]] = mapped_column(Enum(SurfaceType), nullable=True)
+    surface_type: Mapped[Optional[SurfaceType]] = mapped_column(
+        Enum(SurfaceType), nullable=True
+    )
     roof_type: Mapped[Optional[RoofType]] = mapped_column(Enum(RoofType), nullable=True)
     daytime: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     hp_bearing_deg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -174,13 +268,20 @@ class BallparkORM(Base):
     pm_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pm_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
+
 class UmpireScorecardORM(Base):
     """Umpire accuracy and bias data from umpscorecards.us API."""
-    __tablename__ = 'umpire_scorecards'
-    __table_args__ = (UniqueConstraint('game_pk', name='uq_umpire_scorecards_game_pk'), {'extend_existing': True})
+
+    __tablename__ = "umpire_scorecards"
+    __table_args__ = (
+        UniqueConstraint("game_pk", name="uq_umpire_scorecards_game_pk"),
+        {"extend_existing": True},
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    game_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+    game_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     game_type: Mapped[Optional[GameType]] = mapped_column(Enum(GameType), nullable=True)
     umpire_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -194,7 +295,9 @@ class UmpireScorecardORM(Base):
     accuracy: Mapped[float] = mapped_column(Float, nullable=False)
     x_overall_accuracy: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     accuracy_above_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    baseline_x_correct_calls: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_x_correct_calls: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
     x_correct_calls: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     correct_calls_above_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     consistency: Mapped[float] = mapped_column(Float, nullable=False)
@@ -208,7 +311,9 @@ class UmpireScorecardORM(Base):
     actual_runs: Mapped[float] = mapped_column(Float, nullable=False)
     n_overturned: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     n_challenged: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    challenge_success_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    challenge_success_rate: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
     n_overturned_home: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     n_challenged_home: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     n_overturned_away: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -224,10 +329,12 @@ class UmpireScorecardORM(Base):
     fully_valid: Mapped[Optional[bool]] = mapped_column(nullable=True)
     num_pitches_no_data: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+
 class RetrosheetEventORM(Base):
     """Granular play-by-play event record from Retrosheet files."""
-    __tablename__ = 'retrosheet_events'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "retrosheet_events"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     play_number: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -380,12 +487,14 @@ class RetrosheetEventORM(Base):
     gametype: Mapped[Optional[GameType]] = mapped_column(Enum(GameType), nullable=True)
     pbp: Mapped[Optional[str]] = mapped_column(String(10))
 
+
 class PlayerRollingFeaturesORM(Base):
     """
     Gold Layer: Pre-materialized rolling features for ML training/inference.
     Calculated from StatcastPlayerGameLog using role-specific windows.
     """
-    __tablename__ = 'player_rolling_features'
+
+    __tablename__ = "player_rolling_features"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -394,9 +503,13 @@ class PlayerRollingFeaturesORM(Base):
     window_games: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     n_games_used: Mapped[Optional[int]] = mapped_column(SmallInteger)
     days_since_last_game: Mapped[Optional[int]] = mapped_column(SmallInteger)
-    baseline_quality: Mapped[BaselineQuality] = mapped_column(Enum(BaselineQuality), nullable=False, default=BaselineQuality.COLD_START)
+    baseline_quality: Mapped[BaselineQuality] = mapped_column(
+        Enum(BaselineQuality), nullable=False, default=BaselineQuality.COLD_START
+    )
     shrinkage_applied: Mapped[bool] = mapped_column(Boolean, default=False)
-    computed_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     roll_pitches: Mapped[Optional[float]] = mapped_column(Float)
     roll_strikes_pct: Mapped[Optional[float]] = mapped_column(Float)
     roll_whiff_pct: Mapped[Optional[float]] = mapped_column(Float)
@@ -438,17 +551,29 @@ class PlayerRollingFeaturesORM(Base):
     std_launch_angle_15g: Mapped[Optional[float]] = mapped_column(Float)
     seasonal_xwoba_vs_rh: Mapped[Optional[float]] = mapped_column(Float)
     seasonal_xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
-    roll_re24: Mapped[Optional[float]] = mapped_column(Float, comment='Trailing 30-game sum/avg of Run Expectancy Added')
-    __table_args__ = (UniqueConstraint('player_id', 'game_date', 'role', name='uq_player_rolling_features'), Index('ix_prf_date_role', 'game_date', 'role'), {'extend_existing': True})
+    roll_re24: Mapped[Optional[float]] = mapped_column(
+        Float, comment="Trailing 30-game sum/avg of Run Expectancy Added"
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "player_id", "game_date", "role", name="uq_player_rolling_features"
+        ),
+        Index("ix_prf_date_role", "game_date", "role"),
+        {"extend_existing": True},
+    )
+
 
 class OpenMeteoWeatherProgressionORM(Base):
     """
     Environmental arc from 1st pitch (T0) through the 9th inning (T4)
     extracted from Open-Meteo Archive (ERA5) and Historical Forecast APIs.
     """
-    __tablename__ = 'openmeteo_weather_progression'
-    __table_args__ = {'extend_existing': True}
-    game_id: Mapped[str] = mapped_column(String(50), ForeignKey('game_results.game_id'), primary_key=True)
+
+    __tablename__ = "openmeteo_weather_progression"
+    __table_args__ = {"extend_existing": True}
+    game_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("game_results.game_id"), primary_key=True
+    )
     temp_t0_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     wind_speed_t0: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     wind_dir_t0: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
@@ -492,16 +617,22 @@ class OpenMeteoWeatherProgressionORM(Base):
     delta_headwind_mph: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     delta_precip_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
     era5_model_used: Mapped[Optional[str]] = mapped_column(String(50))
-    fetched_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
 
 class OpenMeteoDailyForecastORM(Base):
     """
     Season-long daily forecast snapshots (2021+) captured at T-24h
     from Open-Meteo Historical Forecast API.
     """
-    __tablename__ = 'openmeteo_daily_forecasts'
-    __table_args__ = {'extend_existing': True}
-    game_id: Mapped[str] = mapped_column(String(50), ForeignKey('game_results.game_id'), primary_key=True)
+
+    __tablename__ = "openmeteo_daily_forecasts"
+    __table_args__ = {"extend_existing": True}
+    game_id: Mapped[str] = mapped_column(
+        String(50), ForeignKey("game_results.game_id"), primary_key=True
+    )
     temp_max_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     temp_min_f: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     precip_sum_mm: Mapped[Optional[float]] = mapped_column(Numeric(6, 2))
@@ -510,42 +641,65 @@ class OpenMeteoDailyForecastORM(Base):
     precip_prob_max_pct: Mapped[Optional[float]] = mapped_column(Numeric(5, 1))
     uv_index_max: Mapped[Optional[float]] = mapped_column(Numeric(4, 1))
     sunshine_duration_sec: Mapped[Optional[float]] = mapped_column(Float)
-    fetched_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    fetched_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
 
 class PlayerTransactionORM(Base):
     """Historical player transactions and IL stints."""
-    __tablename__ = 'player_transactions'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "player_transactions"
+    __table_args__ = {"extend_existing": True}
     transaction_id: Mapped[str] = mapped_column(String, primary_key=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    player_name: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    player_name: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, index=True
+    )
     team_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     transaction_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     effective_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
-    resolution_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
+    resolution_date: Mapped[Optional[datetime.date]] = mapped_column(
+        Date, nullable=True
+    )
     type_desc: Mapped[str] = mapped_column(String, nullable=False)
     il_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     injury_body_part: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     injury_descriptor: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     raw_description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     from sqlalchemy import Computed
-    days_on_il: Mapped[Optional[int]] = mapped_column(Integer, Computed('resolution_date - effective_date', persisted=True), nullable=True)
+
+    days_on_il: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        Computed("resolution_date - effective_date", persisted=True),
+        nullable=True,
+    )
+
 
 class GumboPitchORM(Base):
     """Canonical wall-clock timestamps for every pitch/event via MLB GUMBO feed."""
-    __tablename__ = 'gumbo_pitches'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "gumbo_pitches"
+    __table_args__ = {"extend_existing": True}
     game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
-    play_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
-    start_time: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    end_time: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    play_id: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True, index=True
+    )
+    start_time: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    end_time: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class StatcastRawORM(Base):
     """Raw Statcast pitch-level ingestion buffer (Source of Truth)."""
-    __tablename__ = 'statcast_raw'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "statcast_raw"
+    __table_args__ = {"extend_existing": True}
     game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     game_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
@@ -565,18 +719,28 @@ class StatcastRawORM(Base):
     description: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     launch_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
     launch_angle: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
-    launch_speed_angle: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
-    estimated_ba_using_speedangle: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
-    estimated_woba_using_speedangle: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
+    launch_speed_angle: Mapped[Optional[int]] = mapped_column(
+        SmallInteger, nullable=True
+    )
+    estimated_ba_using_speedangle: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
+    estimated_woba_using_speedangle: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
     pitch_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     release_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
-    release_spin_rate: Mapped[Optional[float]] = mapped_column(Numeric(7, 1), nullable=True)
+    release_spin_rate: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 1), nullable=True
+    )
     pfx_x: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
     pfx_z: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
     plate_x: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
     plate_z: Mapped[Optional[float]] = mapped_column(Numeric(6, 3), nullable=True)
     bat_speed: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
-    delta_home_win_exp: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
+    delta_home_win_exp: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 3), nullable=True
+    )
     delta_run_exp: Mapped[Optional[float]] = mapped_column(Numeric(5, 3), nullable=True)
     des: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     pitch_name: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
@@ -585,7 +749,9 @@ class StatcastRawORM(Base):
     post_fld_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     post_home_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     swing_length: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
-    hit_distance_sc: Mapped[Optional[float]] = mapped_column(Numeric(5, 1), nullable=True)
+    hit_distance_sc: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 1), nullable=True
+    )
     release_pos_x: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     release_pos_z: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     zone: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -608,8 +774,12 @@ class StatcastRawORM(Base):
     az: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     sz_top: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     sz_bot: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    effective_speed: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    release_extension: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
+    effective_speed: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    release_extension: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
     fielder_2: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     fielder_3: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     fielder_4: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -627,11 +797,19 @@ class StatcastRawORM(Base):
     away_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     bat_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     fld_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    if_fielding_alignment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    of_fielding_alignment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    if_fielding_alignment: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )
+    of_fielding_alignment: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True
+    )
     spin_axis: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    estimated_slg_using_speedangle: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    delta_pitcher_run_exp: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
+    estimated_slg_using_speedangle: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    delta_pitcher_run_exp: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
     hyper_speed: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     home_score_diff: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     bat_score_diff: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -641,28 +819,56 @@ class StatcastRawORM(Base):
     age_bat_legacy: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     age_pit: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     age_bat: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    n_thruorder_pitcher: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    n_priorpa_thisgame_player_at_bat: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    pitcher_days_since_prev_game: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    batter_days_since_prev_game: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    pitcher_days_until_next_game: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    batter_days_until_next_game: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    api_break_z_with_gravity: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    api_break_x_arm: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    api_break_x_batter_in: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
+    n_thruorder_pitcher: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    n_priorpa_thisgame_player_at_bat: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    pitcher_days_since_prev_game: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    batter_days_since_prev_game: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    pitcher_days_until_next_game: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    batter_days_until_next_game: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    api_break_z_with_gravity: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    api_break_x_arm: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    api_break_x_batter_in: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
     arm_angle: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     attack_angle: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
     attack_direction: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    swing_path_tilt: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    intercept_ball_minus_batter_pos_x_inches: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    intercept_ball_minus_batter_pos_y_inches: Mapped[Optional[float]] = mapped_column(Numeric(7, 3), nullable=True)
-    ingested_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    swing_path_tilt: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    intercept_ball_minus_batter_pos_x_inches: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    intercept_ball_minus_batter_pos_y_inches: Mapped[Optional[float]] = mapped_column(
+        Numeric(7, 3), nullable=True
+    )
+    ingested_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
 
 class StatcastQuantFeatures(Base):
     """
     ML-ready quantitative features derived from StatcastRaw.
     """
-    __tablename__ = 'statcast_quant_features'
+
+    __tablename__ = "statcast_quant_features"
     game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
@@ -680,16 +886,37 @@ class StatcastQuantFeatures(Base):
     spray_angle_deg: Mapped[Optional[float]] = mapped_column(Float)
     hit_x_ft: Mapped[Optional[float]] = mapped_column(Float)
     hit_y_ft: Mapped[Optional[float]] = mapped_column(Float)
-    calibrated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    calibrated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     baseline_window_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    __table_args__ = (ForeignKeyConstraint(['game_pk', 'at_bat_number', 'pitch_number'], ['statcast_raw.game_pk', 'statcast_raw.at_bat_number', 'statcast_raw.pitch_number'], ondelete='CASCADE'), UniqueConstraint('game_pk', 'at_bat_number', 'pitch_number', name='uq_statcast_quant_features_pk'), {'extend_existing': True})
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["game_pk", "at_bat_number", "pitch_number"],
+            [
+                "statcast_raw.game_pk",
+                "statcast_raw.at_bat_number",
+                "statcast_raw.pitch_number",
+            ],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "game_pk",
+            "at_bat_number",
+            "pitch_number",
+            name="uq_statcast_quant_features_pk",
+        ),
+        {"extend_existing": True},
+    )
+
 
 class StatcastPlayerGameLog(Base):
     """
     Silver Medallion Layer: Game-level summary of player performance metrics.
     Acts as the source for Bayesian shrinkage and rolling feature generation.
     """
-    __tablename__ = 'statcast_player_game_logs'
+
+    __tablename__ = "statcast_player_game_logs"
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -737,27 +964,44 @@ class StatcastPlayerGameLog(Base):
     pa_vs_rh: Mapped[Optional[int]] = mapped_column(SmallInteger)
     xwoba_vs_lh: Mapped[Optional[float]] = mapped_column(Float)
     pa_vs_lh: Mapped[Optional[int]] = mapped_column(SmallInteger)
-    re24: Mapped[Optional[float]] = mapped_column(Float, comment='Atomic situational added-value for this game')
-    summarized_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    __table_args__ = (UniqueConstraint('game_pk', 'player_id', 'role', name='uq_statcast_player_game_log'), {'extend_existing': True})
+    re24: Mapped[Optional[float]] = mapped_column(
+        Float, comment="Atomic situational added-value for this game"
+    )
+    summarized_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk", "player_id", "role", name="uq_statcast_player_game_log"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class StatcastProcessRegistry(Base):
     """
     Tracks the high-water mark for incremental processing of Statcast data.
     """
-    __tablename__ = 'statcast_process_registry'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "statcast_process_registry"
+    __table_args__ = {"extend_existing": True}
     target_table: Mapped[str] = mapped_column(String(50), primary_key=True)
-    last_processed_ingested_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_processed_ingested_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
 
 class StatcastBattedBallORM(Base):
     """
     Analytics table for Batted Ball Flight Decoupling.
     Stores environmental residuals and raw contact quality.
     """
-    __tablename__ = 'statcast_batted_balls'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "statcast_batted_balls"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -790,7 +1034,10 @@ class StatcastBattedBallORM(Base):
     delta_precip: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
     environmental_factor: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
     spin_contact_factor: Mapped[Optional[float]] = mapped_column(Numeric(7, 2))
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
 
 class TeamManagerORM(Base):
     """
@@ -798,7 +1045,8 @@ class TeamManagerORM(Base):
     Sourced from MLB StatsAPI coaching roster (jobId=MNGR).
     Used by manager_hook_events for hook-behavior modeling.
     """
-    __tablename__ = 'team_managers'
+
+    __tablename__ = "team_managers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     team_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     team_abbr: Mapped[str] = mapped_column(String(5), nullable=False)
@@ -807,9 +1055,19 @@ class TeamManagerORM(Base):
     manager_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     manager_name: Mapped[str] = mapped_column(String(100), nullable=False)
     jersey_number: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
-    effective_start_date: Mapped[Optional[datetime.date]] = mapped_column(Date, nullable=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('team_id', 'season', 'manager_id', name='uq_team_managers_team_season_mgr'), {'extend_existing': True})
+    effective_start_date: Mapped[Optional[datetime.date]] = mapped_column(
+        Date, nullable=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "team_id", "season", "manager_id", name="uq_team_managers_team_season_mgr"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class GameManagerRegistryORM(Base):
     """
@@ -817,10 +1075,13 @@ class GameManagerRegistryORM(Base):
     Maps Retrosheet IDs to canonical MLB game_pk.
     One row per team per game (2 rows per game_pk).
     """
-    __tablename__ = 'game_manager_registry'
+
+    __tablename__ = "game_manager_registry"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    retrosheet_game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    retrosheet_game_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True
+    )
     team_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     opponent_id: Mapped[int] = mapped_column(Integer, nullable=False)
     manager_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -832,8 +1093,17 @@ class GameManagerRegistryORM(Base):
     manager_stint_start: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     manager_tenure_day: Mapped[int] = mapped_column(Integer, nullable=False)
     days_since_manager_change: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('game_pk', 'team_id', name='uq_registry_game_team'), UniqueConstraint('retrosheet_game_id', 'team_id', name='uq_registry_retro_team'), {'extend_existing': True})
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint("game_pk", "team_id", name="uq_registry_game_team"),
+        UniqueConstraint(
+            "retrosheet_game_id", "team_id", name="uq_registry_retro_team"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class ManagerHookEventORM(Base):
     """
@@ -841,7 +1111,8 @@ class ManagerHookEventORM(Base):
     Refined schema captures deterministic state for simulation priors.
     Derived from retrosheet_events + GameManagerRegistry mapping.
     """
-    __tablename__ = 'manager_hook_events'
+
+    __tablename__ = "manager_hook_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -864,11 +1135,21 @@ class ManagerHookEventORM(Base):
     strikeouts: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     manager_tenure_day: Mapped[int] = mapped_column(Integer, nullable=False)
     days_since_manager_change: Mapped[int] = mapped_column(Integer, nullable=False)
-    bullpen_availability_snapshot_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bullpen_availability_snapshot_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )
     hook_reason: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    removed_before_next_batter: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('game_pk', 'pitcher_id', name='uq_manager_hook_game_pitcher'), {'extend_existing': True})
+    removed_before_next_batter: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint("game_pk", "pitcher_id", name="uq_manager_hook_game_pitcher"),
+        {"extend_existing": True},
+    )
+
 
 class ManagerHookProfileORM(Base):
     """
@@ -876,7 +1157,8 @@ class ManagerHookProfileORM(Base):
     One row per (manager_id, season) with cumulative rates.
     Provides a stable prior for the simulator before game-specific context.
     """
-    __tablename__ = 'manager_hook_profiles'
+
+    __tablename__ = "manager_hook_profiles"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     manager_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     manager_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -890,9 +1172,19 @@ class ManagerHookProfileORM(Base):
     pull_with_lead_pct: Mapped[float] = mapped_column(Float, nullable=False)
     pull_when_over_90_pitches_pct: Mapped[float] = mapped_column(Float, nullable=False)
     quick_hook_high_leverage_pct: Mapped[float] = mapped_column(Float, nullable=False)
-    bullpen_protective_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('manager_id', 'season', name='uq_manager_hook_profile_mgr_season'), {'extend_existing': True})
+    bullpen_protective_pct: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "manager_id", "season", name="uq_manager_hook_profile_mgr_season"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class TeamEloHistoryORM(Base):
     """
@@ -900,7 +1192,8 @@ class TeamEloHistoryORM(Base):
     No market odds are used — this is a pure baseball outcomes prior.
     Two rows per game (one home, one away).
     """
-    __tablename__ = 'team_elo_history'
+
+    __tablename__ = "team_elo_history"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -908,7 +1201,13 @@ class TeamEloHistoryORM(Base):
     is_home: Mapped[bool] = mapped_column(Boolean, nullable=False)
     elo_pre: Mapped[float] = mapped_column(Float, nullable=False)
     elo_post: Mapped[float] = mapped_column(Float, nullable=False)
-    __table_args__ = (UniqueConstraint('game_pk', 'team_id', 'is_home', name='uq_team_elo_history_row'), {'extend_existing': True})
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk", "team_id", "is_home", name="uq_team_elo_history_row"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class TeamSabermetricsHistoryORM(Base):
     """
@@ -916,7 +1215,8 @@ class TeamSabermetricsHistoryORM(Base):
     Stores rolling Pythagorean win % and run differentials at each game grain.
     Used by the Uranium simulation engine to retrieve historical context without leakage.
     """
-    __tablename__ = 'team_sabermetrics_history'
+
+    __tablename__ = "team_sabermetrics_history"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
@@ -926,15 +1226,24 @@ class TeamSabermetricsHistoryORM(Base):
     roll_run_diff: Mapped[float] = mapped_column(Float, nullable=False)
     roll_rs_per_game: Mapped[float] = mapped_column(Float, nullable=False)
     roll_ra_per_game: Mapped[float] = mapped_column(Float, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('game_pk', 'team_id', 'is_home', name='uq_team_sabermetrics_history_row'), {'extend_existing': True})
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk", "team_id", "is_home", name="uq_team_sabermetrics_history_row"
+        ),
+        {"extend_existing": True},
+    )
+
 
 class UraniumEvalHistoryORM(Base):
     """
     Walk-forward evaluation summary for Uranium models.
     One row per (model_target, model_version, fold_date).
     """
-    __tablename__ = 'uranium_eval_history'
+
+    __tablename__ = "uranium_eval_history"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -947,15 +1256,27 @@ class UraniumEvalHistoryORM(Base):
     log_loss_val: Mapped[Optional[float]] = mapped_column(Float)
     brier: Mapped[Optional[float]] = mapped_column(Float)
     ece: Mapped[Optional[float]] = mapped_column(Float)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('model_target', 'model_version', 'fold_date', name='uq_uranium_eval_target_version_fold'), {'extend_existing': True})
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "model_target",
+            "model_version",
+            "fold_date",
+            name="uq_uranium_eval_target_version_fold",
+        ),
+        {"extend_existing": True},
+    )
+
 
 class UraniumCalibrationBinsORM(Base):
     """
     Binned calibration results for Uranium reliability curves.
     Typically 20 bins per (model_target, model_version, fold_date).
     """
-    __tablename__ = 'uranium_calibration_bins'
+
+    __tablename__ = "uranium_calibration_bins"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -966,15 +1287,28 @@ class UraniumCalibrationBinsORM(Base):
     predicted_prob_mean: Mapped[float] = mapped_column(Float, nullable=False)
     actual_prob_mean: Mapped[float] = mapped_column(Float, nullable=False)
     sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('model_target', 'model_version', 'fold_date', 'bin_index', name='uq_uranium_calibration_bin_target_version_fold'), {'extend_existing': True})
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "model_target",
+            "model_version",
+            "fold_date",
+            "bin_index",
+            name="uq_uranium_calibration_bin_target_version_fold",
+        ),
+        {"extend_existing": True},
+    )
+
 
 class UraniumShapGlobalORM(Base):
     """
     Global SHAP feature importance for Uranium models.
     Tracks feature impact trends across temporal folds.
     """
-    __tablename__ = 'uranium_shap_global'
+
+    __tablename__ = "uranium_shap_global"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_target: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     model_version: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -982,28 +1316,43 @@ class UraniumShapGlobalORM(Base):
     feature_name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     mean_abs_shap: Mapped[float] = mapped_column(Float, nullable=False)
     mean_shap: Mapped[Optional[float]] = mapped_column(Float)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('model_target', 'model_version', 'fold_date', 'feature_name', name='uq_uranium_shap_global_target_version_fold'), {'extend_existing': True})
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "model_target",
+            "model_version",
+            "fold_date",
+            "feature_name",
+            name="uq_uranium_shap_global_target_version_fold",
+        ),
+        {"extend_existing": True},
+    )
+
 
 class HistoricalDataORM(Base):
     """
     Silver Layer: Legacy aggregate player/team statistics.
     Deprecated in favor of pitch-level Statcast data but retained for backward compatibility.
     """
-    __tablename__ = 'historical_player_stats'
-    __table_args__ = {'extend_existing': True}
+
+    __tablename__ = "historical_player_stats"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     player_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
     metric_name: Mapped[str] = mapped_column(String(50), nullable=False)
     metric_value: Mapped[float] = mapped_column(Float, nullable=False)
 
+
 class UraniumSimulatedPlayerPropsORM(Base):
     """
     Monte Carlo simulation results for individual player props.
     Stores the refined probability distribution for each betting market.
     """
-    __tablename__ = 'uranium_simulated_player_props'
+
+    __tablename__ = "uranium_simulated_player_props"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     game_pk: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     season: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -1019,12 +1368,26 @@ class UraniumSimulatedPlayerPropsORM(Base):
     p10: Mapped[Optional[float]] = mapped_column(Float)
     p90: Mapped[Optional[float]] = mapped_column(Float)
     trials: Mapped[int] = mapped_column(Integer, default=10000)
-    simulated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    __table_args__ = (UniqueConstraint('game_pk', 'player_id', 'stat_type', name='uq_simulated_player_prop_game_player_stat'), {'extend_existing': True})
+    simulated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint(
+            "game_pk",
+            "player_id",
+            "stat_type",
+            name="uq_simulated_player_prop_game_player_stat",
+        ),
+        {"extend_existing": True},
+    )
+
 
 class PitcherDailyUsageORM(Base):
-    __tablename__ = 'pitcher_daily_usage'
-    __table_args__ = (UniqueConstraint('pitcher_id', 'game_date', name='uq_pitcher_daily_usage_date'), {'extend_existing': True})
+    __tablename__ = "pitcher_daily_usage"
+    __table_args__ = (
+        UniqueConstraint("pitcher_id", "game_date", name="uq_pitcher_daily_usage_date"),
+        {"extend_existing": True},
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     pitcher_id: Mapped[str] = mapped_column(String(20), nullable=False)
     game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
@@ -1034,15 +1397,22 @@ class PitcherDailyUsageORM(Base):
     outs_recorded: Mapped[int] = mapped_column(Integer, default=0)
     max_inning: Mapped[int] = mapped_column(Integer, default=0)
     is_game_finished: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
 
 class SimulationConfigORM(Base):
-    __tablename__ = 'simulation_configs'
-    __table_args__ = {'extend_existing': True}
+    __tablename__ = "simulation_configs"
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     config_key: Mapped[str] = mapped_column(String(100), unique=True)
     config_value: Mapped[dict] = mapped_column(JSON, nullable=False)
-    version: Mapped[str] = mapped_column(String(20), default='v1.0')
+    version: Mapped[str] = mapped_column(String(20), default="v1.0")
     description: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

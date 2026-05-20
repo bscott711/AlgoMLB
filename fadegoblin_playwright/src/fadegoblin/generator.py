@@ -103,7 +103,9 @@ def generate_preview_post_content(potd_leg: dict) -> str:
     'game is about to start, here's the lock' energy.
     """
     pick_line = f"{potd_leg['pick']} ({potd_leg['game']})"
-    edge_str = f"+{potd_leg['edge']}%" if potd_leg["edge"] > 0 else f"{potd_leg['edge']}%"
+    edge_str = (
+        f"+{potd_leg['edge']}%" if potd_leg["edge"] > 0 else f"{potd_leg['edge']}%"
+    )
     goblins = potd_leg.get("goblins", "👺")
 
     print(f"🌙 Night Preview: {pick_line} {potd_leg['odds']} | Edge: {edge_str}")
@@ -205,7 +207,11 @@ def generate_recap_post_content(stats: dict) -> str:
     print(f"🎭 Recap Persona: {selected_style['name']}")
 
     # --- GENERATE RECAP TEXT ---
-    vibe = "glorious victory" if wins > losses else ("brutal suffering" if losses > wins else "chaotic neutral draw")
+    vibe = (
+        "glorious victory"
+        if wins > losses
+        else ("brutal suffering" if losses > wins else "chaotic neutral draw")
+    )
     full_prompt = (
         f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor giving tonight's recap.\n"
         f"Persona: {selected_style['prompt']}\n"
@@ -229,11 +235,7 @@ def generate_recap_post_content(stats: dict) -> str:
 
     quote = quote.strip('"').strip("'")
 
-    final_post = (
-        f"👺 {quote}\n\n"
-        f"📊 {date_str} Record: {record}{pnl_note}\n"
-        f"Full card ⬇️"
-    )
+    final_post = f"👺 {quote}\n\n📊 {date_str} Record: {record}{pnl_note}\nFull card ⬇️"
 
     return final_post
 
@@ -242,7 +244,9 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
     """Generates an unhinged post focused on a single Play of the Day pick."""
 
     pick_line = f"{potd_leg['pick']} ({potd_leg['game']})"
-    edge_str = f"+{potd_leg['edge']}%" if potd_leg["edge"] > 0 else f"{potd_leg['edge']}%"
+    edge_str = (
+        f"+{potd_leg['edge']}%" if potd_leg["edge"] > 0 else f"{potd_leg['edge']}%"
+    )
 
     print(f"⭐ POTD: {pick_line} {potd_leg['odds']} | Edge: {edge_str}")
 
@@ -272,7 +276,11 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
     # --- BADGE CONTEXT ---
     badges = potd_leg.get("badges", [])
     badges_str = " | ".join(badges)
-    badges_info = f"\nSYSTEM SIGNALS: {badges_str}\n(Note: Sharp Move means smart money is with us. High Confidence means model prob is elite.)\n" if badges else ""
+    badges_info = (
+        f"\nSYSTEM SIGNALS: {badges_str}\n(Note: Sharp Move means smart money is with us. High Confidence means model prob is elite.)\n"
+        if badges
+        else ""
+    )
 
     # --- FINAL TWEET GENERATION ---
     full_prompt = (
@@ -292,7 +300,6 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
         f"Output ONLY the final in-character text, nothing else."
     )
 
-
     quote = get_ai_text(full_prompt)
 
     if not quote or "Do you want me to" in quote or "Options:" in quote:
@@ -303,9 +310,7 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
 
     # Append the compact POTD ticket line
     final_post = (
-        f"👺 {quote}\n\n"
-        f"⭐ POTD: {potd_leg['pick']} ML {potd_leg['odds']}\n"
-        f"Full card ⬇️"
+        f"👺 {quote}\n\n⭐ POTD: {potd_leg['pick']} ML {potd_leg['odds']}\nFull card ⬇️"
     )
 
     return final_post
@@ -319,12 +324,12 @@ def generate_followup_reply(
         return ""
 
     is_win = outcome == "WIN"
-    
+
     if is_win:
         prompt = (
             f"You are the unhinged, chaotic sports betting bot FadeGoblin.\n"
             f"Here is the original sports betting post you made earlier:\n"
-            f"\"{original_post_text}\"\n\n"
+            f'"{original_post_text}"\n\n'
             f"Great news: this bet just WON! (Ticket Odds: {final_odds}, P&L: ${final_pnl:+.2f}).\n"
             f"Write a short, unhinged, manic social media reply/reaction celebrating this victory.\n"
             f"CRITICAL RULES:\n"
@@ -339,7 +344,7 @@ def generate_followup_reply(
         prompt = (
             f"You are the unhinged, chaotic sports betting bot FadeGoblin.\n"
             f"Here is the original sports betting post you made earlier:\n"
-            f"\"{original_post_text}\"\n\n"
+            f'"{original_post_text}"\n\n'
             f"Bad news: this bet just LOST. (Ticket Odds: {final_odds}, P&L: ${final_pnl:+.2f}).\n"
             f"Write a short, unhinged, manic social media reply/reaction expressing chaotic sorrow, excuses, "
             f"or crazy conspiracy theories about why it lost.\n"
@@ -358,5 +363,3 @@ def generate_followup_reply(
         return ""
 
     return reply.strip('"').strip("'")
-
-

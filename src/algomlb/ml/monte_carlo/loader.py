@@ -56,7 +56,7 @@ class MatchupContext(BaseModel):
 
     # Context features (Stadium, Weather, etc.)
     game_context: Dict[str, float]
-    
+
     # Global Matchup Features (Elo, Pythag, etc.)
     matchup_features: Dict[str, float] = {}
 
@@ -123,7 +123,10 @@ class MatchupLoader:
         )
 
         # 8. Enrich with Handedness (Platoon data)
-        self._enrich_handedness(home_batters + away_batters, [home_starter, away_starter] + home_relievers + away_relievers)
+        self._enrich_handedness(
+            home_batters + away_batters,
+            [home_starter, away_starter] + home_relievers + away_relievers,
+        )
 
         # 8. Build Context
         context = MatchupContext(
@@ -156,10 +159,14 @@ class MatchupLoader:
             f"Successfully loaded matchup for {game.away_team} @ {game.home_team}"
         )
         # Audit talent data coverage
-        h_coverage = len([p for p in context.home_lineup if p.player_id in context.batter_features])
-        a_coverage = len([p for p in context.away_lineup if p.player_id in context.batter_features])
+        h_coverage = len(
+            [p for p in context.home_lineup if p.player_id in context.batter_features]
+        )
+        a_coverage = len(
+            [p for p in context.away_lineup if p.player_id in context.batter_features]
+        )
         logger.info(f"🧬 Talent Coverage: Home {h_coverage}/9, Away {a_coverage}/9")
-        
+
         return context
 
     def get_simulation_config(self, config_key: str = "bullpen_v1.0") -> Dict[str, Any]:
@@ -314,7 +321,7 @@ class MatchupLoader:
         away_starter_id: int,
     ) -> Tuple[Dict[int, Dict[str, float]], Dict[int, Dict[str, float]]]:
         """Bulk fetch rolling features for all relevant players.
-        
+
         Prioritizes rows with n_games_used > 0 to avoid feeding the model
         null/zero features from inactive rolling windows.
         """
@@ -343,11 +350,11 @@ class MatchupLoader:
         )
 
         feature_rows = self.session.execute(stmt).scalars().all()
-        
+
         # Fallback: for any players not found above, try without the n_games_used filter
         found_ids = {row.player_id for row in feature_rows}
         missing_ids = [pid for pid in player_ids if pid not in found_ids]
-        
+
         if missing_ids:
             logger.warning(
                 f"⚠️ {len(missing_ids)} players have no rolling features with n_games_used > 0. "
@@ -391,9 +398,12 @@ class MatchupLoader:
         # Columns that the PA model expects but don't match the rolling/ema prefixes
         _extra_cols = {"n_games_used", "days_since_last_game", "window_games"}
         for col in row.__table__.columns:
-            if col.name.startswith(
-                ("roll_", "ema_", "std_", "seasonal_", "fatigue_", "delta_")
-            ) or col.name in _extra_cols:
+            if (
+                col.name.startswith(
+                    ("roll_", "ema_", "std_", "seasonal_", "fatigue_", "delta_")
+                )
+                or col.name in _extra_cols
+            ):
                 val = getattr(row, col.name)
                 feats[col.name] = float(val) if val is not None else 0.0
         return feats
@@ -481,14 +491,20 @@ class MatchupLoader:
         p_ids = self.session.execute(p_stmt).scalars().all()
 
         # 4. Derive Roles and Usage from pre-aggregated usage table
-        usage_stmt = select(PitcherDailyUsageORM).where(
-            PitcherDailyUsageORM.pitcher_id.in_([str(pid) for pid in p_ids]),
-            PitcherDailyUsageORM.game_date < game_date,
-            PitcherDailyUsageORM.game_date >= game_date - timedelta(days=20)
-        ).order_by(PitcherDailyUsageORM.pitcher_id, PitcherDailyUsageORM.game_date.desc())
-        
+        usage_stmt = (
+            select(PitcherDailyUsageORM)
+            .where(
+                PitcherDailyUsageORM.pitcher_id.in_([str(pid) for pid in p_ids]),
+                PitcherDailyUsageORM.game_date < game_date,
+                PitcherDailyUsageORM.game_date >= game_date - timedelta(days=20),
+            )
+            .order_by(
+                PitcherDailyUsageORM.pitcher_id, PitcherDailyUsageORM.game_date.desc()
+            )
+        )
+
         usage_records = self.session.execute(usage_stmt).scalars().all()
-        
+
         # Aggregate by pitcher
         pitcher_stats = {}
         for r in usage_records:
@@ -500,7 +516,7 @@ class MatchupLoader:
                     "total_apps": 0,
                     "games_finished": 0,
                     "late_inning_apps": 0,
-                    "avg_pitches": []
+                    "avg_pitches": [],
                 }
             ps = pitcher_stats[pid]
             ps["total_apps"] += 1
@@ -513,7 +529,7 @@ class MatchupLoader:
         relievers = []
         profiles = []
         for pid in p_ids:
-            if len(relievers) >= 8: # Depth for simulation
+            if len(relievers) >= 8:  # Depth for simulation
                 break
 
             if pid == h_starter_id or pid == a_starter_id:
@@ -536,7 +552,7 @@ class MatchupLoader:
                 relievers.append(PitcherSimState(pitcher_id=r.player_id))
                 if r.player_id not in existing_features:
                     existing_features[r.player_id] = self._extract_features(r)
-                
+
                 # Derive Profile
                 stats = pitcher_stats.get(r.player_id, {})
                 role = "middle"
@@ -549,19 +565,23 @@ class MatchupLoader:
                         role = "setup"
                     elif avg_p > 40:
                         role = "long"
-                
+
                 last_outing = stats.get("last_date")
                 rest_days = (game_date - last_outing).days if last_outing else 10
-                pitches_yesterday = stats.get("last_pitches", 0) if rest_days == 1 else 0
-                
-                profiles.append(RelieverProfile(
-                    player_id=r.player_id,
-                    hand="R", # Enriched later
-                    role=role,
-                    last_outing_date=last_outing,
-                    pitches_yesterday=pitches_yesterday,
-                    rest_days=rest_days
-                ))
+                pitches_yesterday = (
+                    stats.get("last_pitches", 0) if rest_days == 1 else 0
+                )
+
+                profiles.append(
+                    RelieverProfile(
+                        player_id=r.player_id,
+                        hand="R",  # Enriched later
+                        role=role,
+                        last_outing_date=last_outing,
+                        pitches_yesterday=pitches_yesterday,
+                        rest_days=rest_days,
+                    )
+                )
 
         return relievers, profiles
 

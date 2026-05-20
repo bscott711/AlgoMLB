@@ -329,10 +329,10 @@ def test_hook_model_reindex_drops_extra_columns(trained_model):
 @pytest.mark.parametrize(
     "inning, outs, base_state, score_diff, expected_range",
     [
-        (1, 0, 0, 0, (0.30, 0.80)),   # Early, bases empty, tied → low-mid LI
-        (9, 2, 7, 0, (1.50, 5.00)),   # 9th, 2 outs, bases loaded, tied → very high LI
-        (5, 1, 0, 5, (0.05, 0.30)),   # Mid-game, blowout → very low LI
-        (8, 0, 3, 1, (0.80, 2.50)),   # Late, 1st+2nd, 1-run lead → high LI
+        (1, 0, 0, 0, (0.30, 0.80)),  # Early, bases empty, tied → low-mid LI
+        (9, 2, 7, 0, (1.50, 5.00)),  # 9th, 2 outs, bases loaded, tied → very high LI
+        (5, 1, 0, 5, (0.05, 0.30)),  # Mid-game, blowout → very low LI
+        (8, 0, 3, 1, (0.80, 2.50)),  # Late, 1st+2nd, 1-run lead → high LI
     ],
 )
 def test_leverage_index_range(inning, outs, base_state, score_diff, expected_range):

@@ -12,11 +12,11 @@ try:
     logger.info("Running Elo Backfill...")
     backfill_team_elo_history(engine=engine)
     logger.success("Elo Backfill Complete.")
-    
+
     logger.info("Running Sabermetrics Backfill...")
     backfill_team_sabermetrics_history(engine_in=engine)
     logger.success("Sabermetrics Backfill Complete.")
-    
+
 except Exception as e:
     logger.exception(f"Backfill failed: {e}")
     sys.exit(1)

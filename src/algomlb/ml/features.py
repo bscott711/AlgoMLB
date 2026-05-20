@@ -167,10 +167,12 @@ class FeaturePipeline:
             left_on=["pitcher_id", "game_date"],
             right_on=["pitcher_player_id", "pitcher_game_date"],
             how="left",
-            suffixes=("", "_drop")
+            suffixes=("", "_drop"),
         ).drop(columns=["pitcher_player_id", "pitcher_game_date"], errors="ignore")
         # Clean up any suffix-renamed columns
-        df = df.drop(columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore")
+        df = df.drop(
+            columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore"
+        )
 
         # 3. Join specific Batter Features
         df = pd.merge(
@@ -179,9 +181,11 @@ class FeaturePipeline:
             left_on=["batter_id", "game_date"],
             right_on=["batter_player_id", "batter_game_date"],
             how="left",
-            suffixes=("", "_drop")
+            suffixes=("", "_drop"),
         ).drop(columns=["batter_player_id", "batter_game_date"], errors="ignore")
-        df = df.drop(columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore")
+        df = df.drop(
+            columns=[c for c in df.columns if c.endswith("_drop")], errors="ignore"
+        )
 
         # 4. Join Team Metadata (Elo etc)
         if elo_df is not None and not elo_df.empty:
@@ -205,11 +209,25 @@ class FeaturePipeline:
         # 7. Finalize Features (Harden against Metadata Leak)
         keep_prefixes = ["pitcher_", "batter_"]
         extra = ["elo_diff", "home_team_elo_pre", "away_team_elo_pre"]
-        
+
         feature_cols = [
-            c for c in df.columns 
+            c
+            for c in df.columns
             if (any(c.startswith(p) for p in keep_prefixes) or c in extra)
-            and not any(x in c for x in ["_id", "game_pk", "game_id", "computed_at", "season", "game_date", "role", "baseline_quality", "shrinkage_applied"])
+            and not any(
+                x in c
+                for x in [
+                    "_id",
+                    "game_pk",
+                    "game_id",
+                    "computed_at",
+                    "season",
+                    "game_date",
+                    "role",
+                    "baseline_quality",
+                    "shrinkage_applied",
+                ]
+            )
         ]
 
         X = df[feature_cols].select_dtypes(include=["number"]).astype("float32")
@@ -496,24 +514,26 @@ class FeaturePipeline:
     ) -> pd.DataFrame:
         """Specialized RE24 join for PA-grain matrices (Pitcher/Batter focus)."""
         re24 = self._align_types(re24_df.copy())
-        
+
         # Joins for the active participants
         p_re24 = re24[re24["role"] == "PITCHER"][
             ["player_id", "game_date", "roll_re24"]
         ]
-        b_re24 = re24[re24["role"] == "BATTER"][
-            ["player_id", "game_date", "roll_re24"]
-        ]
+        b_re24 = re24[re24["role"] == "BATTER"][["player_id", "game_date", "roll_re24"]]
 
         df = df.merge(
-            p_re24.rename(columns={"player_id": "pitcher_id", "roll_re24": "pitcher_roll_re24"}),
+            p_re24.rename(
+                columns={"player_id": "pitcher_id", "roll_re24": "pitcher_roll_re24"}
+            ),
             on=["pitcher_id", "game_date"],
-            how="left"
+            how="left",
         )
         df = df.merge(
-            b_re24.rename(columns={"player_id": "batter_id", "roll_re24": "batter_roll_re24"}),
+            b_re24.rename(
+                columns={"player_id": "batter_id", "roll_re24": "batter_roll_re24"}
+            ),
             on=["batter_id", "game_date"],
-            how="left"
+            how="left",
         )
         return df
 

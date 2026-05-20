@@ -21,9 +21,13 @@ def render_optuna_view():
 
     engine = get_engine()
     # Get available versions for this target
-    versions_query = text("SELECT DISTINCT model_version FROM uranium_eval_history WHERE model_target = :target")
+    versions_query = text(
+        "SELECT DISTINCT model_version FROM uranium_eval_history WHERE model_target = :target"
+    )
     try:
-        versions_df = pd.read_sql(versions_query, engine, params={"target": target_filter})
+        versions_df = pd.read_sql(
+            versions_query, engine, params={"target": target_filter}
+        )
         available_versions = sorted(versions_df["model_version"].tolist())
     except Exception:
         available_versions = []
@@ -33,7 +37,7 @@ def render_optuna_view():
         study_summaries = optuna.get_all_study_summaries(storage=storage_url)
         for s in study_summaries:
             if s.study_name.startswith(target_filter + "_"):
-                version = s.study_name[len(target_filter) + 1:]
+                version = s.study_name[len(target_filter) + 1 :]
                 if version not in available_versions:
                     available_versions.append(version)
     except Exception:
