@@ -1,3 +1,4 @@
+import json
 import random
 import requests
 from sqlalchemy import create_engine, text
@@ -136,14 +137,18 @@ def post_bluesky_reply(text: str, parent_uri: str, parent_cid: str) -> bool:
         print(f"❌ Error posting Bluesky reply: {e}")
         return False
 
-def post_twitter_reply(text: str, parent_tweet_id: str) -> bool:
+def get_platform_original_text(original_post_text: str | None, platform: str) -> str | None:
+    """Helper to extract platform-specific original post text if JSON, or fallback to plain string."""
+    if not original_post_text:
+        return None
     try:
-        reply_to_twitter_browser(text, parent_tweet_id)
-        print("✅ Posted follow-up reply on Twitter.")
-        return True
-    except Exception as e:
-        print(f"❌ Error posting Twitter reply: {e}")
-        return False
+        data = json.loads(original_post_text)
+        if isinstance(data, dict):
+            return data.get(platform)
+    except Exception:
+        pass
+    return original_post_text
+
 
 def run_followup_cycle(dry_run: bool = False) -> None:
     """Checks all pending slips, grades them, updates database, and posts social replies."""
@@ -219,18 +224,44 @@ def run_followup_cycle(dry_run: bool = False) -> None:
                 # Settle in slips DB
                 settle_slip(slip_id, final_pnl)
                 
-                # Compose unhinged reply
-                reply_pool = WIN_REPLIES if outcome == "WIN" else LOSS_REPLIES
-                custom_text = random.choice(reply_pool)
+                # Retrieve platform-specific original texts
+                orig_text_raw = slip.get("original_post_text")
+                orig_bsky = get_platform_original_text(orig_text_raw, "bsky")
+                orig_twitter = get_platform_original_text(orig_text_raw, "twitter")
                 
-                # Add ticket details
+                # Generate unhinged dynamic replies if original post text exists
+                custom_text_bsky = None
+                custom_text_twitter = None
+                
+                if orig_bsky:
+                    try:
+                        from fadegoblin.generator import generate_followup_reply
+                        custom_text_bsky = generate_followup_reply(orig_bsky, outcome, final_pnl, final_odds)
+                    except Exception as e:
+                        print(f"⚠️ Error generating dynamic Bluesky reply: {e}")
+                
+                if orig_twitter:
+                    try:
+                        from fadegoblin.generator import generate_followup_reply
+                        custom_text_twitter = generate_followup_reply(orig_twitter, outcome, final_pnl, final_odds)
+                    except Exception as e:
+                        print(f"⚠️ Error generating dynamic Twitter reply: {e}")
+                
+                # Fallback to random static replies if dynamic generation failed or original text wasn't found
+                if not custom_text_bsky:
+                    custom_text_bsky = random.choice(WIN_REPLIES if outcome == "WIN" else LOSS_REPLIES)
+                if not custom_text_twitter:
+                    custom_text_twitter = random.choice(WIN_REPLIES if outcome == "WIN" else LOSS_REPLIES)
+
+                # Compose platform-specific status texts
                 emoji = "💰" if outcome == "WIN" else "💔"
-                status_text = f"{emoji} RESULT: {outcome}!\nTicket Odds: {final_odds}\nP&L: ${final_pnl:+.2f}\n\n{custom_text}"
+                status_text_bsky = f"{emoji} RESULT: {outcome}!\nTicket Odds: {final_odds}\nP&L: ${final_pnl:+.2f}\n\n{custom_text_bsky}"
+                status_text_twitter = f"{emoji} RESULT: {outcome}!\nTicket Odds: {final_odds}\nP&L: ${final_pnl:+.2f}\n\n{custom_text_twitter}"
                 
                 # Reply to Bluesky
                 if slip["bsky_uri"] and slip["bsky_cid"]:
-                    post_bluesky_reply(status_text, slip["bsky_uri"], slip["bsky_cid"])
+                    post_bluesky_reply(status_text_bsky, slip["bsky_uri"], slip["bsky_cid"])
                     
                 # Reply to Twitter
                 if slip["twitter_tweet_id"]:
-                    post_twitter_reply(status_text, slip["twitter_tweet_id"])
+                    reply_to_twitter_browser(status_text_twitter, slip["twitter_tweet_id"])

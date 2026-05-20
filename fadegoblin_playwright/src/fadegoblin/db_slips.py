@@ -20,12 +20,17 @@ def init_db():
         bsky_uri VARCHAR(255),
         bsky_cid VARCHAR(255),
         twitter_tweet_id VARCHAR(255),
+        original_post_text TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         settled_at TIMESTAMP WITH TIME ZONE
     );
     """
     with engine.begin() as conn:
         conn.execute(text(query))
+        try:
+            conn.execute(text("ALTER TABLE fadegoblin_slips ADD COLUMN IF NOT EXISTS original_post_text TEXT;"))
+        except Exception as e:
+            print(f"⚠️ Warning adding original_post_text column: {e}")
     print("✅ initialized fadegoblin_slips table.")
 
 def save_slip(
@@ -35,13 +40,14 @@ def save_slip(
     stake: float,
     bsky_uri: str | None = None,
     bsky_cid: str | None = None,
-    twitter_tweet_id: str | None = None
+    twitter_tweet_id: str | None = None,
+    original_post_text: str | None = None
 ) -> int:
     """Inserts a new slip into the database."""
     engine = get_engine()
     query = """
-    INSERT INTO fadegoblin_slips (slip_type, legs, final_odds, stake, status, bsky_uri, bsky_cid, twitter_tweet_id, created_at)
-    VALUES (:slip_type, :legs, :final_odds, :stake, 'PENDING', :bsky_uri, :bsky_cid, :twitter_tweet_id, NOW())
+    INSERT INTO fadegoblin_slips (slip_type, legs, final_odds, stake, status, bsky_uri, bsky_cid, twitter_tweet_id, original_post_text, created_at)
+    VALUES (:slip_type, :legs, :final_odds, :stake, 'PENDING', :bsky_uri, :bsky_cid, :twitter_tweet_id, :original_post_text, NOW())
     RETURNING slip_id;
     """
     with engine.begin() as conn:
@@ -55,6 +61,7 @@ def save_slip(
                 "bsky_uri": bsky_uri,
                 "bsky_cid": bsky_cid,
                 "twitter_tweet_id": twitter_tweet_id,
+                "original_post_text": original_post_text,
             }
         )
         slip_id = result.scalar()
@@ -65,7 +72,7 @@ def get_pending_slips() -> list[dict]:
     """Retrieves all pending slips from the database."""
     engine = get_engine()
     query = """
-    SELECT slip_id, slip_type, legs, final_odds, stake, status, bsky_uri, bsky_cid, twitter_tweet_id, created_at
+    SELECT slip_id, slip_type, legs, final_odds, stake, status, bsky_uri, bsky_cid, twitter_tweet_id, created_at, original_post_text
     FROM fadegoblin_slips
     WHERE status = 'PENDING'
     ORDER BY created_at ASC;
@@ -86,7 +93,8 @@ def get_pending_slips() -> list[dict]:
             "bsky_uri": r[6],
             "bsky_cid": r[7],
             "twitter_tweet_id": r[8],
-            "created_at": r[9]
+            "created_at": r[9],
+            "original_post_text": r[10] if len(r) > 10 else None
         })
     return pending
 

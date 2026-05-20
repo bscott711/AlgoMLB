@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import random
 from datetime import datetime
@@ -114,7 +115,8 @@ def _run_degen(dry_run: bool) -> None:
                 stake=10.0,
                 bsky_uri=post_res.get("bsky_uri"),
                 bsky_cid=post_res.get("bsky_cid"),
-                twitter_tweet_id=None
+                twitter_tweet_id=None,
+                original_post_text=post_texts[0]
             )
         if chosen_legs_2:
             save_slip(
@@ -124,7 +126,8 @@ def _run_degen(dry_run: bool) -> None:
                 stake=10.0,
                 bsky_uri=None,
                 bsky_cid=None,
-                twitter_tweet_id=post_res.get("tweet_id")
+                twitter_tweet_id=post_res.get("tweet_id"),
+                original_post_text=post_texts[1]
             )
 
 
@@ -139,8 +142,19 @@ def _run_sniper(dry_run: bool) -> None:
 
     print(f"📋 Found {len(all_legs)} +EV plays on the board.")
 
-    # Randomly select ONE Play of the Day (consistent across platforms)
-    potd_index = random.randint(0, len(all_legs) - 1)
+    # Find the previewed POTD leg (which is stored in database as 'PLACED') or default to index 0 (highest EV)
+    potd_index = 0
+    for idx, leg in enumerate(all_legs):
+        if leg.get("status") == "PLACED":
+            potd_index = idx
+            break
+
+    # Dynamically ensure only the POTD leg has the "🎯 POTD" badge
+    for idx, leg in enumerate(all_legs):
+        leg["badges"] = [b for b in leg.get("badges", []) if "POTD" not in b]
+        if idx == potd_index:
+            leg["badges"].insert(0, "🎯 POTD")
+
     potd_leg = all_legs[potd_index]
 
     # 1. Generate TWO unique background images
@@ -179,7 +193,11 @@ def _run_sniper(dry_run: bool) -> None:
                 stake=10.0,
                 bsky_uri=post_res.get("bsky_uri"),
                 bsky_cid=post_res.get("bsky_cid"),
-                twitter_tweet_id=post_res.get("tweet_id")
+                twitter_tweet_id=post_res.get("tweet_id"),
+                original_post_text=json.dumps({
+                    "bsky": post_texts[0],
+                    "twitter": post_texts[1]
+                })
             )
 
 
@@ -230,7 +248,11 @@ def _run_preview(dry_run: bool) -> None:
             stake=10.0,
             bsky_uri=post_res.get("bsky_uri"),
             bsky_cid=post_res.get("bsky_cid"),
-            twitter_tweet_id=post_res.get("tweet_id")
+            twitter_tweet_id=post_res.get("tweet_id"),
+            original_post_text=json.dumps({
+                "bsky": post_text_1,
+                "twitter": post_text_2
+            })
         )
 
 

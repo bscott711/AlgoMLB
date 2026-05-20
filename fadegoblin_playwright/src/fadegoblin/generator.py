@@ -34,10 +34,24 @@ def generate_post_content(
     print(f"🎭 Selected Persona: {selected_style['name']}")
     print("   🧠 Brainstorming abstract logic...")
 
+    sports = list(set(leg.get("sport", "sports") for leg in chosen_legs))
+    sport_map = {
+        "soccer_epl": "soccer",
+        "soccer_uefa_champs_league": "soccer",
+        "soccer_italy_serie_a": "soccer",
+        "soccer_spain_la_liga": "soccer",
+        "soccer_usa_mls": "soccer",
+        "basketball_nba": "basketball",
+        "icehockey_nhl": "hockey",
+    }
+    pretty_sports = [sport_map.get(s, s.replace("_", " ")) for s in sports]
+    sports_str = ", ".join(pretty_sports)
+
     theme_prompt = (
-        f"Brainstorm 3 highly specific, absurd reasons to bet {bet_summary}. "
+        f"Brainstorm 3 highly specific, absurd reasons to bet {bet_summary} in these sports: {sports_str}. "
         f"Persona: '{selected_style['name']}'. "
-        f"CRITICAL RULES: DO NOT narrate a physical scene. Focus entirely on bizarre logic. "
+        f"CRITICAL RULES: Focus entirely on bizarre logic related to these sports (e.g. quarters, timeouts, red cards, skates, goals, ice rinks, courts). "
+        f"Do NOT use baseball jargon or baseball-related terms (e.g. innings, pitches, bat flips, baseball stadiums). DO NOT narrate a physical scene. "
         f"Output ONLY the 3 concepts separated by a pipe character (|)."
     )
 
@@ -53,13 +67,14 @@ def generate_post_content(
     full_prompt = (
         f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor who completely embodies the randomly assigned persona.\n"
         f"Persona: {selected_style['prompt']}\n"
-        f"Task: Write a short, unhinged social media post announcing your bet.\n"
+        f"Task: Write a short, unhinged social media post announcing your multi-sport bet (sports involved: {sports_str}).\n"
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
         f"The bet is on:\n{locked_bet_text}\n\n"
         f"RULES FOR THE TWEET:\n"
         f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 250 characters.\n"
         f"2. DO NOT write a clinical summary. Write a punchy, unhinged rant.\n"
-        f"3. WEAVE the exact bet naturally into your manic rant.\n"
+        f"3. WEAVE the exact bet naturally into your manic rant. Use terminology relevant to the sports involved ({sports_str}), e.g., timeouts, goals, quarters, pucks, power-plays, courts, pitch. "
+        f"Strictly AVOID any baseball-related terms (no innings, bat flips, home runs, pitches, stadiums, or referring to these teams as baseball teams).\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
         f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
@@ -101,9 +116,9 @@ def generate_preview_post_content(potd_leg: dict) -> str:
     print(f"🎭 Night Persona: {selected_style['name']}")
 
     theme_prompt = (
-        f"Brainstorm 3 highly specific, absurd reasons to bet {pick_line} TONIGHT. "
+        f"Brainstorm 3 highly specific, absurd reasons to bet {pick_line} in Major League Baseball (MLB) TONIGHT. "
         f"Persona: '{selected_style['name']}'. "
-        f"CRITICAL RULES: DO NOT narrate a physical scene. Focus entirely on bizarre logic. "
+        f"CRITICAL RULES: Focus entirely on bizarre baseball-related logic (e.g. innings, pitches, bat flips, baseball stadiums). Do NOT reference other sports like NBA basketball, quarters, timeouts, or basketball arenas. DO NOT narrate a physical scene. "
         f"Output ONLY the 3 concepts separated by a pipe character (|)."
     )
 
@@ -119,16 +134,16 @@ def generate_preview_post_content(potd_leg: dict) -> str:
     badges_info = f"\nSYSTEM SIGNALS: {badges_str}\n" if badges else ""
 
     full_prompt = (
-        f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor.\n"
+        f"You are FadeGoblin, a chaotic, hyper-confident, degenerate MLB sports bettor.\n"
         f"Persona: {selected_style['prompt']}\n"
-        f"Task: Write a short, unhinged social media post hyping your PLAY OF THE NIGHT — a game starting TONIGHT.\n"
+        f"Task: Write a short, unhinged social media post hyping your MLB PLAY OF THE NIGHT — a baseball game starting TONIGHT.\n"
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
         f"The pick is: {pick_line} at {potd_leg['odds']}\n"
         f"{badges_info}\n"
         f"RULES FOR THE TWEET:\n"
         f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 220 characters.\n"
         f"2. Emphasize that this game is TONIGHT — create urgency.\n"
-        f"3. WEAVE the exact pick naturally into your manic rant.\n"
+        f"3. WEAVE the exact pick naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas).\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
         f"6. Use 1-2 relevant emojis only.\n\n"
@@ -240,9 +255,9 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
     print("   🧠 Brainstorming chaotic POTD logic...")
 
     theme_prompt = (
-        f"Brainstorm 3 highly specific, absurd reasons to bet {pick_line}. "
+        f"Brainstorm 3 highly specific, absurd reasons to bet {pick_line} in Major League Baseball (MLB). "
         f"Persona: '{selected_style['name']}'. "
-        f"CRITICAL RULES: DO NOT narrate a physical scene. Focus entirely on bizarre logic. "
+        f"CRITICAL RULES: Focus entirely on bizarre baseball-related logic (e.g. innings, pitches, bat flips, baseball stadiums). Do NOT reference other sports like NBA basketball, quarters, timeouts, or basketball arenas. DO NOT narrate a physical scene. "
         f"Output ONLY the 3 concepts separated by a pipe character (|)."
     )
 
@@ -261,16 +276,16 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
 
     # --- FINAL TWEET GENERATION ---
     full_prompt = (
-        f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor.\n"
+        f"You are FadeGoblin, a chaotic, hyper-confident, degenerate MLB sports bettor.\n"
         f"Persona: {selected_style['prompt']}\n"
-        f"Task: Write a short, unhinged social media post announcing your PLAY OF THE DAY.\n"
+        f"Task: Write a short, unhinged social media post announcing your MLB PLAY OF THE DAY.\n"
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
         f"The pick is: {pick_line} at {potd_leg['odds']}\n"
         f"{badges_info}\n"
         f"RULES FOR THE TWEET:\n"
         f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 220 characters.\n"
         f"2. DO NOT write a clinical summary. Write a punchy, unhinged rant.\n"
-        f"3. WEAVE the exact pick AND the system signals (badges) naturally into your manic rant.\n"
+        f"3. WEAVE the exact pick AND the system signals (badges) naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas).\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
         f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
@@ -294,4 +309,54 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
     )
 
     return final_post
+
+
+def generate_followup_reply(
+    original_post_text: str, outcome: str, final_pnl: float, final_odds: str
+) -> str:
+    """Generates an unhinged follow-up reply maintaining the persona and referencing the original post."""
+    if not original_post_text:
+        return ""
+
+    is_win = outcome == "WIN"
+    
+    if is_win:
+        prompt = (
+            f"You are the unhinged, chaotic sports betting bot FadeGoblin.\n"
+            f"Here is the original sports betting post you made earlier:\n"
+            f"\"{original_post_text}\"\n\n"
+            f"Great news: this bet just WON! (Ticket Odds: {final_odds}, P&L: ${final_pnl:+.2f}).\n"
+            f"Write a short, unhinged, manic social media reply/reaction celebrating this victory.\n"
+            f"CRITICAL RULES:\n"
+            f"1. Maintain the EXACT SAME persona, tone, and style as the original post. Match its manic energy!\n"
+            f"2. Refer back to the specific theory, bizarre logic, teams, or elements mentioned in the original post "
+            f"(e.g., if the original talked about moons, elevator speeds, goblins, or specific calculations, mention how they were 100% correct or mock the sportsbooks using that theory!).\n"
+            f"3. Keep it punchy, chaotic, and STRICTLY under 220 characters.\n"
+            f"4. Do NOT include any formal ticket details or P&L at the end. Just write the reaction text.\n"
+            f"5. Output ONLY the in-character reply text, no explanations, no quotes."
+        )
+    else:
+        prompt = (
+            f"You are the unhinged, chaotic sports betting bot FadeGoblin.\n"
+            f"Here is the original sports betting post you made earlier:\n"
+            f"\"{original_post_text}\"\n\n"
+            f"Bad news: this bet just LOST. (Ticket Odds: {final_odds}, P&L: ${final_pnl:+.2f}).\n"
+            f"Write a short, unhinged, manic social media reply/reaction expressing chaotic sorrow, excuses, "
+            f"or crazy conspiracy theories about why it lost.\n"
+            f"CRITICAL RULES:\n"
+            f"1. Maintain the EXACT SAME persona, tone, and style as the original post.\n"
+            f"2. Refer back to the specific theory, bizarre logic, teams, or elements mentioned in the original post "
+            f"(e.g., blame the elevator speeds, the moon phases, a sportsbook conspiracy against your exact theory, etc.).\n"
+            f"3. Keep it punchy, chaotic, and STRICTLY under 220 characters.\n"
+            f"4. Do NOT include any formal ticket details or P&L at the end. Just write the reaction text.\n"
+            f"5. Output ONLY the in-character reply text, no explanations, no quotes."
+        )
+
+    reply = get_ai_text(prompt)
+    if not reply or "Do you want me to" in reply or "Options:" in reply:
+        print("⚠️ API broke character in follow-up. Using fallback.")
+        return ""
+
+    return reply.strip('"').strip("'")
+
 

@@ -158,8 +158,6 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
         goblins = edge_to_goblins(edge_pct)
 
         badges = []
-        if i == 0:
-            badges.append("🎯 POTD")
         if model_prob > 0.60:
             badges.append("💎 HIGH CONFIDENCE")
         if market_move > 0.03:
@@ -179,6 +177,7 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
                 "goblins": goblins,
                 "badges": badges,
                 "model_prob": round(model_prob * 100, 1),
+                "status": str(row["status"]),
             }
         )
         if row["status"] == "PENDING":

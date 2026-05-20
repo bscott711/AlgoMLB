@@ -61,11 +61,22 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
         title = rng.choice(SLIP_TITLES)
 
     num_legs = len(legs)
-    num_rows = math.ceil(num_legs / 2)
-    
+    if num_legs == 0:
+        return Path(__file__).parent / "assets" / "empty_card.png"
+
+    if potd_index < 0 or potd_index >= num_legs:
+        potd_index = 0
+
+    if num_legs == 1:
+        header_h = 16
+        num_rows = 1
+    else:
+        header_h = HEADER_HEIGHT
+        num_rows = math.ceil((num_legs - 1) / 2) + 1
+
     # Grid height calculation
     table_content_h = num_rows * (ROW_HEIGHT + 4)
-    base_table_height = HEADER_HEIGHT + table_content_h + FOOTER_HEIGHT + 10
+    base_table_height = header_h + table_content_h + FOOTER_HEIGHT + 10
     
     if background_path and background_path.exists():
         bg_img = Image.open(background_path).convert("RGB")
@@ -83,8 +94,12 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     # Position table at bottom
     table_x1 = (canvas_width - CARD_WIDTH) // 2
     table_x2 = table_x1 + CARD_WIDTH
-    table_y2 = card_height - 40
-    table_y1 = table_y2 - base_table_height
+    if background_path and background_path.exists():
+        table_y2 = card_height - 40
+        table_y1 = table_y2 - base_table_height
+    else:
+        table_y2 = card_height
+        table_y1 = 0
     
     # Main rounded background
     draw.rounded_rectangle([table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR)
@@ -94,70 +109,59 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
     font_row = _load_font(13)
     font_footer = _load_font(9)
 
-    # ── Header ────────────────────────────────────────────────────────
-    draw.text((table_x1 + PADDING, table_y1 + 10), title, fill=ACCENT_GREEN, font=font_title)
-    date_str = datetime.now().strftime("%b %d, %Y")
-    draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
+    # ── Header (Only if num_legs > 1) ─────────────────────────────────
+    if num_legs > 1:
+        draw.text((table_x1 + PADDING, table_y1 + 10), title, fill=ACCENT_GREEN, font=font_title)
+        date_str = datetime.now().strftime("%b %d, %Y")
+        draw.text((table_x1 + PADDING, table_y1 + 28), date_str, fill=TEXT_DIM, font=font_date)
 
-    # ── Squad Signals (Top Right) ─────────────────────────────────────
-    all_unique_badges = []
-    for leg in legs:
-        for b in leg.get("badges", []):
-            if b not in all_unique_badges:
-                all_unique_badges.append(b)
-    
-    if all_unique_badges:
-        signal_text = " • ".join(all_unique_badges)
-        bbox_sig = draw.textbbox((0, 0), signal_text, font=font_date)
-        draw.text((table_x2 - PADDING - (bbox_sig[2]-bbox_sig[0]), table_y1 + 15), signal_text, fill=ACCENT_GREEN, font=font_date)
+        # ── Squad Signals (Top Right) ─────────────────────────────────
+        all_unique_badges = []
+        for leg in legs:
+            for b in leg.get("badges", []):
+                if b not in all_unique_badges:
+                    all_unique_badges.append(b)
+        
+        if all_unique_badges:
+            signal_text = " • ".join(all_unique_badges)
+            bbox_sig = draw.textbbox((0, 0), signal_text, font=font_date)
+            draw.text((table_x2 - PADDING - (bbox_sig[2]-bbox_sig[0]), table_y1 + 15), signal_text, fill=ACCENT_GREEN, font=font_date)
 
-    # ── Grid Rendering ────────────────────────────────────────────────
-    start_y = table_y1 + HEADER_HEIGHT
-    
-    for i, leg in enumerate(legs):
-        row = i // 2
-        col = i % 2
-        
-        x = table_x1 + PADDING + col * (COL_WIDTH + PADDING)
-        y = start_y + row * (ROW_HEIGHT + 4)
-        
-        is_potd = i == potd_index
-        badges = leg.get("badges", [])
-        
-        # Row box
+    # ── Rendering helper for a single leg box ─────────────────────────
+    def draw_leg_box(leg: dict, lx: int, ly: int, lwidth: int, is_potd: bool):
         fill = POTD_BG if is_potd else (30, 30, 45, 180)
-        draw.rounded_rectangle([x, y, x + COL_WIDTH, y + ROW_HEIGHT], radius=6, fill=fill)
+        draw.rounded_rectangle([lx, ly, lx + lwidth, ly + ROW_HEIGHT], radius=6, fill=fill)
         
         if is_potd:
-            draw.rounded_rectangle([x, y, x + 4, y + ROW_HEIGHT], radius=2, fill=ACCENT_GREEN)
+            draw.rounded_rectangle([lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=ACCENT_GREEN)
 
         # ── Matchup row (line 1) ───────────────────────────────────
         game_text = leg["game"]
         pick_text = leg["pick"]
         parts = game_text.split(" @ ")
 
-        matchup_y = y + 6  # top line: matchup
-        diag_y = y + 28    # bottom line: diagnostics
+        matchup_y = ly + 6  # top line: matchup
+        diag_y = ly + 28    # bottom line: diagnostics
 
         if len(parts) == 2:
             away, home = parts
             away_color = ACCENT_GREEN if pick_text == away else (TEXT_WHITE if is_potd else TEXT_DIM)
             home_color = ACCENT_GREEN if pick_text == home else (TEXT_WHITE if is_potd else TEXT_DIM)
 
-            draw.text((x + 10, matchup_y), away, fill=away_color, font=font_row)
+            draw.text((lx + 10, matchup_y), away, fill=away_color, font=font_row)
             bbox = draw.textbbox((0, 0), away, font=font_row)
-            at_x = x + 10 + (bbox[2] - bbox[0]) + 3
+            at_x = lx + 10 + (bbox[2] - bbox[0]) + 3
             draw.text((at_x, matchup_y), "@", fill=TEXT_DIM, font=font_row)
             bbox_at = draw.textbbox((0, 0), "@", font=font_row)
             home_x = at_x + (bbox_at[2] - bbox_at[0]) + 3
             draw.text((home_x, matchup_y), home, fill=home_color, font=font_row)
         else:
-            draw.text((x + 10, matchup_y), game_text, fill=TEXT_WHITE, font=font_row)
+            draw.text((lx + 10, matchup_y), game_text, fill=TEXT_WHITE, font=font_row)
 
         # ── Odds aligned right (line 1) ────────────────────────────
         odds_str = str(leg["odds"])
         bbox_odds = draw.textbbox((0, 0), odds_str, font=font_row)
-        odds_x = x + COL_WIDTH - (bbox_odds[2] - bbox_odds[0]) - 8
+        odds_x = lx + lwidth - (bbox_odds[2] - bbox_odds[0]) - 8
         draw.text((odds_x, matchup_y), odds_str, fill=TEXT_WHITE, font=font_row)
 
         # ── Diagnostics row (line 2): implied % + edge % + rating ─────
@@ -174,7 +178,26 @@ def render_bet_card(legs: list[dict], potd_index: int, background_path: Path | N
             diag_parts.append(goblins)
             
         diag_text = "  •  ".join(diag_parts)
-        draw.text((x + 10, diag_y), diag_text, fill=TEXT_DIM, font=font_date)
+        draw.text((lx + 10, diag_y), diag_text, fill=TEXT_DIM, font=font_date)
+
+    # ── Grid Rendering ────────────────────────────────────────────────
+    start_y = table_y1 + header_h
+
+    # 1. Render the centered POTD leg at row 0 (same width as other columns)
+    potd_leg = legs[potd_index]
+    potd_x = table_x1 + (CARD_WIDTH - COL_WIDTH) // 2
+    draw_leg_box(potd_leg, potd_x, start_y, COL_WIDTH, is_potd=True)
+
+    # 2. Render other legs in a 2-column grid starting below the POTD
+    other_legs = [leg for idx, leg in enumerate(legs) if idx != potd_index]
+    for i, leg in enumerate(other_legs):
+        row = i // 2 + 1  # start at row 1
+        col = i % 2
+
+        lx = table_x1 + PADDING + col * (COL_WIDTH + PADDING)
+        ly = start_y + row * (ROW_HEIGHT + 4)
+
+        draw_leg_box(leg, lx, ly, COL_WIDTH, is_potd=False)
 
     # ── Footer ────────────────────────────────────────────────────────
     footer_y = table_y2 - 20
@@ -209,8 +232,12 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
 
     table_x1 = (canvas_width - CARD_WIDTH) // 2
     table_x2 = table_x1 + CARD_WIDTH
-    table_y2 = card_height - 40
-    table_y1 = table_y2 - base_table_height
+    if background_path and background_path.exists():
+        table_y2 = card_height - 40
+        table_y1 = table_y2 - base_table_height
+    else:
+        table_y2 = card_height
+        table_y1 = 0
 
     draw.rounded_rectangle([table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR)
 
