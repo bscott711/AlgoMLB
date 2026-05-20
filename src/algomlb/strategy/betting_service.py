@@ -88,8 +88,12 @@ class BettingService:
         return placed_count
 
     def settle_bets(self):
-        """Check results for PENDING bets and calculate P&L."""
-        pending_bets = self.session.query(BankrollLedgerORM).filter(BankrollLedgerORM.status == TransactionStatus.PENDING).all()
+        """Check results for PENDING and PLACED bets and calculate P&L."""
+        pending_bets = (
+            self.session.query(BankrollLedgerORM)
+            .filter(BankrollLedgerORM.status.in_([TransactionStatus.PENDING, TransactionStatus.PLACED]))
+            .all()
+        )
         
         settled_count = 0
         for bet in pending_bets:
