@@ -49,6 +49,9 @@ class APIConfig(BaseSettings):
     odds_api_key: SecretStr | None = Field(
         default=None, description="API key for The-Odds-API"
     )
+    odds_api_key_secondary: SecretStr | None = Field(
+        default=None, description="Secondary API key for The-Odds-API"
+    )
     mlb_stats_url: str = Field(
         default="https://statsapi.mlb.com/api/v1",
         description="Base URL for MLB Stats API",
@@ -56,9 +59,9 @@ class APIConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_required_settings(self) -> Self:
-        if self.odds_api_key is None:
+        if self.odds_api_key is None and self.odds_api_key_secondary is None:
             raise ValueError(
-                "The Odds API key is required. Set API__ODDS_API_KEY env variable."
+                "At least one Odds API key is required. Set API__ODDS_API_KEY env variable."
             )
         return self
 

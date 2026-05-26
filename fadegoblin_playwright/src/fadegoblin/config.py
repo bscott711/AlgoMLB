@@ -28,6 +28,7 @@ POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_AUTH") or os.getenv(
 )
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ODDS_API_KEY = os.getenv("ODDS_API_KEY")
+ODDS_API_KEY_SECONDARY = os.getenv("ODDS_API_KEY_SECONDARY")
 
 
 # --- Tuning ---

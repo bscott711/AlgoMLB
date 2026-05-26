@@ -41,6 +41,14 @@ def test_api_config_missing_key() -> None:
         APIConfig()
 
 
+def test_api_config_secondary_key_only() -> None:
+    """Test that APIConfig succeeds if only odds_api_key_secondary is provided."""
+    config = APIConfig(odds_api_key_secondary="secondary_test_key")  # type: ignore
+    assert config.odds_api_key_secondary is not None
+    assert config.odds_api_key_secondary.get_secret_value() == "secondary_test_key"
+    assert config.odds_api_key is None
+
+
 def test_ml_config_validation() -> None:
     """Test machine learning threshold constraints."""
     valid_config = MLConfig(min_edge_percent=1.5, max_risk_units=1.0)
