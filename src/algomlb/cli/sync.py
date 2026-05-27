@@ -121,7 +121,7 @@ def daily(
     backfill_team_elo_history(engine=session_factory.kw["bind"])
     
     logger.info("📈 Backfilling Sabermetrics History...")
-    backfill_team_sabermetrics_history(engine=session_factory.kw["bind"])
+    backfill_team_sabermetrics_history(engine_in=session_factory.kw["bind"])
 
     # Gold Layer (Rolling Features for trailing window to yesterday)
     from algomlb.ml.rolling_service import RollingService
