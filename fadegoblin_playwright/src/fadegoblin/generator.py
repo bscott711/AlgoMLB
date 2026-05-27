@@ -6,6 +6,21 @@ from fadegoblin.llm import get_ai_text
 from fadegoblin.prompts import FALLBACK_QUOTES, PERSONAS
 
 
+def enforce_length_limit(text: str, limit: int = 295) -> str:
+    """Enforces a strict character limit for Bluesky/Twitter compatibility."""
+    if len(text) <= limit:
+        return text
+    
+    parts = text.rsplit("\n\n", 1)
+    if len(parts) == 2:
+        quote, ticket = parts
+        allowed_quote_len = limit - len(ticket) - 2
+        if allowed_quote_len > 3:
+            return f"{quote[:allowed_quote_len - 3]}...\n\n{ticket}"
+            
+    return text[:limit - 3] + "..."
+
+
 def generate_post_content(
     chosen_legs: list[dict[str, Any]], final_odds_str: str
 ) -> str:
@@ -93,7 +108,7 @@ def generate_post_content(
     # The system explicitly appends the exact compact ticket at the very end
     final_post = f"{quote}\n\n{locked_bet_text} [{final_odds_str}]"
 
-    return final_post
+    return enforce_length_limit(final_post)
 
 
 def generate_preview_post_content(potd_leg: dict) -> str:
@@ -166,7 +181,7 @@ def generate_preview_post_content(potd_leg: dict) -> str:
         f"({potd_leg['game']})"
     )
 
-    return final_post
+    return enforce_length_limit(final_post)
 
 
 def generate_recap_post_content(stats: dict) -> str:
@@ -237,7 +252,7 @@ def generate_recap_post_content(stats: dict) -> str:
 
     final_post = f"👺 {quote}\n\n📊 {date_str} Record: {record}{pnl_note}\nFull card ⬇️"
 
-    return final_post
+    return enforce_length_limit(final_post)
 
 
 def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
@@ -313,7 +328,7 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
         f"👺 {quote}\n\n⭐ POTD: {potd_leg['pick']} ML {potd_leg['odds']}\nFull card ⬇️"
     )
 
-    return final_post
+    return enforce_length_limit(final_post)
 
 
 def generate_followup_reply(
@@ -362,4 +377,4 @@ def generate_followup_reply(
         print("⚠️ API broke character in follow-up. Using fallback.")
         return ""
 
-    return reply.strip('"').strip("'")
+    return enforce_length_limit(reply.strip('"').strip("'"))
