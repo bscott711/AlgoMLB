@@ -96,7 +96,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.14.0" },
-    { name = "fadegoblin", git = "https://github.com/bscott711/fadegoblin" },
+    { name = "fadegoblin", editable = "fadegoblin_playwright" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "joblib", specifier = ">=1.5.3" },
     { name = "kagglehub", specifier = ">=1.0.0" },
@@ -831,16 +831,32 @@ wheels = [
 [[package]]
 name = "fadegoblin"
 version = "0.3.0"
-source = { git = "https://github.com/bscott711/fadegoblin#34396420a5a8377e64b75202a69575b1d1e0956b" }
+source = { editable = "fadegoblin_playwright" }
 dependencies = [
     { name = "atproto" },
     { name = "pandas" },
     { name = "pillow" },
+    { name = "playwright" },
     { name = "psycopg2-binary" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "sqlalchemy" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "atproto", specifier = ">=0.0.65" },
+    { name = "pandas", specifier = ">=3.0.1" },
+    { name = "pillow", specifier = ">=11.0.0" },
+    { name = "playwright", specifier = ">=1.49.0" },
+    { name = "psycopg2-binary", specifier = ">=2.9.11" },
+    { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "sqlalchemy", specifier = ">=2.0.47" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.14.14" }]
 
 [[package]]
 name = "filelock"

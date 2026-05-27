@@ -39,7 +39,7 @@ def _show_cookie_instructions() -> None:
     print(
         "To easily and securely refresh your session cookies, please run the following command in your terminal:"
     )
-    print("\n   python -m fadegoblin.browser_twitter --login\n")
+    print("\n   uv run python -m fadegoblin.browser_twitter --login\n")
     print(
         "This will open a visible browser window where you can log in manually, solve CAPTCHAs,"
     )
@@ -117,7 +117,7 @@ def interactive_login_session() -> None:
 
 def post_to_twitter_browser(
     tweet_text: str,
-    image_path: Path | None = None,
+    image_paths: list[Path] | None = None,
 ) -> str | None:
     """Post a tweet by injecting authenticated cookies — no login needed."""
     if not COOKIES_PATH.exists():
@@ -186,13 +186,15 @@ def post_to_twitter_browser(
             page.screenshot(path="twitter_debug_drafted.png")
 
             # ── 3. Image upload (optional) ───────────────────────────
-            if image_path and image_path.exists():
-                print(f"🐦 Uploading image: {image_path.name}")
-                file_input = page.locator('input[data-testid="fileInput"]').first
-                file_input.set_input_files(str(image_path))
+            if image_paths:
+                valid_paths = [str(p) for p in image_paths if p and p.exists()]
+                if valid_paths:
+                    print(f"🐦 Uploading {len(valid_paths)} image(s)")
+                    file_input = page.locator('input[data-testid="fileInput"]').first
+                    file_input.set_input_files(valid_paths)
 
-                page.wait_for_selector('[data-testid="attachments"]', timeout=20000)
-                _rand_sleep(1, 2)
+                    page.wait_for_selector('[data-testid="attachments"]', timeout=20000)
+                    _rand_sleep(1, 2)
 
             # ── 4. Post ──────────────────────────────────────────────
             print("🐦 POSTING …")
@@ -473,4 +475,4 @@ if __name__ == "__main__":
     else:
         print("💡 FadeGoblin Twitter Module")
         print("Use '--login' to manually authenticate and capture cookies:")
-        print("  python -m fadegoblin.browser_twitter --login")
+        print("  uv run python -m fadegoblin.browser_twitter --login")

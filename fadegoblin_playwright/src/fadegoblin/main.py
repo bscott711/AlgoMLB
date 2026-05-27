@@ -23,7 +23,7 @@ from fadegoblin.generator import (
     generate_preview_post_content,
 )
 from fadegoblin.image import download_goblin_image, generate_goblin_prompt
-from fadegoblin.odds import get_live_games
+from fadegoblin.odds import get_live_games, get_fliff_mlb_odds
 from fadegoblin.prompts import FALLBACK_QUOTES
 
 
@@ -165,6 +165,17 @@ def _run_sniper(dry_run: bool) -> None:
 
     potd_leg = all_legs[potd_index]
 
+    # Inject Fliff odds into POTD leg if available
+    try:
+        fliff_odds = get_fliff_mlb_odds()
+        f_game = fliff_odds.get(potd_leg["game"])
+        if f_game:
+            f_odd_val = f_game["home_odds"] if potd_leg["pick"] == f_game["home"] else f_game["away_odds"]
+            if f_odd_val and f_odd_val != "N/A":
+                potd_leg["odds"] = f"{potd_leg['odds']} ({f_odd_val} 🍭)"
+    except Exception as e:
+        print(f"⚠️ Failed to fetch/apply Fliff odds: {e}")
+
     # 1. Generate TWO unique background images
     prompt_1 = generate_goblin_prompt()
     bg_target_path_1 = config.BASE_DIR / "temp_bg_1.jpg"
@@ -231,6 +242,17 @@ def _run_preview(dry_run: bool) -> None:
     print(
         f"⭐ Tomorrow's feature: {potd_leg['pick']} {potd_leg['odds']} ({potd_leg['game']})"
     )
+
+    # Inject Fliff odds into preview POTD leg if available
+    try:
+        fliff_odds = get_fliff_mlb_odds()
+        f_game = fliff_odds.get(potd_leg["game"])
+        if f_game:
+            f_odd_val = f_game["home_odds"] if potd_leg["pick"] == f_game["home"] else f_game["away_odds"]
+            if f_odd_val and f_odd_val != "N/A":
+                potd_leg["odds"] = f"{potd_leg['odds']} ({f_odd_val} 🍭)"
+    except Exception as e:
+        print(f"⚠️ Failed to fetch/apply Fliff odds: {e}")
 
     # Generate a single goblin background image
     prompt = generate_goblin_prompt()
@@ -303,9 +325,26 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
     post_text_1 = generate_recap_post_content(stats)
     post_text_2 = generate_recap_post_content(stats)
 
+    # Fetch Fliff green slips for winning picks
+    wins_list = [p for p in stats.get("picks", []) if p.get("result") == "WIN"]
+    image_paths = [recap_card_path, recap_card_path]
+    
+    if wins_list:
+        try:
+            from fadegoblin.browser_fliff import fetch_green_slip
+            for w in wins_list:
+                slip_path = fetch_green_slip(w["pick"])
+                if slip_path:
+                    # Append the slip to both platforms' image lists
+                    image_paths.insert(1, slip_path)
+                    image_paths.append(slip_path)
+                    break  # Just attach the first found slip to avoid clutter
+        except Exception as e:
+            print(f"⚠️ Error fetching Fliff green slips: {e}")
+
     _post_to_socials(
         [post_text_1, post_text_2],
-        [recap_card_path, recap_card_path],
+        image_paths,
         dry_run,
     )
 
@@ -384,14 +423,16 @@ def _post_to_socials(
         try:
             print("Starting Twitter browser automation...")
             text = post_texts[1]
-            # Twitter gets the SECOND image (if available, otherwise first)
-            img_path = (
-                image_paths[1]
-                if len(image_paths) > 1
-                else (image_paths[0] if image_paths else None)
-            )
+            
+            # Twitter gets all valid images from the second half of the list (or all if we just want to send what we have)
+            # We structured image_paths above as [bsky_img1, bsky_img2, twitter_img1, twitter_img2] 
+            # Actually we inserted into the list. Let's just collect all unique valid paths.
+            valid_paths = []
+            for p in image_paths:
+                if p and p not in valid_paths:
+                    valid_paths.append(p)
 
-            tweet_id = browser_twitter.post_to_twitter_browser(text, img_path)
+            tweet_id = browser_twitter.post_to_twitter_browser(text, valid_paths)
             res["tweet_id"] = tweet_id
             success_twitter = True
         except Exception as e:
