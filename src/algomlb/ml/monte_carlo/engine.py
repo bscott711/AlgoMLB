@@ -605,7 +605,13 @@ class SimulationEngine:
                 expected_features = self._get_expected_features()
                 if expected_features is not None:
                     expected_list = list(expected_features)
-                    X_batch = X_batch.reindex(columns=expected_list, fill_value=0.0)
+                    X_batch = X_batch.reindex(columns=expected_list)
+                    medians = getattr(actual_model, "training_medians", None)
+                    if medians is None and hasattr(self.pa_model, "training_medians"):
+                        medians = self.pa_model.training_medians
+                    if medians:
+                        X_batch = X_batch.fillna(medians)
+                    X_batch = X_batch.fillna(0.0)
 
                 # Run Batch Prediction
                 prob_matrix = actual_model.predict_proba(X_batch)

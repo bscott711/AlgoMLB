@@ -180,6 +180,16 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
             f"⚛️ No Uranium model found. Falling back to Elo: Home={h_elo}, Away={a_elo}"
         )
         return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400)), True
+        
+    if getattr(context, "max_staleness_days", 0) > 3:
+        h_elo = context.matchup_features.get("home_team_elo_pre", 1500)
+        a_elo = context.matchup_features.get("away_team_elo_pre", 1500)
+        from loguru import logger
+
+        logger.warning(
+            f"⚠️ Data is {context.max_staleness_days} days stale! Predictions unreliable. Falling back to Elo."
+        )
+        return 1 / (1 + 10 ** (-(h_elo + 24 - a_elo) / 400)), True
 
     from loguru import logger
 
@@ -256,7 +266,12 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
             logger.warning(
                 f"⚛️ {len(missing)}/{len(expected_features)} features missing: {missing[:5]}..."
             )
-        X = X.reindex(columns=expected_features, fill_value=0.0)
+        
+        X = X.reindex(columns=expected_features)
+        medians = getattr(model, "training_medians", None)
+        if medians:
+            X = X.fillna(medians)
+        X = X.fillna(0.0)
 
     probs = model.predict_proba(X)[0]
     logger.info(f"⚛️ Prediction complete. Raw probs: {probs}")

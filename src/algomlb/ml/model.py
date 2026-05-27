@@ -47,6 +47,7 @@ class MLBModel:
         Fit the classifier and optionally apply Isotonic Calibration.
         Note: True temporal splitting should be handled by the caller or pipeline.
         """
+        self.training_medians = X.median().to_dict() if isinstance(X, pd.DataFrame) else {}
         y_encoded = y
         if not np.issubdtype(y.dtype, np.number):
             from sklearn.preprocessing import LabelEncoder
@@ -106,6 +107,7 @@ class MLBModel:
             "clf": self.clf,
             "calibrated_clf": self.calibrated_clf,
             "le": self.le,
+            "training_medians": getattr(self, "training_medians", None),
         }
         joblib.dump(bundle, file_path)
 
@@ -117,4 +119,5 @@ class MLBModel:
         model.clf = bundle["clf"]
         model.calibrated_clf = bundle.get("calibrated_clf")
         model.le = bundle.get("le")
+        model.training_medians = bundle.get("training_medians")
         return model

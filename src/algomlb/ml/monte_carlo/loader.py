@@ -60,6 +60,9 @@ class MatchupContext(BaseModel):
     # Global Matchup Features (Elo, Pythag, etc.)
     matchup_features: Dict[str, float] = {}
 
+    # Staleness tracking
+    max_staleness_days: int = 0
+
     # Projection Metadata
     home_sp_projected: bool = False
     away_sp_projected: bool = False
@@ -96,7 +99,7 @@ class MatchupLoader:
         )
 
         # 5. Fetch Global Matchup Features (Elo, Pythag)
-        matchup_feats = self._fetch_global_features(game)
+        matchup_feats, max_staleness_days = self._fetch_global_features(game)
 
         # 6. Fetch Managers & Hook Profiles
         h_mgr_id, a_mgr_id = self._fetch_manager_ids(game)
@@ -151,6 +154,7 @@ class MatchupLoader:
                 "is_night": 1.0,
             },
             matchup_features=matchup_feats,
+            max_staleness_days=max_staleness_days,
             home_sp_projected=h_proj,
             away_sp_projected=a_proj,
         )
@@ -405,7 +409,7 @@ class MatchupLoader:
                 or col.name in _extra_cols
             ):
                 val = getattr(row, col.name)
-                feats[col.name] = float(val) if val is not None else 0.0
+                feats[col.name] = float(val) if val is not None else float("nan")
         return feats
 
     def _fetch_manager_ids(
@@ -690,8 +694,18 @@ class MatchupLoader:
 
         # Derived
         feats["pythag_diff"] = feats["h_pythag_win_pct"] - feats["a_pythag_win_pct"]
+        
+        h_elo_date = h_elo.game_date if h_elo else game_date
+        a_elo_date = a_elo.game_date if a_elo else game_date
+        h_saber_date = h_saber.game_date if h_saber else game_date
+        a_saber_date = a_saber.game_date if a_saber else game_date
+        
+        staleness = [
+            (game_date - d).days for d in [h_elo_date, a_elo_date, h_saber_date, a_saber_date]
+        ]
+        max_staleness = max(staleness) if staleness else 0
 
-        return feats
+        return feats, max_staleness
 
     def _fetch_rotation_projection(
         self, team_id: int, current_date: date

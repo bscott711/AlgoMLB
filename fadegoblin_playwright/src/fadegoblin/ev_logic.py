@@ -64,7 +64,7 @@ def abbreviate_team(name: str) -> str:
 
 # Maximum plays per card and edge sanity cap
 MAX_CARD_PLAYS = 5
-MAX_EDGE_PCT = 15.0  # discard edges above this — likely stale/garbage data
+MAX_EDGE_PCT = 10.0  # If any edge is above this, data is likely stale. Abort.
 
 
 def edge_to_goblins(edge_pct: float) -> str:
@@ -121,12 +121,13 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
     # Sort by EV descending to identify POTD
     df = df.sort_values(by="ev", ascending=False)
 
-    # ── Sanity filter: drop suspiciously high edges ─────────────────
-    original_count = len(df)
-    df = df[df["ev"] * 100 <= MAX_EDGE_PCT]
-    if len(df) < original_count:
-        print(
-            f"⚠️  Filtered {original_count - len(df)} legs with edge > {MAX_EDGE_PCT}% (likely stale data)."
+    # ── Sanity filter: Abort on suspiciously high edges ─────────────
+    suspicious = df[df["ev"] * 100 > MAX_EDGE_PCT]
+    if not suspicious.empty:
+        raise RuntimeError(
+            f"🚨 CRITICAL ALERT: Found {len(suspicious)} legs with edge > {MAX_EDGE_PCT}%! "
+            f"Max edge is {suspicious['ev'].max() * 100:.1f}%. "
+            "This indicates stale or missing data. Aborting card generation."
         )
 
     # ── Cap to MAX_CARD_PLAYS best plays ────────────────────────────
@@ -225,16 +226,21 @@ def get_preview_potd() -> dict | None:
         ) m ON b.game_id = m.game_id
         WHERE b.status = 'PENDING'
         AND g.game_datetime > NOW()
-        AND b.edge <= :edge_cap
         ORDER BY b.edge DESC
         LIMIT 1
     """)
 
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"edge_cap": MAX_EDGE_PCT / 100.0})
+        df = pd.read_sql(query, conn)
 
     if df.empty:
         return None
+        
+    if df.iloc[0]["ev"] * 100 > MAX_EDGE_PCT:
+        raise RuntimeError(
+            f"🚨 CRITICAL ALERT: POTD preview edge is suspiciously high "
+            f"({df.iloc[0]['ev'] * 100:.1f}% > {MAX_EDGE_PCT}%). Aborting preview post."
+        )
 
     row = df.iloc[0]
     home = abbreviate_team(row["home_team"])

@@ -74,9 +74,9 @@ def daily(
         logger.info(f"📅 Syncing Schedules: {start_trailing} to {today}")
         orchestrator.run_schedule_ingestion(start_date=start_trailing, end_date=today)
 
-        # C. Ingest Statcast (yesterday)
-        logger.info(f"⚾ Syncing Statcast: {yesterday}")
-        orchestrator.run_statcast_ingestion(start_date=yesterday, end_date=yesterday)
+        # C. Ingest Statcast (trailing window to yesterday)
+        logger.info(f"⚾ Syncing Statcast: {start_trailing} to {yesterday}")
+        orchestrator.run_statcast_ingestion(start_date=start_trailing, end_date=yesterday)
 
         # D. Ingest GUMBO (trailing window)
         logger.info(f"🍲 Syncing GUMBO Pitch Clocks: {start_trailing} to {today}")
@@ -113,7 +113,17 @@ def daily(
 
     process_silver_incremental(batch_size=50000)
 
-    # Gold Layer (Rolling Features for yesterday)
+    # Compute Elo and Sabermetrics
+    from algomlb.ml.elo import backfill_team_elo_history
+    from algomlb.ml.sabermetrics import backfill_team_sabermetrics_history
+    
+    logger.info("📈 Backfilling Elo History...")
+    backfill_team_elo_history(engine=session_factory.kw["bind"])
+    
+    logger.info("📈 Backfilling Sabermetrics History...")
+    backfill_team_sabermetrics_history(engine=session_factory.kw["bind"])
+
+    # Gold Layer (Rolling Features for trailing window to yesterday)
     from algomlb.ml.rolling_service import RollingService
     from algomlb.ml.rolling_processor import RollingProcessor
     from algomlb.config.settings import get_settings
@@ -123,7 +133,7 @@ def daily(
         db = DatabaseRepository(session)
         processor = RollingProcessor(settings.ml)
         service = RollingService(db, processor)
-        service.process_date_range(yesterday, yesterday)
+        service.process_date_range(start_trailing, yesterday)
 
     # 3. Paper Trading (Betting + Settlement)
     logger.info("💰 Running Paper Trading Engine")

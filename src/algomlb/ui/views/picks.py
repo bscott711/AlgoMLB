@@ -34,16 +34,39 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
 
                 model_prob, is_fallback = ui_utils.get_uranium_prediction(ctx)
 
-                # Market Odds
-                market_odds = (
+                # Market Odds (Vig Removed)
+                home_odds_row = (
                     session.query(LiveOddsORM)
                     .filter(LiveOddsORM.game_result_id == str(game.game_id))
                     .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+                    .filter(LiveOddsORM.outcome == game.home_team)
+                    .order_by(LiveOddsORM.timestamp.desc())
+                    .first()
+                )
+                
+                away_odds_row = (
+                    session.query(LiveOddsORM)
+                    .filter(LiveOddsORM.game_result_id == str(game.game_id))
+                    .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+                    .filter(LiveOddsORM.outcome == game.away_team)
                     .order_by(LiveOddsORM.timestamp.desc())
                     .first()
                 )
 
-                if market_odds:
+                market_odds = home_odds_row or away_odds_row
+
+                if home_odds_row and away_odds_row:
+                    h_raw = 1.0 / home_odds_row.price if home_odds_row.price > 0 else 0.5
+                    a_raw = 1.0 / away_odds_row.price if away_odds_row.price > 0 else 0.5
+                    total_implied = h_raw + a_raw
+                    
+                    if total_implied > 0:
+                        h_implied = h_raw / total_implied
+                    else:
+                        h_implied = 0.5
+                    
+                    implied_prob = h_raw # Need this just for fallback calculation below if needed, though we won't need it
+                elif market_odds:
                     implied_prob = (
                         1.0 / market_odds.price if market_odds.price > 0 else 0.5
                     )
@@ -52,8 +75,19 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
                         h_implied = implied_prob
                     else:
                         h_implied = 1.0 - implied_prob
+                else:
+                    h_implied = None
 
+                if h_implied is not None:
                     edge = model_prob - h_implied
+                    selection = game.home_team if edge > 0 else game.away_team
+                    
+                    if edge > 0 and home_odds_row:
+                        price = home_odds_row.price
+                    elif edge <= 0 and away_odds_row:
+                        price = away_odds_row.price
+                    else:
+                        price = 1 / (1 - implied_prob) if implied_prob < 1 else 0
 
                     picks.append(
                         {
@@ -61,12 +95,9 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
                             "Model Prob": model_prob,
                             "Market Prob": h_implied,
                             "Edge %": edge,
-                            "Selection": game.home_team if edge > 0 else game.away_team,
+                            "Selection": selection,
                             "EV %": abs(edge),
-                            "Price": market_odds.price
-                            if market_odds.outcome
-                            == (game.home_team if edge > 0 else game.away_team)
-                            else (1 / (1 - implied_prob) if implied_prob < 1 else 0),
+                            "Price": price,
                             "Updated": market_odds.timestamp.strftime("%H:%M"),
                             "Fallback": is_fallback,
                         }
