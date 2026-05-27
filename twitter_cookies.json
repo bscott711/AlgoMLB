@@ -24,7 +24,7 @@
     "value": "u%3D1784408876458070016",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1811376477.510514,
+    "expires": 1811376755.254531,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -54,7 +54,7 @@
     "value": "v1%3A177882102137835061",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1814400477.458182,
+    "expires": 1814400755.254333,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -64,7 +64,7 @@
     "value": "v1%3A177882102137835061",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1814400477.458301,
+    "expires": 1814400755.254477,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -84,7 +84,7 @@
     "value": "be7c734d281345b4af40db7fc39798c1",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1814400479,
+    "expires": 1814400762,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -104,7 +104,7 @@
     "value": "be7c734d281345b4af40db7fc39798c1",
     "domain": "x.com",
     "path": "/",
-    "expires": 1814400479,
+    "expires": 1814400762,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
