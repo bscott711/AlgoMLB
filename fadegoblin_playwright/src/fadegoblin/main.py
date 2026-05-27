@@ -110,7 +110,7 @@ def _run_degen(dry_run: bool) -> None:
             img_path = download_goblin_image(prompt, target_path)
             image_paths.append(img_path)
 
-    post_res = _post_to_socials(post_texts, image_paths, dry_run)
+    post_res = _post_to_socials(post_texts, [image_paths[0]], [image_paths[1]], dry_run)
 
     if not dry_run:
         from fadegoblin.db_slips import save_slip
@@ -205,7 +205,7 @@ def _run_sniper(dry_run: bool) -> None:
     post_texts = [post_text_1, post_text_2]
 
     post_res = _post_to_socials(
-        post_texts, image_paths, dry_run, db_ids_to_update=db_ids_to_update
+        post_texts, [final_path_1], [final_path_2], dry_run, db_ids_to_update=db_ids_to_update
     )
 
     if not dry_run:
@@ -274,7 +274,8 @@ def _run_preview(dry_run: bool) -> None:
     # Transition the previewed POTD to PLACED
     post_res = _post_to_socials(
         [post_text_1, post_text_2],
-        [preview_card_path, preview_card_path],
+        [preview_card_path],
+        [preview_card_path],
         dry_run,
         db_ids_to_update=[potd_leg["id"]],
     )
@@ -327,7 +328,8 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
 
     # Fetch Fliff green slips for winning picks
     wins_list = [p for p in stats.get("picks", []) if p.get("result") == "WIN"]
-    image_paths = [recap_card_path, recap_card_path]
+    bsky_images = [recap_card_path]
+    twitter_images = [recap_card_path]
     
     if wins_list:
         try:
@@ -336,22 +338,24 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
                 slip_path = fetch_green_slip(w["pick"])
                 if slip_path:
                     # Append the slip to both platforms' image lists
-                    image_paths.insert(1, slip_path)
-                    image_paths.append(slip_path)
+                    bsky_images.append(slip_path)
+                    twitter_images.append(slip_path)
                     break  # Just attach the first found slip to avoid clutter
         except Exception as e:
             print(f"⚠️ Error fetching Fliff green slips: {e}")
 
     _post_to_socials(
         [post_text_1, post_text_2],
-        image_paths,
+        bsky_images,
+        twitter_images,
         dry_run,
     )
 
 
 def _post_to_socials(
     post_texts: str | list[str],
-    image_paths: list[Path | None],
+    bsky_images: list[Path | None],
+    twitter_images: list[Path | None],
     dry_run: bool,
     *,
     db_ids_to_update: list[str] | None = None,
@@ -388,14 +392,14 @@ def _post_to_socials(
             client.login(config.BOT_HANDLE, config.APP_PASSWORD)
 
             text = post_texts[0]
-            img_path = image_paths[0] if image_paths else None
 
             blobs = []
-            if img_path and os.path.exists(img_path):
-                with open(img_path, "rb") as f:
-                    img_data = f.read()
-                upload = client.upload_blob(img_data)
-                blobs.append(upload.blob)
+            for img_path in bsky_images:
+                if img_path and os.path.exists(img_path):
+                    with open(img_path, "rb") as f:
+                        img_data = f.read()
+                    upload = client.upload_blob(img_data)
+                    blobs.append(upload.blob)
 
             if blobs:
                 images = [
@@ -424,11 +428,8 @@ def _post_to_socials(
             print("Starting Twitter browser automation...")
             text = post_texts[1]
             
-            # Twitter gets all valid images from the second half of the list (or all if we just want to send what we have)
-            # We structured image_paths above as [bsky_img1, bsky_img2, twitter_img1, twitter_img2] 
-            # Actually we inserted into the list. Let's just collect all unique valid paths.
             valid_paths = []
-            for p in image_paths:
+            for p in twitter_images:
                 if p and p not in valid_paths:
                     valid_paths.append(p)
 
@@ -439,7 +440,8 @@ def _post_to_socials(
             print(f"❌ Error during Twitter browser automation: {e}")
 
     # Cleanup images
-    for img_path in image_paths:
+    all_images = bsky_images + twitter_images
+    for img_path in set(all_images):
         if img_path and os.path.exists(img_path):
             os.remove(img_path)
 

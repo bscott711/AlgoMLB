@@ -224,20 +224,16 @@ def fetch_green_slip(pick_name: str) -> Path | None:
                     pick_el = page.get_by_text(pick_name, exact=False).first
                     if pick_el.is_visible(timeout=2000):
                         print(f"✅ Found '{pick_name}'!")
-                        # Get the bounding box and screenshot a card-sized region
-                        bbox = pick_el.bounding_box()
-                        if bbox:
-                            page.screenshot(
-                                path=str(target_path),
-                                clip={
-                                    "x": 0,
-                                    "y": max(0, bbox["y"] - 60),
-                                    "width": 390,
-                                    "height": 350,
-                                },
-                            )
+                        
+                        # Find the parent slip container
+                        slip_container = pick_el.locator("xpath=./ancestor::div[contains(@class, 'activity-feed-row')]").first
+                        
+                        if slip_container.is_visible(timeout=2000):
+                            slip_container.screenshot(path=str(target_path))
                         else:
+                            # Fallback to the text element if container not found
                             pick_el.screenshot(path=str(target_path))
+                        
                         found = True
                         break
                 except Exception:
