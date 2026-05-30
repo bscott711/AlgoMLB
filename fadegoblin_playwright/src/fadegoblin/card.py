@@ -110,9 +110,10 @@ def render_bet_card(
         table_y1 = 0
 
     # Main rounded background
-    draw.rounded_rectangle(
-        [table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR
-    )
+    if num_legs > 1:
+        draw.rounded_rectangle(
+            [table_x1, table_y1, table_x2, table_y2], radius=14, fill=BG_COLOR
+        )
 
     font_title = _load_font(16)
     font_date = _load_font(10)
@@ -246,30 +247,224 @@ def render_bet_card(
     # ── Grid Rendering ────────────────────────────────────────────────
     start_y = table_y1 + header_h
 
-    # 1. Render the centered POTD leg at row 0 (same width as other columns)
-    potd_leg = legs[potd_index]
-    potd_x = table_x1 + (CARD_WIDTH - COL_WIDTH) // 2
-    draw_leg_box(potd_leg, potd_x, start_y, COL_WIDTH, is_potd=True)
+    if num_legs == 1:
+        # Graffiti style for single POTD / Sniper
+        potd_leg = legs[potd_index]
+        
+        def draw_graffiti_text(x, y, text, font, fill_color, glow_color):
+            draw.text((x, y), text, font=font, fill=glow_color, stroke_width=8, stroke_fill=glow_color)
+            draw.text((x, y), text, font=font, fill=fill_color, stroke_width=4, stroke_fill="black")
 
-    # 2. Render other legs in a 2-column grid starting below the POTD
-    other_legs = [leg for idx, leg in enumerate(legs) if idx != potd_index]
-    for i, leg in enumerate(other_legs):
-        row = i // 2 + 1  # start at row 1
-        col = i % 2
+        _GRAFFITI_FONT_PATH = Path(__file__).parent / "assets" / "elfont-block.ttf"
+        try:
+            font_main = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), 100)
+            font_odds = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), 76)
+            font_sub = _load_font(28)
+        except (OSError, IOError):
+            font_main = _load_font(90)
+            font_odds = _load_font(76)
+            font_sub = _load_font(28)
+        
+        cy = card_height - 265
+        
+        game_text = potd_leg["game"]
+        pick_text = potd_leg["pick"]
+        parts = game_text.split(" @ ")
+        
+        if len(parts) == 2:
+            away, home = parts
+            away_color = (0, 255, 100) if pick_text == away else "white"
+            home_color = (0, 255, 100) if pick_text == home else "white"
+            
+            # Dynamically shrink font if too wide
+            main_font_size = 100
+            font_main = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), main_font_size)
+            at_font_size = int(main_font_size * 0.55)
+            font_at = _load_font(at_font_size)
+            at_pad = 16  # horizontal padding on each side of @
+            while True:
+                at_font_size = int(main_font_size * 0.55)
+                font_at = _load_font(at_font_size)
+                bbox1 = draw.textbbox((0, 0), away, font=font_main)
+                w1 = bbox1[2] - bbox1[0]
+                bbox2 = draw.textbbox((0, 0), "@", font=font_at)
+                w2 = bbox2[2] - bbox2[0]
+                bbox3 = draw.textbbox((0, 0), home, font=font_main)
+                w3 = bbox3[2] - bbox3[0]
+                
+                total_w = w1 + at_pad + w2 + at_pad + w3
+                if total_w < canvas_width - 60 or main_font_size <= 30:
+                    break
+                main_font_size -= 4
+                font_main = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), main_font_size)
+            
+            start_x = (canvas_width - total_w) / 2
+            
+            # Position @ at visual center of graffiti glyphs.
+            # elfont-block renders glyphs with visual mass around 40-55% of
+            # the font size.  Use font-size proportions instead of textbbox
+            # (unreliable across mismatched font families).
+            name_visual_mid = cy + main_font_size * 0.42
+            at_visual_h = at_font_size * 0.75
+            at_y = int(name_visual_mid - at_visual_h / 2)
+            
+            draw_graffiti_text(start_x, cy, away, font_main, away_color, (0, 255, 255))
+            draw_graffiti_text(start_x + w1 + at_pad, at_y, "@", font_at, "white", (0, 255, 255))
+            draw_graffiti_text(start_x + w1 + at_pad + w2 + at_pad, cy, home, font_main, home_color, (0, 255, 255))
+            cy += 135
+        else:
+            main_font_size = 100
+            font_main = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), main_font_size)
+            bbox = draw.textbbox((0, 0), game_text, font=font_main)
+            w = bbox[2] - bbox[0]
+            while w > canvas_width - 60 and main_font_size > 30:
+                main_font_size -= 4
+                font_main = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), main_font_size)
+                bbox = draw.textbbox((0, 0), game_text, font=font_main)
+                w = bbox[2] - bbox[0]
+                
+            draw_graffiti_text((canvas_width - w)/2, cy, game_text, font_main, (0, 255, 100), (0, 255, 255))
+            cy += 135
+        
+        odds_str = str(potd_leg["odds"])
+        if "🍭" in odds_str and "(" in odds_str:
+            start_idx = odds_str.find("(") + 1
+            end_idx = odds_str.find(" 🍭")
+            if end_idx == -1: end_idx = odds_str.find("🍭")
+            odds_str = odds_str[start_idx:end_idx].strip()
+        else:
+            odds_str = odds_str.replace(" 🍭", "")
+        
+        # Check for + or - sign
+        sign = ""
+        num_part = odds_str
+        if odds_str.startswith("+"):
+            sign = "+"
+            num_part = odds_str[1:]
+        elif odds_str.startswith("-") or odds_str.startswith("–") or odds_str.startswith("—"):
+            sign = "-"
+            num_part = odds_str[1:]
+            
+        odds_font_size = 76
+        # Sign drawn as a thick geometric shape; allocate fixed width
+        sign_shape_w = int(odds_font_size * 0.55)
+        sign_gap = 10
+        
+        while True:
+            font_odds = ImageFont.truetype(str(_GRAFFITI_FONT_PATH), odds_font_size)
+            sign_shape_w = int(odds_font_size * 0.55)
+            
+            bbox_num = draw.textbbox((0, 0), num_part, font=font_odds)
+            w_num = bbox_num[2] - bbox_num[0]
+            
+            if sign:
+                total_odds_w = sign_shape_w + sign_gap + w_num
+            else:
+                total_odds_w = w_num
+                
+            if total_odds_w < canvas_width - 80 or odds_font_size <= 24:
+                break
+            odds_font_size -= 4
+            
+        odds_x = (canvas_width - total_odds_w) / 2
+        
+        if sign:
+            num_x = odds_x + sign_shape_w + sign_gap
+            # Draw the number
+            draw_graffiti_text(num_x, cy, num_part, font_odds, (255, 255, 100), (255, 0, 255))
+            
+            # Draw sign as a thick geometric shape with graffiti glow
+            num_visual_mid_y = int(cy + odds_font_size * 0.45)
+            bar_thickness = max(8, odds_font_size // 8)
+            bar_width = sign_shape_w - 8
+            bar_x1 = int(odds_x + 4)
+            bar_x2 = int(bar_x1 + bar_width)
+            bar_y1 = int(num_visual_mid_y - bar_thickness // 2)
+            bar_y2 = int(bar_y1 + bar_thickness)
+            
+            # Glow layer
+            glow = 6
+            draw.rounded_rectangle(
+                [bar_x1 - glow, bar_y1 - glow, bar_x2 + glow, bar_y2 + glow],
+                radius=4, fill=(255, 0, 255)
+            )
+            # Black outline
+            outline = 3
+            draw.rounded_rectangle(
+                [bar_x1 - outline, bar_y1 - outline, bar_x2 + outline, bar_y2 + outline],
+                radius=3, fill="black"
+            )
+            # Main bar (horizontal — serves as minus)
+            draw.rounded_rectangle(
+                [bar_x1, bar_y1, bar_x2, bar_y2],
+                radius=2, fill=(255, 255, 100)
+            )
+            
+            if sign == "+":
+                # Add vertical bar for plus
+                vert_x1 = int(bar_x1 + bar_width // 2 - bar_thickness // 2)
+                vert_x2 = int(vert_x1 + bar_thickness)
+                vert_y1 = int(num_visual_mid_y - bar_width // 2)
+                vert_y2 = int(num_visual_mid_y + bar_width // 2)
+                draw.rounded_rectangle(
+                    [vert_x1 - glow, vert_y1 - glow, vert_x2 + glow, vert_y2 + glow],
+                    radius=4, fill=(255, 0, 255)
+                )
+                draw.rounded_rectangle(
+                    [vert_x1 - outline, vert_y1 - outline, vert_x2 + outline, vert_y2 + outline],
+                    radius=3, fill="black"
+                )
+                draw.rounded_rectangle(
+                    [vert_x1, vert_y1, vert_x2, vert_y2],
+                    radius=2, fill=(255, 255, 100)
+                )
+                # Redraw horizontal on top so intersection is clean
+                draw.rounded_rectangle(
+                    [bar_x1, bar_y1, bar_x2, bar_y2],
+                    radius=2, fill=(255, 255, 100)
+                )
+        else:
+            draw_graffiti_text(odds_x, cy, odds_str, font_odds, (255, 255, 100), (255, 0, 255))
+        cy += 105
+        
+        implied_pct = potd_leg.get("implied")
+        edge_pct = potd_leg.get("edge")
+        diag_parts = []
+        if implied_pct is not None:
+            diag_parts.append(f"impl {implied_pct}%")
+        if edge_pct is not None:
+            diag_parts.append(f"+{edge_pct}% EV")
+        if diag_parts:
+            diag_text = "  •  ".join(diag_parts)
+            bbox = draw.textbbox((0, 0), diag_text, font=font_sub)
+            w = bbox[2] - bbox[0]
+            draw_graffiti_text((canvas_width - w)/2, cy, diag_text, font_sub, "white", "black")
+    else:
+        # 1. Render the centered POTD leg at row 0 (same width as other columns)
+        potd_leg = legs[potd_index]
+        potd_x = table_x1 + (CARD_WIDTH - COL_WIDTH) // 2
+        draw_leg_box(potd_leg, potd_x, start_y, COL_WIDTH, is_potd=True)
 
-        lx = table_x1 + PADDING + col * (COL_WIDTH + PADDING)
-        ly = start_y + row * (ROW_HEIGHT + 4)
+        # 2. Render other legs in a 2-column grid starting below the POTD
+        other_legs = [leg for idx, leg in enumerate(legs) if idx != potd_index]
+        for i, leg in enumerate(other_legs):
+            row = i // 2 + 1  # start at row 1
+            col = i % 2
 
-        draw_leg_box(leg, lx, ly, COL_WIDTH, is_potd=False)
+            lx = table_x1 + PADDING + col * (COL_WIDTH + PADDING)
+            ly = start_y + row * (ROW_HEIGHT + 4)
 
-    # ── Footer ────────────────────────────────────────────────────────
-    footer_y = table_y2 - 20
-    draw.text(
-        (table_x1 + PADDING, footer_y),
-        "@TheFadeGoblin  •  AlgoMLB",
-        fill=TEXT_DIM,
-        font=font_footer,
-    )
+            draw_leg_box(leg, lx, ly, COL_WIDTH, is_potd=False)
+
+    # ── Footer (skip for single-leg graffiti cards) ────────────────────
+    if num_legs > 1:
+        footer_y = table_y2 - 20
+        draw.text(
+            (table_x1 + PADDING, footer_y),
+            "@TheFadeGoblin  •  AlgoMLB",
+            fill=TEXT_DIM,
+            font=font_footer,
+        )
 
     output_path = config.BASE_DIR / "temp_card.png"
     img.save(str(output_path), "PNG")
