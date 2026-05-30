@@ -42,13 +42,14 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["degen", "sniper", "recap", "preview", "followup"],
+        choices=["degen", "sniper", "recap", "weekly_recap", "preview", "followup"],
         default="degen",
         help=(
             "Run mode: "
             "'sniper' (morning card, marks bets PLACED), "
             "'preview' (8 PM night hype, reads PLACED picks for tonight), "
             "'recap' (morning recap of yesterday's results), "
+            "'weekly_recap' (morning recap of last 7 days), "
             "'degen' (random parlay), "
             "'followup' (grade pending slips and post replies)"
         ),
@@ -68,6 +69,8 @@ def main() -> None:
         _run_sniper(args.dry_run)
     elif args.mode == "recap":
         _run_recap(args.dry_run, args.date)
+    elif args.mode == "weekly_recap":
+        _run_weekly_recap(args.dry_run)
     elif args.mode == "preview":
         _run_preview(args.dry_run)
     elif args.mode == "followup":
@@ -199,9 +202,20 @@ def _run_sniper(dry_run: bool) -> None:
         if bg_path and os.path.exists(bg_path) and bg_path not in image_paths:
             os.remove(bg_path)
 
-    # 3. Generate TWO unique unhinged rants for the SAME POTD
-    post_text_1 = generate_sniper_post_content(potd_leg)
-    post_text_2 = generate_sniper_post_content(potd_leg)
+    # 3. Generate TWO unique unhinged rants for the FEATURE PLAY
+    feature_leg = None
+    for idx, leg in enumerate(all_legs):
+        if idx != potd_index:
+            feature_leg = leg
+            break
+            
+    is_feature_potd = False
+    if not feature_leg:
+        feature_leg = potd_leg
+        is_feature_potd = True
+
+    post_text_1 = generate_sniper_post_content(feature_leg, is_potd=is_feature_potd)
+    post_text_2 = generate_sniper_post_content(feature_leg, is_potd=is_feature_potd)
     post_texts = [post_text_1, post_text_2]
 
     post_res = _post_to_socials(
@@ -348,6 +362,42 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
         [post_text_1, post_text_2],
         bsky_images,
         twitter_images,
+        dry_run,
+    )
+
+
+def _run_weekly_recap(dry_run: bool) -> None:
+    """Weekly Recap Mode: pulls last 7 days of placed bets, posts a summary card."""
+    from fadegoblin.ev_logic import get_weekly_recap_stats
+    from fadegoblin.generator import generate_weekly_recap_post_content
+
+    print("📊 Mode: Weekly Recap. Pulling last 7 days of results...")
+    stats = get_weekly_recap_stats()
+
+    if not stats or stats.get("total", 0) == 0:
+        print("💤 No placed bets found for the last 7 days. Skipping weekly recap.")
+        return
+
+    print(f"   Weekly Total: {stats['wins']}W / {stats['losses']}L / {stats['pushes']}P")
+
+    # Generate ONE goblin background for the recap card
+    prompt = generate_goblin_prompt()
+    bg_target = config.BASE_DIR / "temp_weekly_recap_bg.jpg"
+    goblin_bg = download_goblin_image(prompt, bg_target)
+
+    recap_card_path = render_recap_card(stats, background_path=goblin_bg)
+
+    if goblin_bg and os.path.exists(goblin_bg) and goblin_bg != recap_card_path:
+        os.remove(goblin_bg)
+
+    # Generate TWO unique weekly recap posts (one per platform)
+    post_text_1 = generate_weekly_recap_post_content(stats)
+    post_text_2 = generate_weekly_recap_post_content(stats)
+
+    _post_to_socials(
+        [post_text_1, post_text_2],
+        [recap_card_path],
+        [recap_card_path],
         dry_run,
     )
 

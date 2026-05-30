@@ -441,8 +441,37 @@ check-settle-scheduler:
 	@echo "📅 Next Run:"
 	@systemctl --user list-timers algomlb-settle.timer --no-pager
 
-# Install ALL FadeGoblin schedulers (sync + sniper + degen + recap + settle + night + followup)
-install-all-schedulers: install-scheduler install-bot-scheduler install-degen-scheduler install-recap-scheduler install-settle-scheduler install-night-scheduler install-followup-scheduler
+# Install the systemd user-level scheduler for the FadeGoblin Weekly Recap bot
+install-weekly-recap-scheduler:
+	@echo "⚙️ Installing FadeGoblin Weekly Recap Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/fadegoblin-weekly-recap.service ~/.config/systemd/user/
+	cp scripts/fadegoblin-weekly-recap.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable fadegoblin-weekly-recap.timer
+	systemctl --user start fadegoblin-weekly-recap.timer
+	@echo "✅ Weekly Recap scheduler installed! Use 'just check-weekly-recap-scheduler' to verify."
+
+# Uninstall the weekly recap scheduler
+uninstall-weekly-recap-scheduler:
+	@echo "🛑 Uninstalling FadeGoblin Weekly Recap Scheduler..."
+	systemctl --user stop fadegoblin-weekly-recap.timer || true
+	systemctl --user disable fadegoblin-weekly-recap.timer || true
+	rm -f ~/.config/systemd/user/fadegoblin-weekly-recap.service
+	rm -f ~/.config/systemd/user/fadegoblin-weekly-recap.timer
+	systemctl --user daemon-reload
+	@echo "✅ Weekly Recap scheduler uninstalled."
+
+# Check the status of the weekly recap scheduler
+check-weekly-recap-scheduler:
+	@echo "📡 Checking FadeGoblin Weekly Recap Scheduler Status..."
+	@systemctl --user status fadegoblin-weekly-recap.timer --no-pager || echo "Timer not found."
+	@echo ""
+	@echo "📅 Next Run:"
+	@systemctl --user list-timers fadegoblin-weekly-recap.timer --no-pager
+
+# Install ALL FadeGoblin schedulers (sync + sniper + degen + recap + weekly_recap + settle + night + followup)
+install-all-schedulers: install-scheduler install-bot-scheduler install-degen-scheduler install-recap-scheduler install-weekly-recap-scheduler install-settle-scheduler install-night-scheduler install-followup-scheduler
 	@echo "✅ All FadeGoblin schedulers installed!"
 
 # Check ALL active timers

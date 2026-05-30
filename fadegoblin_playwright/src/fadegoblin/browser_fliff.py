@@ -244,9 +244,8 @@ def fetch_green_slip(pick_name: str) -> Path | None:
                 page.wait_for_timeout(1500)
 
             if not found:
-                # Fallback: screenshot the entire settled page
-                print(f"⚠️ Could not find '{pick_name}'. Taking full settled page screenshot.")
-                page.screenshot(path=str(target_path), full_page=True)
+                print(f"⚠️ Could not find '{pick_name}'. Skipping green slip.")
+                return None
 
             return target_path
 

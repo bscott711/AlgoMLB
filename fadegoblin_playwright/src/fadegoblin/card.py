@@ -288,9 +288,10 @@ def render_recap_card(stats: dict, background_path: Path | None = None) -> Path:
 
     # ── Header ────────────────────────────────────────────────────────
     date_str = stats.get("date", datetime.now().strftime("%Y-%m-%d"))
+    title_str = "👺 WEEKLY RECAP" if "to" in date_str else "👺 GOBLIN RECAP"
     draw.text(
         (table_x1 + PADDING, table_y1 + 10),
-        "👺 GOBLIN RECAP",
+        title_str,
         fill=ACCENT_GREEN,
         font=font_title,
     )

@@ -407,3 +407,89 @@ def mark_bets_placed(pick_ids: list[str]) -> None:
                 {"pid": pid},
             )
         conn.commit()
+
+
+def get_weekly_recap_stats() -> dict:
+    """Returns W/L/Push record and net PnL for the past 7 days of PLACED bets.
+    
+    This only calculates the aggregated stats over the past 7 days.
+    """
+    from datetime import date, timedelta, datetime
+    from zoneinfo import ZoneInfo
+
+    if not config.DATABASE_URL:
+        return {}
+
+    et = ZoneInfo("America/New_York")
+    end_date = (datetime.now(tz=et) - timedelta(days=1)).date()
+    start_date = end_date - timedelta(days=6)
+
+    engine = create_engine(config.DATABASE_URL)
+
+    query = text("""
+        SELECT
+            b.selection, b.pnl,
+            g.home_team, g.away_team, g.home_score, g.away_score
+        FROM bankroll_ledger b
+        JOIN game_results g ON b.game_id = g.game_id
+        WHERE b.status IN ('PLACED', 'SETTLED')
+        AND DATE(g.game_datetime AT TIME ZONE 'America/New_York') >= :start_date
+        AND DATE(g.game_datetime AT TIME ZONE 'America/New_York') <= :end_date
+    """)
+
+    with engine.connect() as conn:
+        df = pd.read_sql(
+            query, conn, params={"start_date": str(start_date), "end_date": str(end_date)}
+        )
+
+    if df.empty:
+        return {
+            "date": f"{start_date} to {end_date}",
+            "wins": 0,
+            "losses": 0,
+            "pushes": 0,
+            "total": 0,
+            "net_pnl": None,
+            "picks": [],
+        }
+
+    wins = losses = pushes = 0
+    net_pnl = 0.0
+    has_pnl = False
+
+    for _, row in df.iterrows():
+        home_score = row["home_score"]
+        away_score = row["away_score"]
+        selection = row["selection"]
+
+        if home_score is not None and away_score is not None:
+            winning_team = (
+                row["home_team"] if home_score > away_score else row["away_team"]
+            )
+            if home_score == away_score:
+                pushes += 1
+            elif selection == winning_team:
+                wins += 1
+            else:
+                losses += 1
+        elif row["pnl"] is not None:
+            if float(row["pnl"]) > 0:
+                wins += 1
+            elif float(row["pnl"]) == 0:
+                pushes += 1
+            else:
+                losses += 1
+
+        if row["pnl"] is not None:
+            net_pnl += float(row["pnl"])
+            has_pnl = True
+
+    return {
+        "date": f"{start_date} to {end_date}",
+        "wins": wins,
+        "losses": losses,
+        "pushes": pushes,
+        "total": len(df),
+        "net_pnl": round(net_pnl, 2) if has_pnl else None,
+        "picks": [],
+    }

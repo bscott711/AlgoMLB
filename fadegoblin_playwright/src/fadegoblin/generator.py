@@ -255,15 +255,16 @@ def generate_recap_post_content(stats: dict) -> str:
     return enforce_length_limit(final_post)
 
 
-def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
-    """Generates an unhinged post focused on a single Play of the Day pick."""
+def generate_sniper_post_content(potd_leg: dict[str, Any], is_potd: bool = True) -> str:
+    """Generates an unhinged post focused on a single featured pick."""
 
     pick_line = f"{potd_leg['pick']} ({potd_leg['game']})"
     edge_str = (
         f"+{potd_leg['edge']}%" if potd_leg["edge"] > 0 else f"{potd_leg['edge']}%"
     )
 
-    print(f"⭐ POTD: {pick_line} {potd_leg['odds']} | Edge: {edge_str}")
+    play_label = "POTD" if is_potd else "Sniper Play"
+    print(f"⭐ {play_label}: {pick_line} {potd_leg['odds']} | Edge: {edge_str}")
 
     # --- PERSONA & THEME INCEPTION ---
     current_day = datetime.now().weekday()
@@ -271,7 +272,7 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
     selected_style = random.choice(daily_pair)
 
     print(f"🎭 Selected Persona: {selected_style['name']}")
-    print("   🧠 Brainstorming chaotic POTD logic...")
+    print(f"   🧠 Brainstorming chaotic {play_label} logic...")
 
     theme_prompt = (
         f"Brainstorm 3 highly specific, absurd reasons to bet {pick_line} in Major League Baseball (MLB). "
@@ -297,18 +298,20 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
         else ""
     )
 
+    play_desc = "MLB PLAY OF THE DAY" if is_potd else "TOP MLB PLAY"
+
     # --- FINAL TWEET GENERATION ---
     full_prompt = (
         f"You are FadeGoblin, a chaotic, hyper-confident, degenerate MLB sports bettor.\n"
         f"Persona: {selected_style['prompt']}\n"
-        f"Task: Write a short, unhinged social media post announcing your MLB PLAY OF THE DAY.\n"
+        f"Task: Write a short, unhinged social media post announcing your {play_desc}.\n"
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
         f"The pick is: {pick_line} at {potd_leg['odds']}\n"
         f"{badges_info}\n"
         f"RULES FOR THE TWEET:\n"
         f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 220 characters.\n"
         f"2. DO NOT write a clinical summary. Write a punchy, unhinged rant.\n"
-        f"3. WEAVE the exact pick AND the system signals (badges) naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas).\n"
+        f"3. WEAVE the exact pick naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas). Do NOT explicitly mention the system signals (badges) in the text.\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
         f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
@@ -323,9 +326,9 @@ def generate_sniper_post_content(potd_leg: dict[str, Any]) -> str:
 
     quote = quote.strip('"').strip("'")
 
-    # Append the compact POTD ticket line
+    # Append the compact ticket line
     final_post = (
-        f"👺 {quote}\n\n⭐ POTD: {potd_leg['pick']} ML {potd_leg['odds']}\nFull card ⬇️"
+        f"👺 {quote}\n\n⭐ {play_label}: {potd_leg['pick']} ML {potd_leg['odds']}\nFull card ⬇️"
     )
 
     return enforce_length_limit(final_post)
@@ -378,3 +381,54 @@ def generate_followup_reply(
         return ""
 
     return enforce_length_limit(reply.strip('"').strip("'"))
+
+def generate_weekly_recap_post_content(stats: dict) -> str:
+    """Generates an unhinged FadeGoblin weekly recap post using the same persona system."""
+    
+    wins = stats.get("wins", 0)
+    losses = stats.get("losses", 0)
+    pushes = stats.get("pushes", 0)
+    net_pnl = stats.get("net_pnl")
+    date_str = stats.get("date", "this week")
+    
+    record = f"{wins}W-{losses}L" + (f"-{pushes}P" if pushes else "")
+    pnl_note = ""
+    if net_pnl is not None:
+        sign = "+" if net_pnl >= 0 else ""
+        pnl_note = f" ({sign}{net_pnl:.2f}u)"
+        
+    print(f"📊 Weekly Recap: {record}{pnl_note} for {date_str}")
+    
+    current_day = datetime.now().weekday()
+    daily_pair = [PERSONAS[current_day * 2], PERSONAS[current_day * 2 + 1]]
+    selected_style = random.choice(daily_pair)
+    
+    vibe = (
+        "glorious victory and infinite wealth"
+        if wins > losses
+        else ("brutal suffering and financial ruin" if losses > wins else "chaotic neutral mediocrity")
+    )
+    
+    full_prompt = (
+        f"You are FadeGoblin, a chaotic, hyper-confident, degenerate sports bettor giving your WEEKLY recap.\n"
+        f"Persona: {selected_style['prompt']}\n"
+        f"This week's record was {record}{pnl_note} — a week of {vibe}.\n"
+        f"Task: Write a short, unhinged social media recap post reflecting on the ENTIRE WEEK'S gambling results in character.\n"
+        f"RULES:\n"
+        f"1. NEVER break character. Be chaotic and emotionally unhinged about the week's result.\n"
+        f"2. Keep it STRICTLY under 220 characters.\n"
+        f"3. Reference the week's record ({record}) naturally — don't just announce it clinically.\n"
+        f"4. Focus on the grand scheme of the week. Talk about sportsbooks, math, variance, or your crazy theories.\n"
+        f"5. Use 1-2 relevant emojis only.\n"
+        f"6. DO NOT start with 'Locked' or 'Placing'.\n\n"
+        f"Output ONLY the final in-character text, nothing else."
+    )
+    
+    quote = get_ai_text(full_prompt)
+    if not quote or "Do you want me to" in quote or "Options:" in quote:
+        quote = random.choice(FALLBACK_QUOTES)
+        
+    quote = quote.strip('"').strip("'")
+    
+    final_post = f"👺 {quote}\n\n📅 Weekly Record: {record}{pnl_note}"
+    return enforce_length_limit(final_post)
