@@ -92,7 +92,8 @@ def generate_post_content(
         f"Strictly AVOID any baseball-related terms (no innings, bat flips, home runs, pitches, stadiums, or referring to these teams as baseball teams).\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
-        f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
+        f"6. Use 1-2 relevant emojis, but don't overdo it.\n"
+        f"7. DO NOT start the tweet with 'Yo,' 'Yo ' or any generic greetings.\n\n"
         f"Output ONLY the final in-character text, nothing else."
     )
 

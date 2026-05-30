@@ -20,6 +20,8 @@ COL_WIDTH = (CARD_WIDTH - (PADDING * 3)) // 2
 BG_COLOR = (12, 12, 18, 190)
 POTD_BG = (15, 65, 35, 255)
 ACCENT_GREEN = (0, 255, 100)
+POTD_GOLD = (255, 215, 0)
+HIGH_CONFIDENCE_BLUE = (0, 191, 255)
 TEXT_WHITE = (240, 240, 245)
 TEXT_DIM = (160, 160, 175)
 
@@ -138,14 +140,30 @@ def render_bet_card(
                     all_unique_badges.append(b)
 
         if all_unique_badges:
-            signal_text = " • ".join(all_unique_badges)
-            bbox_sig = draw.textbbox((0, 0), signal_text, font=font_date)
-            draw.text(
-                (table_x2 - PADDING - (bbox_sig[2] - bbox_sig[0]), table_y1 + 15),
-                signal_text,
-                fill=ACCENT_GREEN,
-                font=font_date,
-            )
+            has_potd = any("POTD" in b for b in all_unique_badges)
+            has_hc = any("HIGH CONFIDENCE" in b for b in all_unique_badges)
+
+            legend_x = table_x2 - PADDING
+            legend_y = table_y1 + 18
+
+            if has_hc:
+                text = "HIGH CONF"
+                bbox = draw.textbbox((0, 0), text, font=font_date)
+                text_w = bbox[2] - bbox[0]
+                legend_x -= text_w
+                draw.text((legend_x, legend_y), text, fill=TEXT_DIM, font=font_date)
+                legend_x -= 8
+                draw.rounded_rectangle([legend_x - 4, legend_y, legend_x, legend_y + 10], radius=1, fill=HIGH_CONFIDENCE_BLUE)
+                legend_x -= 16
+
+            if has_potd:
+                text = "POTD"
+                bbox = draw.textbbox((0, 0), text, font=font_date)
+                text_w = bbox[2] - bbox[0]
+                legend_x -= text_w
+                draw.text((legend_x, legend_y), text, fill=TEXT_DIM, font=font_date)
+                legend_x -= 8
+                draw.rounded_rectangle([legend_x - 4, legend_y, legend_x, legend_y + 10], radius=1, fill=POTD_GOLD)
 
     # ── Rendering helper for a single leg box ─────────────────────────
     def draw_leg_box(leg: dict, lx: int, ly: int, lwidth: int, is_potd: bool):
@@ -154,9 +172,22 @@ def render_bet_card(
             [lx, ly, lx + lwidth, ly + ROW_HEIGHT], radius=6, fill=fill
         )
 
-        if is_potd:
+        is_high_confidence = "💎 HIGH CONFIDENCE" in leg.get("badges", [])
+
+        if is_potd and is_high_confidence:
             draw.rounded_rectangle(
-                [lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=ACCENT_GREEN
+                [lx, ly, lx + 4, ly + ROW_HEIGHT // 2 + 2], radius=2, fill=POTD_GOLD
+            )
+            draw.rounded_rectangle(
+                [lx, ly + ROW_HEIGHT // 2 - 2, lx + 4, ly + ROW_HEIGHT], radius=2, fill=HIGH_CONFIDENCE_BLUE
+            )
+        elif is_potd:
+            draw.rounded_rectangle(
+                [lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=POTD_GOLD
+            )
+        elif is_high_confidence:
+            draw.rounded_rectangle(
+                [lx, ly, lx + 4, ly + ROW_HEIGHT], radius=2, fill=HIGH_CONFIDENCE_BLUE
             )
 
         # ── Matchup row (line 1) ───────────────────────────────────
