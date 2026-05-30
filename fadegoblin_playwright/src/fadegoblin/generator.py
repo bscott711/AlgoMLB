@@ -164,7 +164,8 @@ def generate_preview_post_content(potd_leg: dict) -> str:
         f"3. WEAVE the exact pick naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas).\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
-        f"6. Use 1-2 relevant emojis only.\n\n"
+        f"6. Use 1-2 relevant emojis only.\n"
+        f"7. DO NOT start the post with a standard greeting like 'Yo' or 'What's up' or 'Hey'. Jump straight into the unhinged analysis.\n\n"
         f"Output ONLY the final in-character text, nothing else."
     )
 
@@ -239,7 +240,8 @@ def generate_recap_post_content(stats: dict) -> str:
         f"3. Reference the record ({record}) naturally — don't just announce it clinically.\n"
         f"4. DO NOT list every pick. The card shows that. Just react to the outcome.\n"
         f"5. Use 1-2 relevant emojis only.\n"
-        f"6. DO NOT start with 'Locked' or 'Placing'.\n\n"
+        f"6. DO NOT start with 'Locked' or 'Placing'.\n"
+        f"7. DO NOT start the post with a standard greeting like 'Yo' or 'What's up' or 'Hey'. Jump straight into the unhinged analysis.\n\n"
         f"Output ONLY the final in-character text, nothing else."
     )
 
@@ -315,7 +317,8 @@ def generate_sniper_post_content(potd_leg: dict[str, Any], is_potd: bool = True)
         f"3. WEAVE the exact pick naturally into your manic rant. Make sure to refer to them as MLB baseball teams (e.g. MIN is Minnesota Twins, HOU is Houston Astros) and keep any references baseball-related (no quarters, timeouts, or basketball arenas). Do NOT explicitly mention the system signals (badges) in the text.\n"
         f"4. DO NOT append a formal ticket or odds list at the bottom. The system will do this automatically.\n"
         f"5. DO NOT start with 'Locked', 'Locking in', or 'Placing'. Jump straight into the logic.\n"
-        f"6. Use 1-2 relevant emojis, but don't overdo it.\n\n"
+        f"6. Use 1-2 relevant emojis, but don't overdo it.\n"
+        f"7. DO NOT start the post with a standard greeting like 'Yo' or 'What's up' or 'Hey'. Jump straight into the unhinged analysis.\n\n"
         f"Output ONLY the final in-character text, nothing else."
     )
 
