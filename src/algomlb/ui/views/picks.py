@@ -85,11 +85,13 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
                         selection = game.home_team
                         display_model_prob = model_prob
                         display_market_prob = h_implied
+                        display_edge = home_edge
                         price = home_odds_row.price if home_odds_row else (1 / h_implied if h_implied > 0 else 0)
                     else:
                         selection = game.away_team
                         display_model_prob = 1.0 - model_prob
                         display_market_prob = 1.0 - h_implied
+                        display_edge = -home_edge
                         price = away_odds_row.price if away_odds_row else (1 / (1 - h_implied) if (1 - h_implied) > 0 else 0)
 
                     # Calculate TRUE edge against the actual price (which includes vig)
