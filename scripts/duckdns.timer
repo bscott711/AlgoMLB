@@ -1,0 +1,9 @@
+[Unit]
+Description=Run DuckDNS Updater Every Hour
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

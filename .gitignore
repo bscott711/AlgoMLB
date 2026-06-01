@@ -108,3 +108,6 @@ data.zip
 # Model output logs and databases
 models/*.log
 models/*.db
+
+# Streamlit secrets
+.streamlit/secrets.toml

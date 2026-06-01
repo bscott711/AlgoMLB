@@ -58,7 +58,8 @@ def _load_table_data(
     )
 
     with engine.connect() as conn:
-        return pd.read_sql(query, conn, params=params)
+        res = conn.execute(query, params).mappings().all()
+        return pd.DataFrame(res)
 
 
 def _render_sidebar(inspector: SchemaInspector, tables: list):

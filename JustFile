@@ -167,6 +167,34 @@ tail-logs:
 	@tail -f logs/dashboard.log
 
 # ==========================================
+# 4.5 DASHBOARD SYSTEMD SERVICE
+# ==========================================
+
+# Install the systemd user-level service for the dashboard
+install-dashboard-service:
+	@echo "⚙️ Installing AlgoMLB Dashboard Service..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/algomlb-dashboard.service ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable algomlb-dashboard.service
+	systemctl --user start algomlb-dashboard.service
+	@echo "✅ Dashboard service installed and started! Use 'just check-dashboard-service' to verify."
+
+# Uninstall the dashboard service
+uninstall-dashboard-service:
+	@echo "🛑 Uninstalling AlgoMLB Dashboard Service..."
+	systemctl --user stop algomlb-dashboard.service || true
+	systemctl --user disable algomlb-dashboard.service || true
+	rm -f ~/.config/systemd/user/algomlb-dashboard.service
+	systemctl --user daemon-reload
+	@echo "✅ Dashboard service uninstalled."
+
+# Check the status of the dashboard service
+check-dashboard-service:
+	@echo "📡 Checking AlgoMLB Dashboard Service Status..."
+	@systemctl --user status algomlb-dashboard.service --no-pager || echo "Service not found."
+
+# ==========================================
 # 5. DATABASE HEALTH (P0 Foundation)
 # ==========================================
 

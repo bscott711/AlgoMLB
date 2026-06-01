@@ -78,6 +78,22 @@ if not df_alpha.empty:
         use_container_width=True,
     )
 
+    # Calculate CLV Metrics
+    df_alpha["clv"] = df_alpha.apply(
+        lambda r: r["market_move"] if r["model_prob"] > r["entry_implied"] else -r["market_move"], 
+        axis=1
+    )
+    clv_beat_rate = (df_alpha["clv"] > 0).mean()
+    avg_clv = df_alpha["clv"].mean()
+    mae_vs_close = (df_alpha["model_prob"] - df_alpha["closing_implied"]).abs().mean()
+
+    st.markdown("---")
+    st.markdown("### 📊 CLV & Calibration Metrics")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("CLV Beat Rate", f"{clv_beat_rate:.1%}", help="% of games where the market moved toward our model's edge.")
+    m2.metric("Average CLV", f"{avg_clv:+.2%}", help="Average probability points gained by beating the closing line.")
+    m3.metric("MAE vs Close", f"{mae_vs_close:.3f}", help="Mean Absolute Error between our model and the closing line.")
+
     # 3. Calibration Plot
     st.markdown("---")
     st.markdown("### 🎯 Model Calibration: Projections vs Market Close")
@@ -105,10 +121,3 @@ else:
         "No model prediction history found yet. Run a sync or view the Simulation Lab to archive predictions."
     )
 
-# --- 4. Raw Market Movement (Legacy) ---
-st.markdown("---")
-st.markdown("### 🏛️ Raw Market Drift (Legacy View)")
-# ... (Keeping the original market drift logic below for completeness)
-"""
-(Include original drift logic here if needed, or just let the new view dominate)
-"""

@@ -270,6 +270,7 @@ def _render_win_probability(session, sim_df, game_row, ctx):
                     session.query(LiveOddsORM)
                     .filter(LiveOddsORM.game_result_id == str(game_row["game_id"]))
                     .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+                    .filter(LiveOddsORM.outcome == game_row["home_team"])
                     .order_by(LiveOddsORM.timestamp.desc())
                     .first()
                 )

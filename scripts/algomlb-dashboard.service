@@ -1,0 +1,16 @@
+[Unit]
+Description=AlgoMLB Streamlit Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/opc/AlgoMLB
+ExecStart=/usr/bin/bash -c "export PATH=$PATH:$HOME/.cargo/bin:$HOME/.local/bin && just dashboard"
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

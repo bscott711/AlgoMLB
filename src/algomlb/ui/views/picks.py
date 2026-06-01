@@ -79,24 +79,30 @@ def _compute_predictions(target_date_str: str) -> list[dict]:
                     h_implied = None
 
                 if h_implied is not None:
-                    edge = model_prob - h_implied
-                    selection = game.home_team if edge > 0 else game.away_team
+                    home_edge = model_prob - h_implied
                     
-                    if edge > 0 and home_odds_row:
-                        price = home_odds_row.price
-                    elif edge <= 0 and away_odds_row:
-                        price = away_odds_row.price
+                    if home_edge > 0:
+                        selection = game.home_team
+                        display_model_prob = model_prob
+                        display_market_prob = h_implied
+                        price = home_odds_row.price if home_odds_row else (1 / h_implied if h_implied > 0 else 0)
                     else:
-                        price = 1 / (1 - implied_prob) if implied_prob < 1 else 0
+                        selection = game.away_team
+                        display_model_prob = 1.0 - model_prob
+                        display_market_prob = 1.0 - h_implied
+                        price = away_odds_row.price if away_odds_row else (1 / (1 - h_implied) if (1 - h_implied) > 0 else 0)
+
+                    # Calculate TRUE edge against the actual price (which includes vig)
+                    true_edge = display_model_prob - (1.0 / price if price > 0 else 1.0)
 
                     picks.append(
                         {
                             "Matchup": f"{game.away_team} @ {game.home_team}",
-                            "Model Prob": model_prob,
-                            "Market Prob": h_implied,
-                            "Edge %": edge,
+                            "Model Prob": display_model_prob,
+                            "Market Prob": display_market_prob,
+                            "Vig-Free Edge": display_edge,
+                            "True Edge": true_edge,
                             "Selection": selection,
-                            "EV %": abs(edge),
                             "Price": price,
                             "Updated": market_odds.timestamp.strftime("%H:%M"),
                             "Fallback": is_fallback,
@@ -134,7 +140,7 @@ def render_picks_view():
 
     # Display Picks Table
     picks_df = pd.DataFrame(picks)
-    picks_df = picks_df.sort_values("EV %", ascending=False)
+    picks_df = picks_df.sort_values("True Edge", ascending=False)
 
     # Check for fallback warnings
     fallback_count = sum(1 for p in picks if p.get("Fallback", False))
@@ -157,12 +163,12 @@ def render_picks_view():
             {
                 "Model Prob": "{:.1%}",
                 "Market Prob": "{:.1%}",
-                "Edge %": "{:+.1%}",
-                "EV %": "{:.1%}",
+                "Vig-Free Edge": "{:+.1%}",
+                "True Edge": "{:+.1%}",
                 "Price": "{:.2f}",
             }
         )
-        .map(color_edge, subset=["Edge %"]),
+        .map(color_edge, subset=["Vig-Free Edge", "True Edge"]),
         use_container_width=True,
     )
 
@@ -170,7 +176,7 @@ def render_picks_view():
     if not picks_df.empty:
         best_bet = picks_df.iloc[0]
         st.success(
-            f"🎯 **Best Bet**: {best_bet['Selection']} ({best_bet['Price']:.2f}) — EV: {best_bet['EV %']:.1%}"
+            f"🎯 **Best Bet**: {best_bet['Selection']} ({best_bet['Price']:.2f}) — True EV: {best_bet['True Edge']:.1%}"
         )
 
     # Cache freshness indicator
