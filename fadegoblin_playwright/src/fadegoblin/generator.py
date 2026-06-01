@@ -6,7 +6,7 @@ from fadegoblin.llm import get_ai_text
 from fadegoblin.prompts import FALLBACK_QUOTES, PERSONAS
 
 
-def enforce_length_limit(text: str, limit: int = 295) -> str:
+def enforce_length_limit(text: str, limit: int = 280) -> str:
     """Enforces a strict character limit for Bluesky/Twitter compatibility."""
     if len(text) <= limit:
         return text
@@ -86,7 +86,7 @@ def generate_post_content(
         f"ADAPT this specific bizarre logic into your own words: '{chosen_theme}'.\n"
         f"The bet is on:\n{locked_bet_text}\n\n"
         f"RULES FOR THE TWEET:\n"
-        f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 250 characters.\n"
+        f"1. NEVER break character. Be chaotic and highly confident. Keep it STRICTLY under 220 characters.\n"
         f"2. DO NOT write a clinical summary. Write a punchy, unhinged rant.\n"
         f"3. WEAVE the exact bet naturally into your manic rant. Use terminology relevant to the sports involved ({sports_str}), e.g., timeouts, goals, quarters, pucks, power-plays, courts, pitch. "
         f"Strictly AVOID any baseball-related terms (no innings, bat flips, home runs, pitches, stadiums, or referring to these teams as baseball teams).\n"
