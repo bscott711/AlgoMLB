@@ -161,7 +161,7 @@ def interactive_login_session() -> None:
             browser.close()
 
 
-def fetch_green_slip(pick_name: str) -> Path | None:
+def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
     """Fetch a screenshot of the Fliff slip matching the given pick name.
 
     Uses Radar.io interception to bypass geolocation verification,
@@ -217,24 +217,43 @@ def fetch_green_slip(pick_name: str) -> Path | None:
                 pass
 
             # Scroll through settled bets looking for the pick
-            print(f"🍭 Searching for '{pick_name}' in settled bets...")
+            print(f"🍭 Searching for '{pick_name}' vs '{opponent_name}' in settled bets...")
             found = False
+            
+            from fadegoblin.ev_logic import MLB_ABBREVIATIONS
+            possible_opponents = [opponent_name] if opponent_name else []
+            if opponent_name:
+                for full, ab in MLB_ABBREVIATIONS.items():
+                    if ab == opponent_name:
+                        possible_opponents.append(full)
+                        possible_opponents.append(full.split()[-1])
+
             for scroll_attempt in range(5):
                 try:
-                    pick_el = page.get_by_text(pick_name, exact=False).first
-                    if pick_el.is_visible(timeout=2000):
-                        print(f"✅ Found '{pick_name}'!")
-                        
+                    pick_els = page.get_by_text(pick_name, exact=False).all()
+                    for pick_el in pick_els:
+                        if not pick_el.is_visible(timeout=500):
+                            continue
+                            
                         # Find the parent slip container
                         slip_container = pick_el.locator("xpath=./ancestor::div[contains(@class, 'activity-feed-row')]").first
                         
-                        if slip_container.is_visible(timeout=2000):
+                        if slip_container.is_visible(timeout=1000):
+                            if possible_opponents:
+                                slip_text = slip_container.inner_text()
+                                if not any(opp in slip_text for opp in possible_opponents):
+                                    continue
+                                    
+                            print(f"✅ Found '{pick_name}' vs '{opponent_name}'!")
                             slip_container.screenshot(path=str(target_path))
+                            found = True
+                            break
                         else:
                             # Fallback to the text element if container not found
                             pick_el.screenshot(path=str(target_path))
-                        
-                        found = True
+                            found = True
+                            break
+                    if found:
                         break
                 except Exception:
                     pass

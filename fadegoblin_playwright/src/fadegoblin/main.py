@@ -349,7 +349,10 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
         try:
             from fadegoblin.browser_fliff import fetch_green_slip
             for w in wins_list:
-                slip_path = fetch_green_slip(w["pick"])
+                matchup = w.get("matchup", "")
+                pick = w.get("pick", "")
+                opponent_name = matchup.replace(pick, "").replace("@", "").strip()
+                slip_path = fetch_green_slip(pick, opponent_name)
                 if slip_path:
                     # Append the slip to both platforms' image lists
                     bsky_images.append(slip_path)
