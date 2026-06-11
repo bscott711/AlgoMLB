@@ -32,6 +32,7 @@ FREE_MODELS = [
     "nvidia/nemotron-3-super-120b-a12b:free",
     "google/gemma-4-31b-it:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-26b-a4b-it:free",
 ]
 
 def _make_openrouter_request(prompt: str, model: str) -> requests.Response:
@@ -44,7 +45,7 @@ def _make_openrouter_request(prompt: str, model: str) -> requests.Response:
         "https://openrouter.ai/api/v1/chat/completions",
         headers=get_openrouter_headers(),
         json=payload,
-        timeout=180,
+        timeout=240,
     )
 
 
