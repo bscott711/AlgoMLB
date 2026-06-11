@@ -161,7 +161,7 @@ def interactive_login_session() -> None:
             browser.close()
 
 
-def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
+def fetch_green_slip(pick_name: str, opponent_name: str = "") -> tuple[Path | None, str | None]:
     """Fetch a screenshot of the Fliff slip matching the given pick name.
 
     Uses Radar.io interception to bypass geolocation verification,
@@ -169,7 +169,7 @@ def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
     """
     if not STATE_PATH.exists():
         print("❌ Fliff state not found. Please run: uv run python -m fadegoblin.browser_fliff --login")
-        return None
+        return None, None
 
     with sync_playwright() as p:
         print(f"🍭 Launching browser to fetch Fliff slip for '{pick_name}' ...")
@@ -239,19 +239,31 @@ def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
                         slip_container = pick_el.locator("xpath=./ancestor::div[contains(@class, 'activity-feed-row')]").first
                         
                         if slip_container.is_visible(timeout=1000):
+                            slip_text = slip_container.inner_text()
                             if possible_opponents:
-                                slip_text = slip_container.inner_text()
                                 if not any(opp in slip_text for opp in possible_opponents):
                                     continue
+                            
+                            import re
+                            from fadegoblin.db_slips import is_slip_posted
+                            
+                            match = re.search(r"Pick ID:\s*(\d+)", slip_text, re.IGNORECASE)
+                            slip_id = match.group(1) if match else None
+                            
+                            if slip_id and is_slip_posted(slip_id):
+                                print(f"   Skipping old slip (already posted: {slip_id})")
+                                continue
                                     
                             print(f"✅ Found '{pick_name}' vs '{opponent_name}'!")
                             slip_container.screenshot(path=str(target_path))
                             found = True
+                            extracted_slip_id = slip_id
                             break
                         else:
                             # Fallback to the text element if container not found
                             pick_el.screenshot(path=str(target_path))
                             found = True
+                            extracted_slip_id = None
                             break
                     if found:
                         break
@@ -264,9 +276,9 @@ def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
 
             if not found:
                 print(f"⚠️ Could not find '{pick_name}'. Skipping green slip.")
-                return None
+                return None, None
 
-            return target_path
+            return target_path, extracted_slip_id
 
         except PlaywrightTimeoutError as e:
             print(f"❌ Timed out: {e}", file=sys.stderr)
@@ -279,7 +291,7 @@ def fetch_green_slip(pick_name: str, opponent_name: str = "") -> Path | None:
                 pass
             browser.close()
 
-    return None
+    return None, None
 
 
 def place_fliff_bet(pick_name: str, amount: int, use_coins: bool = True) -> bool:

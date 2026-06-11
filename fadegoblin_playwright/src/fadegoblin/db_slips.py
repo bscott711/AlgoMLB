@@ -37,7 +37,40 @@ def init_db():
             )
         except Exception as e:
             print(f"⚠️ Warning adding original_post_text column: {e}")
-    print("✅ initialized fadegoblin_slips table.")
+            
+        # Create table for tracking posted green slips
+        green_slips_query = """
+        CREATE TABLE IF NOT EXISTS fadegoblin_posted_green_slips (
+            slip_id VARCHAR(255) PRIMARY KEY,
+            bookmaker VARCHAR(50) NOT NULL,
+            pick_name VARCHAR(100) NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        conn.execute(text(green_slips_query))
+    print("✅ initialized fadegoblin_slips and fadegoblin_posted_green_slips tables.")
+
+
+def is_slip_posted(slip_id: str) -> bool:
+    """Checks if a Fliff/Rebet slip ID has already been posted in a recap."""
+    engine = get_engine()
+    query = "SELECT 1 FROM fadegoblin_posted_green_slips WHERE slip_id = :slip_id LIMIT 1;"
+    with engine.connect() as conn:
+        result = conn.execute(text(query), {"slip_id": slip_id})
+        return result.scalar() is not None
+
+
+def record_posted_slip(slip_id: str, bookmaker: str, pick_name: str) -> None:
+    """Records a green slip ID so it is never reused for future recaps."""
+    engine = get_engine()
+    query = """
+    INSERT INTO fadegoblin_posted_green_slips (slip_id, bookmaker, pick_name, created_at)
+    VALUES (:slip_id, :bookmaker, :pick_name, NOW())
+    ON CONFLICT (slip_id) DO NOTHING;
+    """
+    with engine.begin() as conn:
+        conn.execute(text(query), {"slip_id": slip_id, "bookmaker": bookmaker, "pick_name": pick_name})
+    print(f"🔒 Recorded {bookmaker} green slip #{slip_id} to prevent reuse.")
 
 
 def save_slip(

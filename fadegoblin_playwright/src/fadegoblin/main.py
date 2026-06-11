@@ -345,6 +345,7 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
     bsky_images = [recap_card_path]
     twitter_images = [recap_card_path]
     
+    captured_slip_ids = []
     if wins_list:
         try:
             from fadegoblin.browser_fliff import fetch_green_slip
@@ -352,21 +353,31 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
                 matchup = w.get("matchup", "")
                 pick = w.get("pick", "")
                 opponent_name = matchup.replace(pick, "").replace("@", "").strip()
-                slip_path = fetch_green_slip(pick, opponent_name)
+                slip_path, slip_id = fetch_green_slip(pick, opponent_name)
                 if slip_path:
                     # Append the slip to both platforms' image lists
                     bsky_images.append(slip_path)
                     twitter_images.append(slip_path)
+                    if slip_id:
+                        captured_slip_ids.append((slip_id, pick))
                     break  # Just attach the first found slip to avoid clutter
         except Exception as e:
             print(f"⚠️ Error fetching Fliff green slips: {e}")
 
-    _post_to_socials(
+    post_res = _post_to_socials(
         [post_text_1, post_text_2],
         bsky_images,
         twitter_images,
         dry_run,
     )
+
+    if not dry_run and (post_res.get("bsky_uri") or post_res.get("tweet_id")):
+        try:
+            from fadegoblin.db_slips import record_posted_slip
+            for sid, p in captured_slip_ids:
+                record_posted_slip(sid, "fliff", p)
+        except Exception as e:
+            print(f"⚠️ Failed to record posted slip ID: {e}")
 
 
 def _run_weekly_recap(dry_run: bool) -> None:
