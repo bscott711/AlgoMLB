@@ -128,7 +128,7 @@ def has_potd_been_saved(id_str: str) -> bool:
     query = """
     SELECT 1 FROM fadegoblin_slips 
     WHERE slip_type = 'potd' 
-    AND legs @> :id_json::jsonb 
+    AND legs @> CAST(:id_json AS jsonb) 
     LIMIT 1;
     """
     with engine.connect() as conn:

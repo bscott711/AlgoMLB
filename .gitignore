@@ -111,3 +111,8 @@ models/*.db
 
 # Streamlit secrets
 .streamlit/secrets.toml
+# Debug screenshots
+twitter_debug_compose.png
+twitter_debug_drafted.png
+twitter_error.png
+fadegoblin_playwright/temp_card.png
