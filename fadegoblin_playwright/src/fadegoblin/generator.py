@@ -99,9 +99,8 @@ def generate_post_content(
 
     quote = get_ai_text(full_prompt)
 
-    if not quote or "Do you want me to" in quote or "Options:" in quote:
-        print("⚠️ API broke character. Using fallback.")
-        quote = random.choice(FALLBACK_QUOTES)
+    if "Do you want me to" in quote or "Options:" in quote:
+        raise Exception(f"API broke character. Response: {quote}")
 
     # Clean up the quote just in case it added quotes around its response
     quote = quote.strip('"').strip("'")
@@ -171,9 +170,8 @@ def generate_preview_post_content(potd_leg: dict) -> str:
 
     quote = get_ai_text(full_prompt)
 
-    if not quote or "Do you want me to" in quote or "Options:" in quote:
-        print("⚠️ API broke character. Using fallback.")
-        quote = random.choice(FALLBACK_QUOTES)
+    if "Do you want me to" in quote or "Options:" in quote:
+        raise Exception(f"API broke character. Response: {quote}")
 
     quote = quote.strip('"').strip("'")
 
@@ -247,9 +245,8 @@ def generate_recap_post_content(stats: dict) -> str:
 
     quote = get_ai_text(full_prompt)
 
-    if not quote or "Do you want me to" in quote or "Options:" in quote:
-        print("⚠️ API broke character. Using fallback.")
-        quote = random.choice(FALLBACK_QUOTES)
+    if "Do you want me to" in quote or "Options:" in quote:
+        raise Exception(f"API broke character. Response: {quote}")
 
     quote = quote.strip('"').strip("'")
 
@@ -324,9 +321,8 @@ def generate_sniper_post_content(potd_leg: dict[str, Any], is_potd: bool = True)
 
     quote = get_ai_text(full_prompt)
 
-    if not quote or "Do you want me to" in quote or "Options:" in quote:
-        print("⚠️ API broke character. Using fallback.")
-        quote = random.choice(FALLBACK_QUOTES)
+    if "Do you want me to" in quote or "Options:" in quote:
+        raise Exception(f"API broke character. Response: {quote}")
 
     quote = quote.strip('"').strip("'")
 
@@ -380,9 +376,8 @@ def generate_followup_reply(
         )
 
     reply = get_ai_text(prompt)
-    if not reply or "Do you want me to" in reply or "Options:" in reply:
-        print("⚠️ API broke character in follow-up. Using fallback.")
-        return ""
+    if "Do you want me to" in reply or "Options:" in reply:
+        raise Exception(f"API broke character in follow-up. Response: {reply}")
 
     return enforce_length_limit(reply.strip('"').strip("'"))
 
@@ -429,8 +424,8 @@ def generate_weekly_recap_post_content(stats: dict) -> str:
     )
     
     quote = get_ai_text(full_prompt)
-    if not quote or "Do you want me to" in quote or "Options:" in quote:
-        quote = random.choice(FALLBACK_QUOTES)
+    if "Do you want me to" in quote or "Options:" in quote:
+        raise Exception(f"API broke character. Response: {quote}")
         
     quote = quote.strip('"').strip("'")
     

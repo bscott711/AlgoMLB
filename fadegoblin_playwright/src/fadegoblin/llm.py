@@ -49,9 +49,10 @@ def _make_openrouter_request(prompt: str, model: str) -> requests.Response:
     )
 
 
-def get_ai_text(prompt: str, retries: int = 3) -> str | None:
+def get_ai_text(prompt: str, retries: int = 3) -> str:
     """Generates text from the OpenRouter LLM API with retries and multi-model fallback."""
     retry_delays = [60, 180, 300]
+    last_error = "Unknown error"
 
     for attempt in range(retries):
         for model in FREE_MODELS:
@@ -82,25 +83,27 @@ def get_ai_text(prompt: str, retries: int = 3) -> str | None:
                         raise ValueError("Generated text was too short or malformed")
                     return text
 
-                print(
-                    f"   ⚠️ API Error with {model} (Attempt {attempt + 1}): "
-                    f"{response.status_code} - {response.text[:50]}"
-                )
+                error_msg = f"{response.status_code} - {response.text[:50]}"
+                print(f"   ⚠️ API Error with {model} (Attempt {attempt + 1}): {error_msg}")
+                last_error = f"API Error: {error_msg}"
 
             except Exception as e:
-                print(f"   ⚠️ Connection Failed with {model} (Attempt {attempt + 1}): {e}")
+                error_msg = str(e)
+                print(f"   ⚠️ Connection Failed with {model} (Attempt {attempt + 1}): {error_msg}")
+                last_error = f"Connection Failed: {error_msg}"
 
         if attempt < retries - 1:
             wait = retry_delays[attempt]
             print(f"   ⏳ All free models failed. Waiting {wait}s before retry...")
             time.sleep(wait)
 
-    return None
+    raise Exception(f"LLM text generation failed after {retries} retries. Last error: {last_error}")
 
 
-def get_ai_json(prompt: str, retries: int = 3) -> dict[str, Any] | None:
+def get_ai_json(prompt: str, retries: int = 3) -> dict[str, Any]:
     """Generates JSON from the OpenRouter LLM API with retries and multi-model fallback."""
     retry_delays = [60, 180, 300]
+    last_error = "Unknown error"
 
     for attempt in range(retries):
         for model in FREE_MODELS:
@@ -117,20 +120,23 @@ def get_ai_json(prompt: str, retries: int = 3) -> dict[str, Any] | None:
 
                     try:
                         return json.loads(text)
-                    except json.JSONDecodeError:
-                        print(
-                            f"   ⚠️ Failed to parse JSON from {model} on Attempt {attempt + 1}: "
-                            f"{text[:50]}..."
-                        )
+                    except json.JSONDecodeError as e:
+                        error_msg = f"Failed to parse JSON: {e}. Text: {text[:50]}..."
+                        print(f"   ⚠️ {error_msg} from {model} on Attempt {attempt + 1}")
+                        last_error = error_msg
                 else:
-                    print(f"   ⚠️ API Error with {model} (Attempt {attempt + 1}): {response.status_code}")
+                    error_msg = f"{response.status_code} - {response.text[:50]}"
+                    print(f"   ⚠️ API Error with {model} (Attempt {attempt + 1}): {error_msg}")
+                    last_error = f"API Error: {error_msg}"
 
             except Exception as e:
-                print(f"   ⚠️ Connection Failed with {model} (Attempt {attempt + 1}): {e}")
+                error_msg = str(e)
+                print(f"   ⚠️ Connection Failed with {model} (Attempt {attempt + 1}): {error_msg}")
+                last_error = f"Connection Failed: {error_msg}"
 
         if attempt < retries - 1:
             wait = retry_delays[attempt]
             print(f"   ⏳ All free models failed. Waiting {wait}s before retry...")
             time.sleep(wait)
 
-    return None
+    raise Exception(f"LLM JSON generation failed after {retries} retries. Last error: {last_error}")

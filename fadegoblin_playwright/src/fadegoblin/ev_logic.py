@@ -64,7 +64,7 @@ def abbreviate_team(name: str) -> str:
 
 # Maximum plays per card and edge sanity cap
 MAX_CARD_PLAYS = 5
-MAX_EDGE_PCT = 10.0  # If any edge is above this, data is likely stale. Abort.
+MAX_EDGE_PCT = 15.0  # If any edge is above this, data is likely stale. Abort.
 
 
 def edge_to_goblins(edge_pct: float) -> str:

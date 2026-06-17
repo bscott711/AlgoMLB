@@ -65,20 +65,26 @@ def main() -> None:
 
     print(f"--- Starting FadeGoblin [{args.mode.upper()}] at {datetime.now()} ---")
 
-    if args.mode == "sniper":
-        _run_sniper(args.dry_run)
-    elif args.mode == "recap":
-        _run_recap(args.dry_run, args.date)
-    elif args.mode == "weekly_recap":
-        _run_weekly_recap(args.dry_run)
-    elif args.mode == "preview":
-        _run_preview(args.dry_run)
-    elif args.mode == "followup":
-        from fadegoblin.followup import run_followup_cycle
+    try:
+        if args.mode == "sniper":
+            _run_sniper(args.dry_run)
+        elif args.mode == "recap":
+            _run_recap(args.dry_run, args.date)
+        elif args.mode == "weekly_recap":
+            _run_weekly_recap(args.dry_run)
+        elif args.mode == "preview":
+            _run_preview(args.dry_run)
+        elif args.mode == "followup":
+            from fadegoblin.followup import run_followup_cycle
 
-        run_followup_cycle(args.dry_run)
-    else:
-        _run_degen(args.dry_run)
+            run_followup_cycle(args.dry_run)
+        else:
+            _run_degen(args.dry_run)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"❌ Uncaught Exception: {e}")
+        _post_error_to_bsky(str(e), args.dry_run)
 
 
 def _run_degen(dry_run: bool) -> None:
@@ -94,12 +100,12 @@ def _run_degen(dry_run: bool) -> None:
     if chosen_legs_1:
         post_texts.append(generate_post_content(chosen_legs_1, final_odds_1))
     else:
-        post_texts.append(random.choice(FALLBACK_QUOTES))
+        raise Exception("No live games available to build a parlay.")
 
     if chosen_legs_2:
         post_texts.append(generate_post_content(chosen_legs_2, final_odds_2))
     else:
-        post_texts.append(random.choice(FALLBACK_QUOTES))
+        post_texts.append(post_texts[0])
 
     # 2. Generate TWO unique images
     image_paths = []
@@ -515,6 +521,40 @@ def _post_to_socials(
         print(f"✅ Marked {len(db_ids_to_update)} EV bets as PLACED in database.")
 
     return res
+
+
+def _post_error_to_bsky(error_msg: str, dry_run: bool) -> None:
+    """Posts a text-only error message to Bluesky."""
+    print("🚨 Attempting to post error state to Bluesky...")
+    
+    error_intros = [
+        "The matrix is glitching... 🤖💥",
+        "My bookie cut the power lines! 🔌✂️",
+        "The model is hallucinating ghosts! 👻📉",
+        "API is fried, I'm going back to the cave! 🦇🔥",
+        "System failure! The casino is fighting back! 🎰🚨",
+    ]
+    
+    intro = random.choice(error_intros)
+    
+    # Keep it under limits
+    error_text = f"🚨 SYSTEM ERROR 🚨\n\n{intro}\n\nDEBUG LOG:\n{error_msg}"
+    if len(error_text) > 280:
+        error_text = error_text[:277] + "..."
+        
+    if dry_run:
+        print("\n🚫 DRY RUN MODE ENABLED. SKIPPING ERROR UPLOAD.")
+        print(f"📝 Error Post:\n{error_text}")
+        return
+        
+    if config.BOT_HANDLE and config.APP_PASSWORD:
+        try:
+            client = Client()
+            client.login(config.BOT_HANDLE, config.APP_PASSWORD)
+            client.send_post(text=error_text)
+            print("✅ Successfully posted error to Bluesky!")
+        except Exception as e:
+            print(f"❌ Failed to post error to Bluesky: {e}")
 
 
 if __name__ == "__main__":

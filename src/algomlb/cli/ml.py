@@ -77,7 +77,7 @@ def run_decoupler_pipeline(*args, **kwargs) -> Dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────
 
 
-def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
+def _load_ml_data(engine: Any, years_str: str, target: str = "") -> Dict[str, pd.DataFrame]:
     """Load the gold layer features for the specified training window."""
     logger.info(f"Fetching features for years: {years_str}...")
 
@@ -109,24 +109,25 @@ def _load_ml_data(engine: Any, years_str: str) -> Dict[str, pd.DataFrame]:
         logger.warning("team_elo_history not found.")
         elo_df = pd.DataFrame()
 
-    try:
-        years_list = [int(y.strip()) for y in years_str.split(",")]
-        retro_df = pd.read_sql(
-            f"""
-            SELECT game_id, date AS game_date, inning, top_bot, outs_pre, outs_post,
-                   br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
-                   runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team,
-                   balls, strikes,
-                   walk, k, hbp, single, double_flag, triple, hr
-            FROM retrosheet_events
-            WHERE EXTRACT(YEAR FROM date) IN ({years_str}) AND pa_flag = 1
-            """,
-            engine,
-        )
-        retro_df = _label_pa_outcomes(retro_df)
-    except Exception as e:
-        logger.warning(f"retrosheet_events loading failed: {e}")
-        retro_df = pd.DataFrame()
+    retro_df = pd.DataFrame()
+    if target == "pa_outcome":
+        try:
+            years_list = [int(y.strip()) for y in years_str.split(",")]
+            retro_df = pd.read_sql(
+                f"""
+                SELECT game_id, date AS game_date, inning, top_bot, outs_pre, outs_post,
+                       br1_pre, br2_pre, br3_pre, br1_post, br2_post, br3_post,
+                       runs, pa_flag, batter_id, pitcher_id, bat_team, pit_team,
+                       balls, strikes,
+                       walk, k, hbp, single, double_flag, triple, hr
+                FROM retrosheet_events
+                WHERE EXTRACT(YEAR FROM date) IN ({years_str}) AND pa_flag = 1
+                """,
+                engine,
+            )
+            retro_df = _label_pa_outcomes(retro_df)
+        except Exception as e:
+            logger.warning(f"retrosheet_events loading failed: {e}")
 
     pythag_df = compute_pythagorean_features(games_df)
 
@@ -236,7 +237,7 @@ def tune(
     engine = session_factory.kw["bind"]
     years_str = "2021,2022,2023,2024,2025"
 
-    data = _load_ml_data(engine, years_str)
+    data = _load_ml_data(engine, years_str, target=target)
     if data["games"].empty:
         logger.error("No games found.")
         raise typer.Exit(1)
@@ -329,7 +330,7 @@ def backtest(
     engine = session_factory.kw["bind"]
     years_str = "2021,2022,2023,2024,2025"
 
-    data = _load_ml_data(engine, years_str)
+    data = _load_ml_data(engine, years_str, target=target)
     if data["games"].empty:
         logger.error("No games found.")
         raise typer.Exit(1)
@@ -452,7 +453,7 @@ def explain(
     engine = session_factory.kw["bind"]
     years_str = "2024,2025"
 
-    data = _load_ml_data(engine, years_str)
+    data = _load_ml_data(engine, years_str, target=target)
     pipeline = FeaturePipeline()
     if target == "pa_outcome":
         X, y = pipeline.build_pa_matrix(
@@ -524,7 +525,7 @@ def train(
     engine = session_factory.kw["bind"]
     years_str = "2021,2022,2023,2024,2025"
 
-    data = _load_ml_data(engine, years_str)
+    data = _load_ml_data(engine, years_str, target=target)
     pipeline = FeaturePipeline()
     if target == "pa_outcome":
         X, y = pipeline.build_pa_matrix(

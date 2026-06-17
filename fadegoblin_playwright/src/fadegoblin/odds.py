@@ -194,8 +194,6 @@ def get_fliff_mlb_odds() -> dict[str, dict[str, str]]:
 
 def get_live_games(max_games: int = 15) -> list[dict[str, Any]]:
     """Fetch upcoming games across multiple random active leagues."""
-    random.shuffle(ACTIVE_LEAGUES)
-
     parsed_games = []
     leagues_queried = 0
 
@@ -219,7 +217,36 @@ def get_live_games(max_games: int = 15) -> list[dict[str, Any]]:
 
     key_index = 0
 
-    for league in ACTIVE_LEAGUES:
+    # Dynamically fetch active sports
+    active_leagues = []
+    while key_index < len(keys):
+        active_key = keys[key_index]
+        try:
+            sports_url = "https://api.the-odds-api.com/v4/sports"
+            params = {"api_key": active_key}
+            resp = requests.get(sports_url, params=params, timeout=10)
+            
+            if resp.status_code in (401, 429):
+                print(f"⚠️ Odds API key {active_key[:6]}... failed on sports list with status {resp.status_code}. Swapping to next key.")
+                mark_key_exhausted(active_key)
+                key_index += 1
+                continue
+                
+            resp.raise_for_status()
+            sports_data = resp.json()
+            active_leagues = [s["key"] for s in sports_data if s.get("active") and not s.get("has_outrights")]
+            break
+        except Exception as e:
+            print(f"⚠️ Error fetching active sports with key {active_key[:6]}...: {e}")
+            break
+
+    if not active_leagues:
+        print("⚠️ Falling back to default ACTIVE_LEAGUES")
+        active_leagues = ACTIVE_LEAGUES.copy()
+
+    random.shuffle(active_leagues)
+
+    for league in active_leagues:
         if leagues_queried >= 3 or len(parsed_games) >= max_games:
             break
 

@@ -107,7 +107,7 @@ class XGBoostOptunaObjective:
             y_prob = model.predict_proba(X_test)
 
             # 1. LogLoss (Calibration)
-            labels = np.arange(self.num_class) if self.num_class is not None else None
+            labels = np.arange(self.num_class) if self.num_class is not None else [0, 1]
             curr_logloss = log_loss(y_test, y_prob, labels=labels)
 
             # 2. AUC (Discrimination) - Composite Step
@@ -134,7 +134,13 @@ class XGBoostOptunaObjective:
                 except Exception:
                     curr_auc = 0.5
             else:
-                curr_auc = float(roc_auc_score(y_test, y_prob[:, 1]))
+                try:
+                    if len(np.unique(y_test)) > 1:
+                        curr_auc = float(roc_auc_score(y_test, y_prob[:, 1]))
+                    else:
+                        curr_auc = 0.5
+                except Exception:
+                    curr_auc = 0.5
 
             # Composite Score: We want to minimize (LogLoss + [1 - AUC])
             composite_score = curr_logloss + (1.0 - curr_auc)

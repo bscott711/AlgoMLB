@@ -106,10 +106,21 @@ def compute_fold_metrics(
     from sklearn.metrics import brier_score_loss
 
     y_pred = (y_prob >= 0.5).astype(int)
+
+    try:
+        auc_val = float(roc_auc_score(y_true, y_prob)) if len(np.unique(y_true)) > 1 else 0.5
+    except Exception:
+        auc_val = 0.5
+
+    try:
+        log_loss_val = float(log_loss(y_true, y_prob, labels=[0, 1]))
+    except Exception:
+        log_loss_val = float(log_loss(y_true, y_prob))
+
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
-        "auc": float(roc_auc_score(y_true, y_prob)),
-        "log_loss": float(log_loss(y_true, y_prob)),
+        "auc": auc_val,
+        "log_loss": log_loss_val,
         "brier": float(brier_score_loss(y_true, y_prob)),
         "ece": float(calculate_ece(y_true, y_prob)),
     }

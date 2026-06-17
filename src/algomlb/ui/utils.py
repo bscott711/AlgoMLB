@@ -166,7 +166,7 @@ def get_uranium_prediction(context: mc_loader.MatchupContext) -> float:
     from pathlib import Path
     import pandas as pd
 
-    model_path = Path(".data/models/home_win_v1.0.joblib")
+    model_path = Path(".data/models/home_win_v1.1.joblib")
     if not model_path.exists():
         model_path = Path(".data/models/uranium_win_model.joblib")
 

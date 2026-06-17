@@ -246,26 +246,18 @@ def run_followup_cycle(dry_run: bool = False) -> None:
                 custom_text_twitter = None
 
                 if orig_bsky:
-                    try:
-                        from fadegoblin.generator import generate_followup_reply
-
-                        custom_text_bsky = generate_followup_reply(
-                            orig_bsky, outcome, final_pnl, final_odds
-                        )
-                    except Exception as e:
-                        print(f"⚠️ Error generating dynamic Bluesky reply: {e}")
+                    from fadegoblin.generator import generate_followup_reply
+                    custom_text_bsky = generate_followup_reply(
+                        orig_bsky, outcome, final_pnl, final_odds
+                    )
 
                 if orig_twitter:
-                    try:
-                        from fadegoblin.generator import generate_followup_reply
+                    from fadegoblin.generator import generate_followup_reply
+                    custom_text_twitter = generate_followup_reply(
+                        orig_twitter, outcome, final_pnl, final_odds
+                    )
 
-                        custom_text_twitter = generate_followup_reply(
-                            orig_twitter, outcome, final_pnl, final_odds
-                        )
-                    except Exception as e:
-                        print(f"⚠️ Error generating dynamic Twitter reply: {e}")
-
-                # Fallback to random static replies if dynamic generation failed or original text wasn't found
+                # Use random static replies if original text wasn't found
                 if not custom_text_bsky:
                     custom_text_bsky = random.choice(
                         WIN_REPLIES if outcome == "WIN" else LOSS_REPLIES
