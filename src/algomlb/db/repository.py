@@ -309,11 +309,12 @@ class DatabaseRepository:
             chunk = rows[i : i + chunk_size]
             stmt = pg_insert(StatcastRawORM).values(chunk)
             stmt = stmt.on_conflict_do_update(
-                index_elements=["game_pk", "at_bat_number", "pitch_number"],
+                index_elements=["game_pk", "at_bat_number", "pitch_number", "game_date"],
                 set_={
                     c: stmt.excluded[c]
                     for c in chunk[0].keys()
-                    if c not in ["game_pk", "at_bat_number", "pitch_number"]
+                    if c
+                    not in ["game_pk", "at_bat_number", "pitch_number", "game_date"]
                 },
             )
             self.session.execute(stmt)

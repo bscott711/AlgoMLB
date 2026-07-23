@@ -699,12 +699,19 @@ class StatcastRawORM(Base):
     """Raw Statcast pitch-level ingestion buffer (Source of Truth)."""
 
     __tablename__ = "statcast_raw"
-    __table_args__ = {"extend_existing": True}
+    __table_args__ = {
+        "extend_existing": True,
+        "postgresql_partition_by": "RANGE (game_date)",
+    }
     game_pk: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     game_type: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
     at_bat_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
     pitch_number: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
-    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    # game_date is part of the primary key because it's the partition key --
+    # Postgres requires the partition key in every unique constraint.
+    game_date: Mapped[datetime.date] = mapped_column(
+        Date, primary_key=True, nullable=False, index=True
+    )
     home_team: Mapped[str] = mapped_column(String(3), nullable=False)
     away_team: Mapped[str] = mapped_column(String(3), nullable=False)
     inning: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
@@ -891,12 +898,15 @@ class StatcastQuantFeatures(Base):
     )
     baseline_window_days: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     __table_args__ = (
+        # game_date is included because statcast_raw's primary key now
+        # includes it (required for partitioning by game_date).
         ForeignKeyConstraint(
-            ["game_pk", "at_bat_number", "pitch_number"],
+            ["game_pk", "at_bat_number", "pitch_number", "game_date"],
             [
                 "statcast_raw.game_pk",
                 "statcast_raw.at_bat_number",
                 "statcast_raw.pitch_number",
+                "statcast_raw.game_date",
             ],
             ondelete="CASCADE",
         ),

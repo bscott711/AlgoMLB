@@ -5,7 +5,7 @@
     "reset_at": "2026-06-01T00:00:00+00:00"
   },
   "c3829d0cb44bd36fa0e3090427dbd729": {
-    "status": "exhausted",
+    "status": "active",
     "exhausted_at": "2026-06-11T01:06:44.363086+00:00",
     "reset_at": "2026-07-01T00:00:00+00:00"
   }
