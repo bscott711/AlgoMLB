@@ -24,7 +24,7 @@
     "value": "u%3D1784408876458070016",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1813147436.580528,
+    "expires": 1813939586.570308,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -54,7 +54,7 @@
     "value": "v1%3A177882102137835061",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1816171436.455364,
+    "expires": 1816963585.653362,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -64,7 +64,7 @@
     "value": "v1%3A177882102137835061",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1816171436.455596,
+    "expires": 1816963585.653495,
     "httpOnly": false,
     "secure": true,
     "sameSite": "None"
@@ -84,7 +84,7 @@
     "value": "be7c734d281345b4af40db7fc39798c1",
     "domain": ".x.com",
     "path": "/",
-    "expires": 1816171435,
+    "expires": 1816950775,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -104,7 +104,7 @@
     "value": "be7c734d281345b4af40db7fc39798c1",
     "domain": "x.com",
     "path": "/",
-    "expires": 1816171435,
+    "expires": 1816950775,
     "httpOnly": false,
     "secure": false,
     "sameSite": "Lax"
@@ -250,16 +250,6 @@
     "path": "/",
     "expires": 1784203439.229583,
     "httpOnly": true,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "mfuid",
-    "value": "eb5badbafe6832f351d8f901e81d8eda",
-    "domain": ".mobilefuse.com",
-    "path": "/",
-    "expires": 1781971222.512671,
-    "httpOnly": false,
     "secure": true,
     "sameSite": "None"
   },
@@ -528,16 +518,6 @@
     "sameSite": "None"
   },
   {
-    "name": "data-g",
-    "value": "CAESEH4d_sAQ217yWLUAKu7sejI~~3",
-    "domain": ".media.net",
-    "path": "/",
-    "expires": 1782352950.934408,
-    "httpOnly": false,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
     "name": "suid",
     "value": "FF3EC0B463A04DCEB80AD92758B64E41",
     "domain": ".simpli.fi",
@@ -698,38 +678,6 @@
     "sameSite": "None"
   },
   {
-    "name": "IDE",
-    "value": "AHWqTUl1y_n36dgKHO32quHNjPvUa-mBGhnRQxdSxjKBl0dbKZ92zp3htGHgVKXLAjw",
-    "domain": ".doubleclick.net",
-    "path": "/",
-    "expires": 1816099223.225302,
-    "httpOnly": true,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
-    "name": "cf_clearance",
-    "value": "m_5Wlb4RY1fkUmL4NwVUnKYoyS1qlDBkh25Telp76Ok-1781611427-1.2.1.1-EhmBbGY_jIVrdrJxN_ISB2XcK8symCrR1N5qdyl8jgaSY65ZWM0.GF7ATpUbDEtfz7gSTN3U3OPcPagMeijCfDPkPmukdGMHMbpBdydDTnzW27nYqITYKjyiE1qULzMUkIaAGTZsN41RiH9wcb17Oo6ZnwtnnhznyK9E93VIY59KYGD4fkWtcMA65.2w7eY7cJ7di95xYSHTHDpDFfbnxKq4tw9nBiGRaoX9KfjYLvPdrP7jMQ8xp4sJ.AjqpydvDrMG8dP0Ji9S27VwRy0J12SDCyKG3pI0iics_qWRxPcN1N9aI4fL9PH9MKtkdxA0cYBwmhYS.xA8WvArZg5HqQ",
-    "domain": ".x.com",
-    "path": "/",
-    "expires": 1813147427.715248,
-    "httpOnly": true,
-    "secure": true,
-    "sameSite": "None",
-    "partitionKey": "https://x.com",
-    "_crHasCrossSiteAncestor": false
-  },
-  {
-    "name": "__cf_bm",
-    "value": "NoKGFRbtDXnKODPmciKOltQlkYN_pewboct3G240G2k-1781611427.706176-1.0.1.1-TrrYw76wBquH0OhyCwVhnb5RJJuxtmSjAnx5lcjRyfjaJ1pUXeyOiruCo2.CxbCk5aPjzHU2h.RycU1V0EPFvfYRYqPreWZCcwrlr0vKhxEzgQXvuRuShsO5O8beUZI6",
-    "domain": ".x.com",
-    "path": "/",
-    "expires": 1781613227.71541,
-    "httpOnly": true,
-    "secure": true,
-    "sameSite": "None"
-  },
-  {
     "name": "__gads",
     "value": "ID=84bc8ae544896442:T=1780502425:RT=1781611437:S=ALNI_MZxwgti-3YLCF0FaW3K5PPll-evdw",
     "domain": ".x.com",
@@ -866,6 +814,88 @@
     "path": "/",
     "expires": 1813147439.34633,
     "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "cf_clearance",
+    "value": "O6k9ve1eVll4h3Kbplo555.iNLwL1Fa57fqTaB.s39Y-1781799006-1.2.1.1-_ddupu6j8TiMXrJUzfOjJFA8Fi5y2VsdqNKdf3DXUl1H1BRC3b0MjTqQgawZ7.qYj5UxQNm1ndAqx6D1h5WJEGym2y0axwI2ONqa4Nkm.8G2wdyjPmFPIhmEe3aG_Vz5OnqV_2tbga71hRm5a7gIlDW4y9QLSrsRwVYM5kEsqlVQlO1_7mw.A7i4sUCO8arVaAxUlDVttzYTuPFgFK118zgdSqawZDekIBNtpcvz1saOIehj8vWbP7_oH6PuamA8YG6WyjynRpO6.cmqwHCSVoflTQiF0KMvB2oc5ucuGM7GJfeHI1qIME2EE96TT_efHYgkHdgHj3a92s4HP2npcA",
+    "domain": ".x.com",
+    "path": "/",
+    "expires": 1813335006.217276,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None",
+    "partitionKey": "https://x.com",
+    "_crHasCrossSiteAncestor": false
+  },
+  {
+    "name": "IDE",
+    "value": "AHWqTUlzgNeaQyD3jeEURR3zFSSCfdWdd9nFtJv87IGyYUKzKl5yIlBH_hU2PXaq6Gs",
+    "domain": ".doubleclick.net",
+    "path": "/",
+    "expires": 1816950776.128668,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "guest_id_marketing",
+    "value": "v1%3A178239077617882344",
+    "domain": ".twitter.com",
+    "path": "/",
+    "expires": 1816950776.19616,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "guest_id_ads",
+    "value": "v1%3A178239077617882344",
+    "domain": ".twitter.com",
+    "path": "/",
+    "expires": 1816950776.196254,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "personalization_id",
+    "value": "\"v1_ZOOjCP3R/plgTde7iIoeyA==\"",
+    "domain": ".twitter.com",
+    "path": "/",
+    "expires": 1816950776.196279,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "guest_id",
+    "value": "v1%3A178239077617882344",
+    "domain": ".twitter.com",
+    "path": "/",
+    "expires": 1816950776.196304,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "__cf_bm",
+    "value": "SpBtiNR2N0yP0m1MzgfEXwT6VvQj902DaZGu8T6zo0o-1782403584.465189-1.0.1.1-rUxFY8Be1ODERuTcOc_uc6G7sG_JRo..04O8wVMJRZ35V7aF82h2Nk5vpCNpmXpD04DmiwZtkVq8nhzRF_qyaGs.mmujmGu8ilQNj3cDUX2B4Jnu2oIEacF54sXBE9BT",
+    "domain": ".x.com",
+    "path": "/",
+    "expires": 1782405384.473237,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "__cf_bm",
+    "value": "L1rkQt3fZeUn0yr_S4oG9eZFfdzFGtscKue5ZSmcmys-1782403585.7564118-1.0.1.1-KwxFuBvZNKowni8VOKL_mOcBS65q9byKztvEhsbkao3S.CQd30au6szPH0cNjS7B1jqZNtEvInlVbFQwDkgWN.wOMti3QeHHUrG0qzbEywQtQhIECK59h_HRUlaixS8e",
+    "domain": ".twitter.com",
+    "path": "/",
+    "expires": 1782405385.791484,
+    "httpOnly": true,
     "secure": true,
     "sameSite": "None"
   }
