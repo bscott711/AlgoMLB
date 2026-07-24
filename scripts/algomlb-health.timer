@@ -1,0 +1,17 @@
+[Unit]
+Description=Timer for AlgoMLB Pipeline Health Check
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# Checks 4x/day. The underlying sync_daily heartbeat check has a 30h
+# staleness threshold (the job itself runs once/day), so this cadence exists
+# to surface a failure with reasonable latency and keep it visible in
+# `systemctl --user list-units --failed` / the journal, not to poll faster
+# than the thing it's checking actually changes.
+OnCalendar=*-*-* 06,12,18,00:15:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

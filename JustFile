@@ -354,6 +354,48 @@ uninstall-scheduler:
 	systemctl --user daemon-reload
 	@echo "✅ Scheduler uninstalled."
 
+# Install the intraday odds-snapshot scheduler (closing-line capture for CLV)
+install-odds-snapshot-scheduler:
+	@echo "⚙️ Installing AlgoMLB Odds Snapshot Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/algomlb-odds-snapshot.service ~/.config/systemd/user/
+	cp scripts/algomlb-odds-snapshot.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable algomlb-odds-snapshot.timer
+	systemctl --user start algomlb-odds-snapshot.timer
+	@echo "✅ Odds snapshot scheduler installed and started!"
+
+# Uninstall the intraday odds-snapshot scheduler
+uninstall-odds-snapshot-scheduler:
+	@echo "🛑 Uninstalling AlgoMLB Odds Snapshot Scheduler..."
+	systemctl --user stop algomlb-odds-snapshot.timer || true
+	systemctl --user disable algomlb-odds-snapshot.timer || true
+	rm -f ~/.config/systemd/user/algomlb-odds-snapshot.service
+	rm -f ~/.config/systemd/user/algomlb-odds-snapshot.timer
+	systemctl --user daemon-reload
+	@echo "✅ Odds snapshot scheduler uninstalled."
+
+# Install the pipeline health-check scheduler (freshness + heartbeat alerting)
+install-health-scheduler:
+	@echo "⚙️ Installing AlgoMLB Health Check Scheduler..."
+	mkdir -p ~/.config/systemd/user
+	cp scripts/algomlb-health.service ~/.config/systemd/user/
+	cp scripts/algomlb-health.timer ~/.config/systemd/user/
+	systemctl --user daemon-reload
+	systemctl --user enable algomlb-health.timer
+	systemctl --user start algomlb-health.timer
+	@echo "✅ Health check scheduler installed! A failed run shows up in 'systemctl --user list-units --failed'."
+
+# Uninstall the pipeline health-check scheduler
+uninstall-health-scheduler:
+	@echo "🛑 Uninstalling AlgoMLB Health Check Scheduler..."
+	systemctl --user stop algomlb-health.timer || true
+	systemctl --user disable algomlb-health.timer || true
+	rm -f ~/.config/systemd/user/algomlb-health.service
+	rm -f ~/.config/systemd/user/algomlb-health.timer
+	systemctl --user daemon-reload
+	@echo "✅ Health check scheduler uninstalled."
+
 # Check the status of the daily sync scheduler
 check-scheduler:
 	@echo "📡 Checking AlgoMLB Scheduler Status..."

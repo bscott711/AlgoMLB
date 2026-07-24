@@ -6,6 +6,7 @@ import algomlb.db.models as models
 
 importlib.reload(models)
 from algomlb.db.session import get_engine
+from algomlb.ml.clv import summarize_clv
 
 st.set_page_config(page_title="Market Analytics", layout="wide")
 
@@ -16,45 +17,27 @@ engine = get_engine()
 
 # --- 1. Alpha & CLV Tracking ---
 st.markdown("### 🔬 Model Alpha & Closing Line Value (CLV)")
+st.caption(
+    "Closing line = de-vigged consensus across all books with a live_odds "
+    "snapshot at/before first pitch (see `algomlb ml clv`). Not a single "
+    "sharp-book close — see clv_results for the underlying picks."
+)
 
 query = """
-    WITH latest_predictions AS (
-        SELECT DISTINCT ON (game_id) 
-            game_id, 
-            home_win_prob, 
-            market_home_implied_at_prediction as entry_implied,
-            timestamp as pred_time
-        FROM model_predictions
-        ORDER BY game_id, timestamp DESC
-    ),
-    closing_odds AS (
-        SELECT DISTINCT ON (co.game_result_id, co.outcome)
-            co.game_result_id as game_id,
-            co.outcome,
-            co.price as closing_price
-        FROM live_odds co
-        JOIN game_results gr ON co.game_result_id = gr.game_id
-        WHERE co.market_type = 'h2h' 
-          AND co.timestamp <= gr.game_datetime
-        ORDER BY co.game_result_id, co.outcome, co.timestamp DESC
-    ),
-    game_meta AS (
-        SELECT game_id, home_team, away_team, game_date, status
-        FROM game_results
-    )
-    SELECT 
-        gm.game_date,
-        gm.away_team || ' @ ' || gm.home_team as matchup,
-        lp.home_win_prob as model_prob,
-        lp.entry_implied,
-        (1.0 / co.closing_price) as closing_implied,
-        ((1.0 / co.closing_price) - lp.entry_implied) as market_move,
-        (lp.home_win_prob - (1.0 / co.closing_price)) as closing_edge,
-        gm.status
-    FROM latest_predictions lp
-    JOIN game_meta gm ON lp.game_id = gm.game_id
-    LEFT JOIN closing_odds co ON lp.game_id = co.game_id AND co.outcome = gm.home_team
-    ORDER BY gm.game_date DESC, lp.pred_time DESC
+    SELECT
+        cr.game_date,
+        gr.away_team || ' @ ' || gr.home_team AS matchup,
+        cr.model_prob,
+        cr.entry_implied,
+        cr.closing_implied,
+        (cr.closing_implied - cr.entry_implied) AS market_move,
+        cr.closing_edge,
+        cr.num_books_at_close,
+        cr.clv,
+        gr.status
+    FROM clv_results cr
+    JOIN game_results gr ON cr.game_id = gr.game_id
+    ORDER BY cr.game_date DESC, cr.closing_snapshot_at DESC
 """
 
 df_alpha = pd.read_sql(query, engine)
@@ -73,26 +56,32 @@ if not df_alpha.empty:
                 "closing_implied": "{:.1%}",
                 "market_move": "{:+.1%}",
                 "closing_edge": "{:+.1%}",
+                "clv": "{:+.2%}",
             }
-        ).map(color_clv, subset=["market_move"]),
+        ).map(color_clv, subset=["clv"]),
         use_container_width=True,
     )
 
-    # Calculate CLV Metrics
-    df_alpha["clv"] = df_alpha.apply(
-        lambda r: r["market_move"] if r["model_prob"] > r["entry_implied"] else -r["market_move"], 
-        axis=1
-    )
-    clv_beat_rate = (df_alpha["clv"] > 0).mean()
-    avg_clv = df_alpha["clv"].mean()
-    mae_vs_close = (df_alpha["model_prob"] - df_alpha["closing_implied"]).abs().mean()
+    summary = summarize_clv()
 
     st.markdown("---")
     st.markdown("### 📊 CLV & Calibration Metrics")
     m1, m2, m3 = st.columns(3)
-    m1.metric("CLV Beat Rate", f"{clv_beat_rate:.1%}", help="% of games where the market moved toward our model's edge.")
-    m2.metric("Average CLV", f"{avg_clv:+.2%}", help="Average probability points gained by beating the closing line.")
-    m3.metric("MAE vs Close", f"{mae_vs_close:.3f}", help="Mean Absolute Error between our model and the closing line.")
+    m1.metric(
+        "CLV Beat Rate",
+        f"{summary['clv_beat_rate']:.1%}" if summary["n"] else "—",
+        help="% of games where the closing line moved toward our model's entry-time side.",
+    )
+    m2.metric(
+        "Average CLV",
+        f"{summary['avg_clv']:+.2%}" if summary["n"] else "—",
+        help="Average probability points gained by beating the closing line.",
+    )
+    m3.metric(
+        "Avg Closing Edge",
+        f"{summary['avg_closing_edge']:+.2%}" if summary["n"] else "—",
+        help="Average (model probability − closing implied probability) across all picks.",
+    )
 
     # 3. Calibration Plot
     st.markdown("---")
@@ -102,7 +91,7 @@ if not df_alpha.empty:
         df_alpha,
         x="closing_implied",
         y="model_prob",
-        color="market_move",
+        color="clv",
         hover_name="matchup",
         trendline="ols",
         title="Uranium Projections vs. Market Closing Probabilities",
@@ -118,6 +107,7 @@ if not df_alpha.empty:
 
 else:
     st.info(
-        "No model prediction history found yet. Run a sync or view the Simulation Lab to archive predictions."
+        "No CLV results yet. Run `algomlb ml clv --start-date ... --end-date ...` "
+        "(or wait for the daily sync's clv stage) once games have closing odds."
     )
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=AlgoMLB Intraday Odds Snapshot (for closing-line CLV)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/opc/AlgoMLB
+ExecStart=/usr/bin/bash -c "export PATH=$PATH:$HOME/.cargo/bin:$HOME/.local/bin && uv run algomlb ingest odds"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

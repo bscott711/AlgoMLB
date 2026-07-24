@@ -581,6 +581,42 @@ def elo_backfill(
     backfill_team_elo_history(engine=engine)
 
 
+@app.command(name="clv")
+def clv(
+    ctx: typer.Context,
+    start_date: str = typer.Option(
+        ..., "--start-date", help="Start date (YYYY-MM-DD) of the window to compute CLV for."
+    ),
+    end_date: str = typer.Option(
+        ..., "--end-date", help="End date (YYYY-MM-DD) of the window to compute CLV for."
+    ),
+) -> None:
+    """Compute and store Closing Line Value for predictions in a date range, then report it."""
+    from algomlb.ml.clv import compute_clv_for_range, summarize_clv
+
+    start = datetime.date.fromisoformat(start_date)
+    end = datetime.date.fromisoformat(end_date)
+
+    n = compute_clv_for_range(start, end)
+    summary = summarize_clv(start, end)
+
+    logger.info(f"CLV computed for {n} picks in {start}..{end}.")
+    if summary["n"] == 0:
+        logger.warning("No CLV results stored for this window.")
+    else:
+        logger.success(
+            f"CLV Summary ({summary['n']} picks): "
+            f"beat_rate={summary['clv_beat_rate']:.1%}, "
+            f"avg_clv={summary['avg_clv']:+.2%}, "
+            f"avg_closing_edge={summary['avg_closing_edge']:+.2%}"
+        )
+
+    if ctx.obj and ctx.obj.get("agent_mode", False):
+        emit_agent_result(
+            AgentResult(status="success", command="ml.clv", data=summary)
+        )
+
+
 @app.command(name="fetch-history")
 def fetch_history(
     ctx: typer.Context,

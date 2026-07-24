@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import cast
 from sqlalchemy import Engine, text
 
@@ -28,6 +28,128 @@ class FKEdge:
     from_col: str
     to_table: str
     to_col: str
+
+
+@dataclass(frozen=True)
+class FreshnessCheck:
+    name: str
+    latest: date | datetime | None
+    max_age_days: float
+    age_days: float | None
+    ok: bool
+    detail: str
+
+
+# (table label, SQL for its most-recent date, allowed staleness in days)
+_FRESHNESS_TABLE_CHECKS: list[tuple[str, str, float]] = [
+    (
+        "game_results (played)",
+        "SELECT MAX(game_date) FROM game_results WHERE home_score IS NOT NULL",
+        2,
+    ),
+    ("live_odds", "SELECT MAX(timestamp)::date FROM live_odds", 2),
+    ("statcast_raw", "SELECT MAX(game_date) FROM statcast_raw", 3),
+    ("player_rolling_features (gold)", "SELECT MAX(game_date) FROM player_rolling_features", 3),
+    ("model_predictions", "SELECT MAX(game_date) FROM model_predictions", 2),
+    ("clv_results", "SELECT MAX(game_date) FROM clv_results", 5),
+]
+
+# Daily job with ~24h cadence; 30h gives slack for RandomizedDelaySec/retries
+# without masking a genuinely stuck pipeline.
+_HEARTBEAT_MAX_AGE_HOURS = 30.0
+
+
+def check_freshness(engine: Engine) -> list[FreshnessCheck]:
+    """
+    Check whether key tables have advanced recently enough, AND whether the
+    daily sync job itself is still actually running.
+
+    These are deliberately two different failure modes: a per-table date
+    check alone cannot detect "the job never ran" (nothing to be stale, no
+    rows touched at all) — that is exactly how the 2026-06-30 incident went
+    undetected for three weeks while its systemd timer kept firing. The
+    pipeline_heartbeat check catches that; the per-table checks catch a job
+    that runs but silently stops making progress on one data source.
+    """
+    results: list[FreshnessCheck] = []
+    today = datetime.now(timezone.utc).date()
+
+    with engine.connect() as conn:
+        for name, sql, max_age_days in _FRESHNESS_TABLE_CHECKS:
+            try:
+                latest = conn.execute(text(sql)).scalar()
+            except Exception as e:
+                results.append(
+                    FreshnessCheck(name, None, max_age_days, None, False, f"query failed: {e}")
+                )
+                continue
+
+            if latest is None:
+                results.append(
+                    FreshnessCheck(name, None, max_age_days, None, False, "no data")
+                )
+                continue
+
+            latest_date = latest if isinstance(latest, date) else latest.date()
+            age_days = (today - latest_date).days
+            ok = age_days <= max_age_days
+            results.append(
+                FreshnessCheck(
+                    name,
+                    latest_date,
+                    max_age_days,
+                    float(age_days),
+                    ok,
+                    f"{age_days}d old (max {max_age_days}d)",
+                )
+            )
+
+        try:
+            hb = conn.execute(
+                text(
+                    "SELECT last_run_at, last_status, details FROM pipeline_heartbeat "
+                    "WHERE job_name = 'sync_daily'"
+                )
+            ).fetchone()
+        except Exception as e:
+            hb = None
+            hb_error = str(e)
+        else:
+            hb_error = None
+
+        if hb is None:
+            detail = f"query failed: {hb_error}" if hb_error else "never recorded"
+            results.append(
+                FreshnessCheck(
+                    "sync_daily heartbeat",
+                    None,
+                    _HEARTBEAT_MAX_AGE_HOURS / 24,
+                    None,
+                    False,
+                    detail,
+                )
+            )
+        else:
+            last_run_at, last_status, details = hb
+            age_hours = (
+                datetime.now(timezone.utc) - last_run_at
+            ).total_seconds() / 3600
+            ok = age_hours <= _HEARTBEAT_MAX_AGE_HOURS and last_status == "OK"
+            detail = f"{age_hours:.1f}h since last run, status={last_status}"
+            if details:
+                detail += f" ({details})"
+            results.append(
+                FreshnessCheck(
+                    "sync_daily heartbeat",
+                    last_run_at,
+                    _HEARTBEAT_MAX_AGE_HOURS / 24,
+                    age_hours / 24,
+                    ok,
+                    detail,
+                )
+            )
+
+    return results
 
 
 class SchemaInspector:

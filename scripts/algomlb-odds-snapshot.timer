@@ -1,0 +1,23 @@
+[Unit]
+Description=Timer for AlgoMLB Intraday Odds Snapshots
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# The-Odds-API free tier has a monthly credit budget, so this deliberately
+# does NOT poll continuously. MLB line movement is mostly front-loaded on
+# starting-pitcher news (confirmed the evening/morning before), which the
+# existing ~01:00 UTC sync snapshot already captures — so this timer adds
+# just two extra snapshots per day, timed near the two main first-pitch
+# clusters (UTC), to catch late scratches/bullpen news/weather/steam moves
+# that the morning snapshot misses:
+#   22:45 UTC — day + prime evening ET games (~1:05pm-7:05pm ET first pitch)
+#   02:30 UTC — West Coast night games (~7:05pm PT first pitch)
+# ~2 extra API credits/day (~60/month) against a ~500/month free-tier budget.
+OnCalendar=*-*-* 22:45:00
+OnCalendar=*-*-* 02:30:00
+Persistent=false
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

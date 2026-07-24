@@ -1,0 +1,14 @@
+[Unit]
+Description=AlgoMLB Pipeline Health Check
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/opc/AlgoMLB
+Environment="PATH=/home/opc/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/opc/.local/bin/uv run algomlb db health
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

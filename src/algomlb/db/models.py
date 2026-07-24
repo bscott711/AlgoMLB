@@ -165,6 +165,36 @@ class ModelPredictionORM(Base):
     )
 
 
+class ClvResultORM(Base):
+    """
+    Per-pick Closing Line Value: model's de-vigged entry probability vs. a
+    de-vigged multi-book consensus taken from the latest live_odds snapshot
+    before first pitch. Computed once a game's closing odds are available.
+    """
+
+    __tablename__ = "clv_results"
+    __table_args__ = (
+        UniqueConstraint("game_id", "model_version", name="uq_clv_results_game_model"),
+        {"extend_existing": True},
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    game_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    game_date: Mapped[datetime.date] = mapped_column(Date, nullable=False, index=True)
+    model_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    model_prob: Mapped[float] = mapped_column(Float, nullable=False)
+    entry_implied: Mapped[float] = mapped_column(Float, nullable=False)
+    closing_implied: Mapped[float] = mapped_column(Float, nullable=False)
+    num_books_at_close: Mapped[int] = mapped_column(Integer, nullable=False)
+    closing_snapshot_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    clv: Mapped[float] = mapped_column(Float, nullable=False)
+    closing_edge: Mapped[float] = mapped_column(Float, nullable=False)
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
 class PitchEventORM(Base):
     """Statcast pitch-level data; one row per pitch."""
 
@@ -1002,6 +1032,30 @@ class StatcastProcessRegistry(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class PipelineHeartbeatORM(Base):
+    """
+    Records that a scheduled job actually ran, independent of whether any
+    individual stage inside it succeeded. A systemd timer firing is not
+    proof of progress — the 2026-06-30 incident had `sync daily` "running"
+    daily via its timer while never advancing any table, undetected for
+    weeks. This table is the trip wire: `algomlb db health` alerts if
+    last_run_at goes stale, which a per-table freshness check alone cannot
+    catch (a job that never starts touches no tables to check).
+    """
+
+    __tablename__ = "pipeline_heartbeat"
+    __table_args__ = {"extend_existing": True}
+    job_name: Mapped[str] = mapped_column(String(50), primary_key=True)
+    last_run_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    last_success_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    details: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
 
 
 class StatcastBattedBallORM(Base):

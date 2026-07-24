@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 import numpy as np
@@ -12,6 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import insert
 
 from algomlb.config.settings import get_settings
+from algomlb.core.logger import logger
 from algomlb.db.models import (
     StatcastPlayerGameLog,
     StatcastProcessRegistry,
@@ -19,7 +19,6 @@ from algomlb.db.models import (
 )
 from algomlb.db.session import get_engine
 
-logger = logging.getLogger(__name__)
 SETTINGS = get_settings()
 
 
@@ -371,6 +370,52 @@ def process_silver_incremental(batch_size: int = 50000):
         logger.info(
             f"Summarized {len(target_game_pks)} games into Silver. Resetting checkpoint to {max_ingested_in_batch}."
         )
+
+
+def ensure_silver_coverage(start_date: date, end_date: date) -> int:
+    """
+    Guarantee Silver-layer coverage for every date in [start_date, end_date],
+    independent of the ingested_at-ordered checkpoint in process_silver_incremental.
+
+    The checkpoint sweep processes strictly in ingested_at order, so a large
+    historical backfill (which stamps ingested_at=now() on millions of old rows)
+    can starve current games out of the Silver layer for a long time. This
+    function directly checks whether each date in the trailing sync window
+    already has Silver rows and, if not, summarizes it straight from
+    statcast_raw, bypassing the checkpoint entirely.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        covered_dates = {
+            row[0]
+            for row in conn.execute(
+                select(StatcastPlayerGameLog.game_date)
+                .where(StatcastPlayerGameLog.game_date >= start_date)
+                .where(StatcastPlayerGameLog.game_date <= end_date)
+                .distinct()
+            )
+        }
+
+    games_processed = 0
+    current = start_date
+    while current <= end_date:
+        if current not in covered_dates:
+            df = pd.read_sql(
+                select(StatcastRawORM).where(StatcastRawORM.game_date == current),
+                engine,
+            )
+            if not df.empty:
+                prior_stats = fetch_prior_year_stats(current.year - 1)
+                silver_df = summarize_to_silver(df, prior_stats)
+                if not silver_df.empty:
+                    _upsert_silver(silver_df)
+                    games_processed += silver_df["game_pk"].nunique()
+                    logger.info(
+                        f"[ensure_silver_coverage] Backfilled {current}: "
+                        f"{silver_df['game_pk'].nunique()} games."
+                    )
+        current += timedelta(days=1)
+    return games_processed
 
 
 def _upsert_silver(df: pd.DataFrame):
