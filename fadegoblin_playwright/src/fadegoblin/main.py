@@ -524,37 +524,20 @@ def _post_to_socials(
 
 
 def _post_error_to_bsky(error_msg: str, dry_run: bool) -> None:
-    """Posts a text-only error message to Bluesky."""
-    print("🚨 Attempting to post error state to Bluesky...")
-    
-    error_intros = [
-        "The matrix is glitching... 🤖💥",
-        "My bookie cut the power lines! 🔌✂️",
-        "The model is hallucinating ghosts! 👻📉",
-        "API is fried, I'm going back to the cave! 🦇🔥",
-        "System failure! The casino is fighting back! 🎰🚨",
-    ]
-    
-    intro = random.choice(error_intros)
-    
-    # Keep it under limits
-    error_text = f"🚨 SYSTEM ERROR 🚨\n\n{intro}\n\nDEBUG LOG:\n{error_msg}"
-    if len(error_text) > 280:
-        error_text = error_text[:277] + "..."
-        
-    if dry_run:
-        print("\n🚫 DRY RUN MODE ENABLED. SKIPPING ERROR UPLOAD.")
-        print(f"📝 Error Post:\n{error_text}")
-        return
-        
-    if config.BOT_HANDLE and config.APP_PASSWORD:
-        try:
-            client = Client()
-            client.login(config.BOT_HANDLE, config.APP_PASSWORD)
-            client.send_post(text=error_text)
-            print("✅ Successfully posted error to Bluesky!")
-        except Exception as e:
-            print(f"❌ Failed to post error to Bluesky: {e}")
+    """Logs a run failure locally instead of broadcasting it to the public account.
+
+    Internal debug/exception text used to get posted straight to the live
+    Bluesky feed (e.g. the raw MAX_EDGE_PCT RuntimeError text), which is
+    confusing for followers and leaks implementation details. Failures are
+    surfaced via stderr/journald (captured by the systemd unit) instead; the
+    bot simply skips posting for this run.
+    """
+    import sys
+
+    print(
+        f"🚨 Run failed, skipping Bluesky post. Reason: {error_msg}",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

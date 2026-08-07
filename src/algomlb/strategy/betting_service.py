@@ -1,10 +1,26 @@
 import uuid
 import datetime
+import statistics
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from algomlb.db.models import GameResultORM, LiveOddsORM, BankrollLedgerORM
 from algomlb.domain import TransactionStatus, GameStatus
 from algomlb.ml.monte_carlo.loader import MatchupLoader
 from algomlb.ui import utils as ui_utils
+
+# A sync run inserts one live_odds row per bookmaker within milliseconds of each
+# other, not at one shared timestamp -- so "the same batch" is a short trailing
+# window, not an exact match.
+_ODDS_BATCH_WINDOW = datetime.timedelta(seconds=30)
+
+# Max disagreement (in implied probability) tolerated across books in one batch,
+# and max plausible swing between one batch and the next. A real incident hit
+# both: every book on a game jumped from ~56% to ~22% implied within 3 hours
+# (all books moving together, so a same-batch spread check alone wouldn't have
+# caught it), then to <3% an hour later. That garbage price silently became a
+# 38% "edge" bet with no validation in place.
+_MAX_BOOK_SPREAD = 0.25
+_MAX_LINE_MOVE = 0.25
 
 
 class BettingService:
@@ -13,6 +29,87 @@ class BettingService:
     def __init__(self, session: Session):
         self.session = session
         self.loader = MatchupLoader(session)
+
+    def _implied_probs_in_batch(
+        self, game_id: str, outcome: str, batch_end: datetime.datetime
+    ) -> list[float]:
+        """Vig-included implied probabilities from every book quoting `outcome`
+        in the sync batch ending at `batch_end`."""
+        prices = [
+            p
+            for (p,) in self.session.query(LiveOddsORM.price)
+            .filter(LiveOddsORM.game_result_id == game_id)
+            .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+            .filter(LiveOddsORM.outcome == outcome)
+            .filter(LiveOddsORM.timestamp > batch_end - _ODDS_BATCH_WINDOW)
+            .filter(LiveOddsORM.timestamp <= batch_end)
+            .all()
+            if p and p > 1.0
+        ]
+        return [1.0 / p for p in prices]
+
+    def _get_market_quote(
+        self, game_id: str, outcome: str, cutoff: datetime.datetime
+    ) -> float | None:
+        """Median implied win probability for `outcome` as of the most recent
+        odds batch at/before `cutoff`, or None if the data looks unreliable.
+
+        Rejects (with a logged reason) whenever: fewer than 2 books are
+        quoting, the books in the latest batch disagree with each other by
+        more than `_MAX_BOOK_SPREAD`, or the consensus swung by more than
+        `_MAX_LINE_MOVE` versus the prior batch.
+        """
+        latest_ts = (
+            self.session.query(func.max(LiveOddsORM.timestamp))
+            .filter(LiveOddsORM.game_result_id == game_id)
+            .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+            .filter(LiveOddsORM.outcome == outcome)
+            .filter(LiveOddsORM.timestamp <= cutoff)
+            .scalar()
+        )
+        if latest_ts is None:
+            return None
+
+        latest_implieds = self._implied_probs_in_batch(game_id, outcome, latest_ts)
+        if len(latest_implieds) < 2:
+            print(
+                f"⚠️ Only {len(latest_implieds)} book(s) quoting {outcome} for "
+                f"game {game_id}; skipping (need consensus)."
+            )
+            return None
+
+        spread = max(latest_implieds) - min(latest_implieds)
+        if spread > _MAX_BOOK_SPREAD:
+            print(
+                f"⚠️ Books disagree on {outcome} for game {game_id} "
+                f"(spread {spread:.2f}); skipping."
+            )
+            return None
+
+        latest_median = statistics.median(latest_implieds)
+
+        prev_ts = (
+            self.session.query(func.max(LiveOddsORM.timestamp))
+            .filter(LiveOddsORM.game_result_id == game_id)
+            .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
+            .filter(LiveOddsORM.outcome == outcome)
+            .filter(LiveOddsORM.timestamp <= latest_ts - _ODDS_BATCH_WINDOW)
+            .scalar()
+        )
+        if prev_ts is not None:
+            prev_implieds = self._implied_probs_in_batch(game_id, outcome, prev_ts)
+            if len(prev_implieds) >= 2:
+                prev_median = statistics.median(prev_implieds)
+                move = abs(latest_median - prev_median)
+                if move > _MAX_LINE_MOVE:
+                    print(
+                        f"⚠️ {outcome} line for game {game_id} swung {move:.2f} "
+                        f"between batches ({prev_median:.2f} -> {latest_median:.2f}); "
+                        "looks like bad data, skipping."
+                    )
+                    return None
+
+        return latest_median
 
     def place_daily_bets(
         self, target_date: datetime.date, min_edge: float = 0.05, stake: float = 5.0
@@ -40,51 +137,33 @@ class BettingService:
                 if not ctx:
                     continue
 
-                model_prob, _ = ui_utils.get_uranium_prediction(ctx)
+                model_prob, used_fallback = ui_utils.get_uranium_prediction(ctx)
+                if used_fallback:
+                    print(
+                        f"⚠️ Game {game.game_id}: prediction fell back to Elo-only "
+                        "(no model file, or feature data >3 days stale). Skipping bet "
+                        "-- too low-fidelity to trade on."
+                    )
+                    continue
 
                 # Market Odds (Strictly Pre-Game for CLV, Vig Removed)
-                home_odds_row = (
-                    self.session.query(LiveOddsORM)
-                    .filter(LiveOddsORM.game_result_id == str(game.game_id))
-                    .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
-                    .filter(LiveOddsORM.outcome == game.home_team)
-                    .filter(LiveOddsORM.timestamp <= game.game_datetime)
-                    .order_by(LiveOddsORM.timestamp.desc())
-                    .first()
+                game_id = str(game.game_id)
+                h_implied_raw = self._get_market_quote(
+                    game_id, game.home_team, game.game_datetime
                 )
-                
-                away_odds_row = (
-                    self.session.query(LiveOddsORM)
-                    .filter(LiveOddsORM.game_result_id == str(game.game_id))
-                    .filter(LiveOddsORM.market_type.in_(["moneyline", "h2h"]))
-                    .filter(LiveOddsORM.outcome == game.away_team)
-                    .filter(LiveOddsORM.timestamp <= game.game_datetime)
-                    .order_by(LiveOddsORM.timestamp.desc())
-                    .first()
+                a_implied_raw = self._get_market_quote(
+                    game_id, game.away_team, game.game_datetime
                 )
 
-                market_odds = home_odds_row or away_odds_row
-
-                if home_odds_row and away_odds_row:
-                    h_raw = 1.0 / home_odds_row.price if home_odds_row.price > 0 else 0.5
-                    a_raw = 1.0 / away_odds_row.price if away_odds_row.price > 0 else 0.5
-                    total_implied = h_raw + a_raw
-                    
-                    if total_implied > 0:
-                        h_implied = h_raw / total_implied
-                    else:
-                        h_implied = 0.5
-                        
-                    implied_prob = h_raw
-                elif market_odds:
-                    implied_prob = (
-                        1.0 / market_odds.price if market_odds.price > 0 else 0.5
+                if h_implied_raw is not None and a_implied_raw is not None:
+                    total_implied = h_implied_raw + a_implied_raw
+                    h_implied = (
+                        h_implied_raw / total_implied if total_implied > 0 else 0.5
                     )
-
-                    if market_odds.outcome == game.home_team:
-                        h_implied = implied_prob
-                    else:
-                        h_implied = 1.0 - implied_prob
+                elif h_implied_raw is not None:
+                    h_implied = h_implied_raw
+                elif a_implied_raw is not None:
+                    h_implied = 1.0 - a_implied_raw
                 else:
                     h_implied = None
 
@@ -95,7 +174,7 @@ class BettingService:
                     from algomlb.db.models import ModelPredictionORM
 
                     archive = ModelPredictionORM(
-                        game_id=str(game.game_id),
+                        game_id=game_id,
                         game_date=target_date,
                         model_version="uranium_v1.0",
                         home_win_prob=model_prob,
@@ -108,13 +187,16 @@ class BettingService:
                     # Determine Selection
                     if abs(edge) >= min_edge:
                         selection = game.home_team if edge > 0 else game.away_team
-                        
-                        if edge > 0 and home_odds_row:
-                            final_odds = home_odds_row.price
-                        elif edge <= 0 and away_odds_row:
-                            final_odds = away_odds_row.price
+                        selection_implied_raw = (
+                            h_implied_raw if edge > 0 else a_implied_raw
+                        )
+
+                        if selection_implied_raw:
+                            final_odds = 1.0 / selection_implied_raw
                         else:
-                            final_odds = 1.0 / (1.0 - implied_prob) if implied_prob < 1 else 0
+                            final_odds = (
+                                1.0 / (1.0 - h_implied) if h_implied < 1 else 0
+                            )
 
                         bet = BankrollLedgerORM(
                             transaction_id=str(uuid.uuid4()),
@@ -125,7 +207,7 @@ class BettingService:
                             edge=abs(edge),
                             status=TransactionStatus.PENDING,
                             pnl=None,
-                            game_id=str(game.game_id),
+                            game_id=game_id,
                         )
                         self.session.add(bet)
                         placed_count += 1
@@ -136,7 +218,14 @@ class BettingService:
         return placed_count
 
     def settle_bets(self):
-        """Check results for PENDING and PLACED bets and calculate P&L."""
+        """Check results for PENDING and PLACED bets and calculate P&L.
+
+        Also voids bets on games that will never produce a result under this
+        game_id: POSTPONED/CANCELLED games left unresolved well past their
+        original start time (MLB reschedules these as a new game_id, so the
+        original bet has nothing left to settle against). Left unhandled,
+        these sit as PENDING forever and skew recap/P&L stats.
+        """
         pending_bets = (
             self.session.query(BankrollLedgerORM)
             .filter(
@@ -148,29 +237,47 @@ class BettingService:
         )
 
         settled_count = 0
+        now = datetime.datetime.now(datetime.UTC)
         for bet in pending_bets:
             game = (
                 self.session.query(GameResultORM)
                 .filter(GameResultORM.game_id == bet.game_id)
                 .first()
             )
-            if not game or game.status != GameStatus.COMPLETED:
+            if not game:
                 continue
 
-            # Determine winner
-            winner = None
-            if game.home_score > game.away_score:
-                winner = game.home_team
-            elif game.away_score > game.home_score:
-                winner = game.away_team
+            # A completed game sometimes lands its final score before the
+            # status column gets flipped to COMPLETED -- treat a present
+            # score as authoritative either way.
+            has_final_score = (
+                game.home_score is not None and game.away_score is not None
+            )
+            if game.status == GameStatus.COMPLETED or has_final_score:
+                # Determine winner
+                winner = None
+                if game.home_score > game.away_score:
+                    winner = game.home_team
+                elif game.away_score > game.home_score:
+                    winner = game.away_team
 
-            if winner:
-                if bet.selection == winner:
-                    bet.pnl = bet.stake * (bet.odds - 1)
-                else:
-                    bet.pnl = -bet.stake
+                if winner:
+                    if bet.selection == winner:
+                        bet.pnl = bet.stake * (bet.odds - 1)
+                    else:
+                        bet.pnl = -bet.stake
 
-                bet.status = TransactionStatus.SETTLED
+                    bet.status = TransactionStatus.SETTLED
+                    settled_count += 1
+                continue
+
+            if (
+                game.status in (GameStatus.POSTPONED, GameStatus.CANCELLED)
+                and game.game_datetime
+                and (now - game.game_datetime) > datetime.timedelta(days=2)
+            ):
+                bet.pnl = 0.0
+                bet.status = TransactionStatus.CANCELLED
                 settled_count += 1
 
         self.session.commit()
