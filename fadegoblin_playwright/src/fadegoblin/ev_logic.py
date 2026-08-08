@@ -142,7 +142,7 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
 
         is_home = row["outcome"] == row["home_team"]
 
-        if row["home_win_prob"] is not None:
+        if pd.notna(row["home_win_prob"]):
             model_prob = (
                 float(row["home_win_prob"])
                 if is_home
@@ -155,7 +155,7 @@ def get_sniper_bets() -> tuple[list[dict], list[str]]:
         implied_pct = round(closing_prob * 100, 1)  # market implied probability %
 
         open_prob = None
-        if row["opening_implied"] is not None:
+        if pd.notna(row["opening_implied"]):
             open_prob = (
                 float(row["opening_implied"])
                 if is_home
@@ -248,7 +248,7 @@ def get_preview_potd() -> dict | None:
     is_home = row["outcome"] == row["home_team"]
     pick_name = home if is_home else away
 
-    if row["home_win_prob"] is not None:
+    if pd.notna(row["home_win_prob"]):
         model_prob = (
             float(row["home_win_prob"])
             if is_home
@@ -279,12 +279,21 @@ def get_preview_potd() -> dict | None:
 def get_recap_stats(target_date_str: str | None = None) -> dict:
     """Returns W/L/Push record and net PnL for yesterday's PLACED bets.
 
-    Determines wins/losses by comparing the selection against game_results
-    scores, since pnl may not be settled yet. If target_date_str is None,
-    defaults to yesterday in ET.
+    Determines wins/losses from game_results scores, but ONLY once MLB has
+    actually called the game final. The schedule API reports score=0/0 for a
+    game that hasn't started yet (or is mid-inning and genuinely tied) just
+    as readily as for a real final -- trusting "both scores present" alone
+    used to misread an unresolved game as a 0-0 push. Falls back to `pnl`
+    (set by settle_bets, which applies the same COMPLETED-only rule) when a
+    bet's already been graded through that path. Anything still unresolved
+    comes back as result="?" and its game_id in `pending_game_ids`, instead
+    of being guessed at.
+
+    If target_date_str is None, defaults to yesterday in ET.
 
     Returns a dict with keys:
-        date, wins, losses, pushes, total, net_pnl (or None), picks (list of dicts)
+        date, wins, losses, pushes, total, net_pnl (or None), picks (list of
+        dicts), pending_game_ids (list of str)
     """
     from datetime import date, timedelta, datetime
     from zoneinfo import ZoneInfo
@@ -302,8 +311,9 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
 
     query = text("""
         SELECT
-            b.selection, b.odds as dec_odds, b.edge as ev, b.pnl, b.stake,
-            g.home_team, g.away_team, g.home_score, g.away_score, g.game_datetime
+            b.game_id, b.selection, b.odds as dec_odds, b.edge as ev, b.pnl, b.stake,
+            g.home_team, g.away_team, g.home_score, g.away_score, g.game_datetime,
+            g.status as game_status
         FROM bankroll_ledger b
         JOIN game_results g ON b.game_id = g.game_id
         WHERE b.status IN ('PLACED', 'SETTLED')
@@ -323,21 +333,29 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
             "total": 0,
             "net_pnl": None,
             "picks": [],
+            "pending_game_ids": [],
         }
 
     wins = losses = pushes = 0
     net_pnl = 0.0
     has_pnl = False
     picks = []
+    pending_game_ids = []
 
     for _, row in df.iterrows():
         home_score = row["home_score"]
         away_score = row["away_score"]
         selection = row["selection"]
+        is_final = row["game_status"] == "COMPLETED"
+        # pd.read_sql surfaces a SQL NULL in a numeric column as float NaN,
+        # not None -- `x is not None` silently passes for an unresolved row,
+        # so every None/null check on a DB-sourced numeric column below uses
+        # pd.notna() instead.
+        has_scores = pd.notna(home_score) and pd.notna(away_score)
+        has_pnl_value = pd.notna(row["pnl"])
 
-        # Determine result from scores if available
         result = "?"
-        if home_score is not None and away_score is not None:
+        if is_final and has_scores:
             winning_team = (
                 row["home_team"] if home_score > away_score else row["away_team"]
             )
@@ -350,8 +368,9 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
             else:
                 result = "LOSS"
                 losses += 1
-        elif row["pnl"] is not None:
-            # Fall back to pnl if scores not available
+        elif has_pnl_value:
+            # Already graded by settle_bets -- trust it even if game_status
+            # hasn't caught up to COMPLETED for some reason.
             if float(row["pnl"]) > 0:
                 result = "WIN"
                 wins += 1
@@ -361,8 +380,10 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
             else:
                 result = "LOSS"
                 losses += 1
+        else:
+            pending_game_ids.append(str(row["game_id"]))
 
-        if row["pnl"] is not None:
+        if has_pnl_value:
             net_pnl += float(row["pnl"])
             has_pnl = True
 
@@ -388,7 +409,192 @@ def get_recap_stats(target_date_str: str | None = None) -> dict:
         "total": len(df),
         "net_pnl": round(net_pnl, 2) if has_pnl else None,
         "picks": picks,
+        "pending_game_ids": pending_game_ids,
     }
+
+
+def refresh_pending_games(game_ids: list[str]) -> dict:
+    """Actively checks the live MLB Stats API for specific games: settles any
+    that have gone Final immediately, and reports live state (current inning,
+    top/bottom, delayed/postponed) for whatever's still going.
+
+    The nightly algomlb-sync job only ingests scores once a day, so a game
+    that's still being played (or just finished) when recap runs would
+    otherwise sit unresolved for up to ~24h. This does a narrow, targeted
+    refresh -- just these game_ids -- instead of waiting on the next full
+    sync. The per-game state is what lets the caller wait an amount of time
+    proportional to how much of the game is actually left, rather than
+    polling on a fixed timer regardless of whether it's the 1st or the 9th.
+
+    Returns {"resolved": [game_id, ...], "pending": {game_id: {...}}}.
+    """
+    result: dict = {"resolved": [], "pending": {}}
+    if not game_ids or not config.DATABASE_URL:
+        return result
+
+    import requests
+
+    try:
+        resp = requests.get(
+            "https://statsapi.mlb.com/api/v1/schedule",
+            params={
+                "sportId": 1,
+                "gamePk": ",".join(game_ids),
+                "hydrate": "linescore",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        print(f"⚠️ Failed to refresh pending games from MLB Stats API: {e}")
+        return result
+
+    wanted = set(game_ids)
+    engine = create_engine(config.DATABASE_URL)
+
+    with engine.begin() as conn:
+        for date_entry in data.get("dates", []):
+            for game in date_entry.get("games", []):
+                game_id = str(game.get("gamePk", ""))
+                if game_id not in wanted:
+                    continue
+
+                detailed_state = game.get("status", {}).get("detailedState", "")
+                lowered = detailed_state.lower()
+                is_final = (
+                    "final" in lowered
+                    or "completed" in lowered
+                    or "game over" in lowered
+                )
+
+                teams = game.get("teams", {})
+                home_score = teams.get("home", {}).get("score")
+                away_score = teams.get("away", {}).get("score")
+
+                if not is_final or home_score is None or away_score is None:
+                    linescore = game.get("linescore", {}) or {}
+                    result["pending"][game_id] = {
+                        "detailed_state": detailed_state or "Unknown",
+                        # POSTPONED/CANCELLED will never produce a result
+                        # under this game_id -- no point waiting on it.
+                        "abandoned": "postponed" in lowered or "cancelled" in lowered,
+                        "inning": linescore.get("currentInning"),
+                        "inning_state": linescore.get("inningState"),
+                    }
+                    continue
+
+                conn.execute(
+                    text("""
+                        UPDATE game_results
+                        SET status = 'COMPLETED', home_score = :hs, away_score = :as_
+                        WHERE game_id = :gid
+                    """),
+                    {"hs": home_score, "as_": away_score, "gid": game_id},
+                )
+
+                game_row = conn.execute(
+                    text(
+                        "SELECT home_team, away_team FROM game_results WHERE game_id = :gid"
+                    ),
+                    {"gid": game_id},
+                ).first()
+                if not game_row:
+                    continue
+
+                winner = None
+                if home_score > away_score:
+                    winner = game_row.home_team
+                elif away_score > home_score:
+                    winner = game_row.away_team
+
+                bets = conn.execute(
+                    text("""
+                        SELECT transaction_id, selection, odds, stake
+                        FROM bankroll_ledger
+                        WHERE game_id = :gid AND status IN ('PENDING', 'PLACED')
+                    """),
+                    {"gid": game_id},
+                ).fetchall()
+
+                for bet in bets:
+                    pnl = 0.0
+                    if winner:
+                        pnl = (
+                            bet.stake * (bet.odds - 1)
+                            if bet.selection == winner
+                            else -bet.stake
+                        )
+                    conn.execute(
+                        text("""
+                            UPDATE bankroll_ledger
+                            SET status = 'SETTLED', pnl = :pnl
+                            WHERE transaction_id = :tid
+                        """),
+                        {"pnl": pnl, "tid": bet.transaction_id},
+                    )
+
+                result["resolved"].append(game_id)
+
+    if result["resolved"]:
+        print(
+            f"✅ Refreshed {len(result['resolved'])} game(s) to Final via "
+            "targeted MLB Stats API check."
+        )
+    return result
+
+
+# Modern pace-of-play rules put a 9-inning game around 2h35-2h45 (~18
+# min/inning), but that's an average, not a floor -- pitching changes, replay
+# review, and extra-frills games run longer, so we pad it a bit rather than
+# risk checking back too early.
+_MINUTES_PER_INNING = 20
+_NOT_STARTED_WAIT_MINUTES = 30  # scheduled but hasn't thrown a pitch yet
+_DELAYED_WAIT_MINUTES = 35  # rain delay etc. -- duration is unknowable, so just poll periodically
+_MIN_WAIT_MINUTES = 10
+_MAX_WAIT_MINUTES = 45
+# A game going final isn't the same instant it's gradeable: MLB takes a few
+# minutes to post the official final, and even then our own check has to land
+# after that. Padding every estimate by this avoids polling right as the game
+# is wrapping up, before there's anything to actually grade yet.
+_GRADING_BUFFER_MINUTES = 15
+
+
+def estimate_wait_seconds(pending: dict) -> int:
+    """How long to wait before checking again, sized to the *slowest-to-finish*
+    pending game's actual progress.
+
+    We want a single, complete recap post -- not one that goes out as soon as
+    the fastest pick clears -- so the wait is driven by whichever pending game
+    has the most game left, not the least. A game in the 1st gets a much
+    longer gap between checks than one in the 9th. Returns 0 when there's
+    nothing worth waiting on (all pending games are postponed/cancelled).
+    """
+    waits = []
+    for state in pending.values():
+        if state.get("abandoned"):
+            continue
+
+        inning = state.get("inning")
+        detailed = (state.get("detailed_state") or "").lower()
+
+        if inning is None:
+            minutes = (
+                _DELAYED_WAIT_MINUTES if "delay" in detailed else _NOT_STARTED_WAIT_MINUTES
+            )
+        else:
+            remaining_innings = max(9 - inning, 0) + (
+                0.5 if state.get("inning_state") in ("Bottom", "End") else 1.0
+            )
+            minutes = remaining_innings * _MINUTES_PER_INNING
+
+        minutes += _GRADING_BUFFER_MINUTES
+        waits.append(max(_MIN_WAIT_MINUTES, min(_MAX_WAIT_MINUTES, minutes)))
+
+    if not waits:
+        return 0
+
+    return int(max(waits) * 60)
 
 
 def mark_bets_placed(pick_ids: list[str]) -> None:
@@ -429,7 +635,7 @@ def get_weekly_recap_stats() -> dict:
     query = text("""
         SELECT
             b.selection, b.pnl,
-            g.home_team, g.away_team, g.home_score, g.away_score
+            g.home_team, g.away_team, g.home_score, g.away_score, g.status as game_status
         FROM bankroll_ledger b
         JOIN game_results g ON b.game_id = g.game_id
         WHERE b.status IN ('PLACED', 'SETTLED')
@@ -461,8 +667,11 @@ def get_weekly_recap_stats() -> dict:
         home_score = row["home_score"]
         away_score = row["away_score"]
         selection = row["selection"]
+        is_final = row["game_status"] == "COMPLETED"
+        has_scores = pd.notna(home_score) and pd.notna(away_score)
+        has_pnl_value = pd.notna(row["pnl"])
 
-        if home_score is not None and away_score is not None:
+        if is_final and has_scores:
             winning_team = (
                 row["home_team"] if home_score > away_score else row["away_team"]
             )
@@ -472,7 +681,7 @@ def get_weekly_recap_stats() -> dict:
                 wins += 1
             else:
                 losses += 1
-        elif row["pnl"] is not None:
+        elif has_pnl_value:
             if float(row["pnl"]) > 0:
                 wins += 1
             elif float(row["pnl"]) == 0:
@@ -480,7 +689,7 @@ def get_weekly_recap_stats() -> dict:
             else:
                 losses += 1
 
-        if row["pnl"] is not None:
+        if has_pnl_value:
             net_pnl += float(row["pnl"])
             has_pnl = True
 

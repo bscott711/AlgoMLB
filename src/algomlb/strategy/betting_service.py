@@ -217,6 +217,14 @@ class BettingService:
         self.session.commit()
         return placed_count
 
+    # MLB's score endpoint reports 0-0 for a game that hasn't started (or is
+    # mid-inning) just as readily as for a real final, so "both scores
+    # present" is never on its own proof a game is over -- and never for a
+    # game still IN_PROGRESS. This narrow allowance exists only for the
+    # observed bug where status gets stuck on SCHEDULED despite a real final
+    # score: a long-stale SCHEDULED row with a decisive (non-tied) score.
+    _STALE_SCHEDULED_GRACE = datetime.timedelta(hours=6)
+
     def settle_bets(self):
         """Check results for PENDING and PLACED bets and calculate P&L.
 
@@ -247,14 +255,20 @@ class BettingService:
             if not game:
                 continue
 
-            # A completed game sometimes lands its final score before the
-            # status column gets flipped to COMPLETED -- treat a present
-            # score as authoritative either way.
-            has_final_score = (
-                game.home_score is not None and game.away_score is not None
-            )
-            if game.status == GameStatus.COMPLETED or has_final_score:
-                # Determine winner
+            is_completed = game.status == GameStatus.COMPLETED
+            if not is_completed and game.status == GameStatus.SCHEDULED:
+                stale = (
+                    game.game_datetime is not None
+                    and (now - game.game_datetime) > self._STALE_SCHEDULED_GRACE
+                )
+                decisive_score = (
+                    game.home_score is not None
+                    and game.away_score is not None
+                    and game.home_score != game.away_score
+                )
+                is_completed = stale and decisive_score
+
+            if is_completed:
                 winner = None
                 if game.home_score > game.away_score:
                     winner = game.home_team

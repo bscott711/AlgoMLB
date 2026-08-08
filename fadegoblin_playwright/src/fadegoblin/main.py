@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import random
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,8 @@ from fadegoblin.ev_logic import (
     get_recap_stats,
     get_preview_potd,
     mark_bets_placed,
+    refresh_pending_games,
+    estimate_wait_seconds,
 )
 from fadegoblin.generator import (
     generate_post_content,
@@ -317,6 +320,65 @@ def _run_preview(dry_run: bool) -> None:
         )
 
 
+_RECAP_MAX_WAIT_MINUTES = 360  # give up after ~6h total rather than hang forever
+
+
+def _wait_for_resolution(stats: dict, date_str: str | None) -> dict:
+    """Waits for unresolved games to actually finish instead of letting them
+    get counted as a push.
+
+    An unresolved pick isn't a failure -- the game just isn't over yet. The
+    goal is a single, complete recap post, so this waits for every pending
+    pick to be gradeable rather than posting as soon as some of them clear.
+    The nightly sync only ingests final scores once a day, so a game still
+    being played (or one that just wrapped up) when recap runs would
+    otherwise sit unresolved for up to ~24h. Each round actively re-checks
+    the live MLB Stats API for the still-pending games (see
+    refresh_pending_games) and waits an amount of time sized to how much of
+    the *slowest-to-finish* one is actually left, plus a buffer for MLB to
+    post the official final and for our own check to land after that -- a
+    game in the 1st gets a much longer gap between checks than one in the
+    9th, instead of polling on a fixed timer either way. Gives up after
+    _RECAP_MAX_WAIT_MINUTES so a stuck/postponed game can't hang the job
+    forever -- a rare last resort, not a normal outcome.
+    """
+    pending_ids = stats.get("pending_game_ids", [])
+    elapsed_minutes = 0.0
+
+    while pending_ids and elapsed_minutes < _RECAP_MAX_WAIT_MINUTES:
+        refresh = refresh_pending_games(pending_ids)
+        pending_state = refresh["pending"]
+
+        wait_seconds = estimate_wait_seconds(pending_state)
+        if wait_seconds <= 0:
+            break  # nothing left worth waiting on (resolved, or abandoned)
+
+        states = ", ".join(
+            f"{gid}={s['detailed_state']}"
+            + (f" (inning {s['inning']})" if s.get("inning") else "")
+            for gid, s in pending_state.items()
+        )
+        print(
+            f"⏳ Still unresolved: {states}. Waiting {wait_seconds // 60} min "
+            f"before rechecking (~{elapsed_minutes:.0f}/{_RECAP_MAX_WAIT_MINUTES} "
+            "min elapsed)..."
+        )
+        time.sleep(wait_seconds)
+        elapsed_minutes += wait_seconds / 60
+
+        stats = get_recap_stats(date_str)
+        pending_ids = stats.get("pending_game_ids", [])
+
+    if pending_ids:
+        print(
+            f"⚠️ {len(pending_ids)} pick(s) still unresolved after waiting "
+            f"~{elapsed_minutes:.0f} min; posting recap with those left out "
+            "of the record instead of guessing."
+        )
+
+    return stats
+
+
 def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
     """Recap Mode: pull yesterday's placed bets, score them, post a recap card."""
     print("📊 Mode: Recap. Pulling yesterday's results...")
@@ -327,6 +389,9 @@ def _run_recap(dry_run: bool, date_str: str | None = None) -> None:
             f"💤 No placed bets found for {stats.get('date', 'the target date')}. Skipping recap."
         )
         return
+
+    if stats.get("pending_game_ids"):
+        stats = _wait_for_resolution(stats, date_str)
 
     print(
         f"   Found {stats['total']} bets: {stats['wins']}W / {stats['losses']}L / {stats['pushes']}P"
