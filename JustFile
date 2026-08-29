@@ -129,10 +129,17 @@ optimize-runline:
 # Calculate the public IP address for the dashboard URL
 public-ip := `curl -s --connect-timeout 2 https://ifconfig.me || echo "unknown"`
 
+# Port the dashboard binds. The production systemd unit (algomlb-dashboard.service
+# on the algoepl box) serves Streamlit on 8504 behind Caddy at algomlb.duckdns.org;
+# this keeps `just dashboard` on the same port so it can stand in for the service.
+# Don't run both at once — the service now hits its systemd StartLimit and lands in
+# `failed` rather than looping. Override with DASHBOARD_PORT for a side-by-side copy.
+dashboard-port := env_var_or_default("DASHBOARD_PORT", "8504")
+
 # Launch the Streamlit dashboard in the foreground
 dashboard:
-	@echo "📊 Launching Baseball Bot Dashboard (Port 8502)..."
-	uv run streamlit run src/algomlb/ui/app.py --server.port 8502 --server.address 0.0.0.0 --server.headless true
+	@echo "📊 Launching Baseball Bot Dashboard (Port {{dashboard-port}})..."
+	uv run streamlit run src/algomlb/ui/app.py --server.port {{dashboard-port}} --server.address 0.0.0.0 --server.headless true
 
 # Alias for dashboard
 serve-dashboard: dashboard
@@ -144,12 +151,12 @@ dashboard-session:
 
 # Launch the Streamlit dashboard in the background
 serve-bg:
-	@echo "🚀 Launching Baseball Bot Dashboard in the background (Port 8502)..."
+	@echo "🚀 Launching Baseball Bot Dashboard in the background (Port {{dashboard-port}})..."
 	@mkdir -p logs
-	@nohup uv run streamlit run src/algomlb/ui/app.py --server.port 8502 --server.address 0.0.0.0 --server.headless true > logs/dashboard.log 2>&1 & echo $! > logs/dashboard.pid
+	@nohup uv run streamlit run src/algomlb/ui/app.py --server.port {{dashboard-port}} --server.address 0.0.0.0 --server.headless true > logs/dashboard.log 2>&1 & echo $! > logs/dashboard.pid
 	@echo "✅ Dashboard started! PID saved to logs/dashboard.pid."
-	@echo "🔗 Local URL:  http://localhost:8502"
-	@echo "🔗 Public URL: http://{{public-ip}}:8502"
+	@echo "🔗 Local URL:  http://localhost:{{dashboard-port}}"
+	@echo "🔗 Public URL: http://{{public-ip}}:{{dashboard-port}}"
 	@echo "📝 Use 'just tail-logs' to monitor startup."
 
 # Stop the background dashboard
